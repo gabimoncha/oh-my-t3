@@ -43,6 +43,7 @@ export interface Workflow {
   };
   design: {
     variants: number;
+    tool: "paper" | "html";
   };
   build: {
     review: "every-round" | "first-round" | "off";

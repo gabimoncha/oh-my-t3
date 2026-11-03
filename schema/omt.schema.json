@@ -329,6 +329,12 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 5
+            },
+            "tool": {
+              "enum": [
+                "paper",
+                "html"
+              ]
             }
           }
         },

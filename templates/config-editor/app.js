@@ -16,6 +16,7 @@ const KEY_DOCS = {
   "workflow.plan.review": "Who reviews a plan. two-families: one reviewer from the other model family. one: one reviewer from any family. owner: you review it.",
   "workflow.plan.testLayers": "The test layers that a plan proposes without an owner request: integration, e2e, unit.",
   "workflow.design.variants": "How many variants of each screen the design step draws (1 to 5).",
+  "workflow.design.tool": "paper: draw in Paper when its tools load, else HTML mockups. html: HTML mockups only.",
   "workflow.build.review": "every-round: review fixes again. first-round: review once. off: skip review unless an oracle is required.",
   "workflow.build.qa": "planned: write the approved tests. off: leave the test list empty. QA still runs checks and device flows.",
   "workflow.build.failureProofs": "Whether the main thread proves that each new test can fail.",
@@ -67,6 +68,7 @@ function summaryFor(path) {
     "workflow.plan.review": "Who reviews the plan.",
     "workflow.plan.testLayers": "Test layers named in the plan.",
     "workflow.design.variants": "Design variants per screen.",
+    "workflow.design.tool": "Paper or HTML mockups.",
     "workflow.build.review": "When to review the build and its fixes.",
     "workflow.build.qa": "Off leaves the test list empty. QA still runs checks.",
     "workflow.build.failureProofs": "Prove new tests fail without the change.",
@@ -2910,7 +2912,7 @@ function settingsScreen() {
     groups.get(group).push(path);
   }
   const descriptions = { "workflow.build": "Review, tests, and proof rules for Build.", "workflow.review": "Reviewers, oracle, and pull request checks.",
-    "workflow.plan": "Plan reviewer and test layers.", "workflow.design": "Design variants per screen.", "workflow.git": "Commits, pull requests, and merge.",
+    "workflow.plan": "Plan reviewer and test layers.", "workflow.design": "Design variants per screen and the design tool.", "workflow.git": "Commits, pull requests, and merge.",
     limits: "Caps on child tasks, depth, and review rounds.", roles: "Models and permissions for child tasks.", base: "Options for one model in every role that uses it." };
   return h("section", { class: "settings-page" },
     h("header", { class: "settings-toolbar" }, h("h1", { text: "Settings" })),

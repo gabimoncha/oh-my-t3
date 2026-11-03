@@ -137,3 +137,22 @@ test("config explain reports the accepted workflow value below a profile overrid
   assert.equal(review?.value, "every-round");
   assert.deepEqual(review?.overridden, [{ source: { kind: "defaults" }, value: "first-round" }]);
 });
+
+test("an accepted snapshot without a key that a later release added stays valid, and the review lists the key as new", async () => {
+  const root = tempDir("omt-accepted-defaults-");
+  const initial = fakeContext({ root });
+  gitRepo(initial.homedir, initial.cwd);
+  assert.equal(await install({ ...initial, argv: ["--project", "--yes"] }), 0);
+  const ctx = fakeContext({ root });
+  const path = defaultsSnapshotPath(ctx, "project");
+  const state = JSON.parse(readFileSync(path, "utf8"));
+  delete state.acceptedDefaults.config.profiles.normal.workflow.design.tool;
+  writeFileSync(path, `${JSON.stringify(state, null, 2)}\n`);
+
+  const loaded = await loadConfig(ctx);
+  assert.equal(loaded.config.profiles.normal?.workflow?.design?.tool, "paper");
+  const plan = await planDefaults(ctx, "project");
+  assert.deepEqual(plan.changes.filter((change) => change.path === "profiles.normal.workflow.design.tool").map((change) => [change.from, change.to]), [["none", '"paper"']]);
+  await doctor({ ...ctx, argv: ["--project", "--dry-run"] });
+  assert.match(ctx.out(), /profiles\.normal\.workflow\.design\.tool: none -> "paper"/);
+});

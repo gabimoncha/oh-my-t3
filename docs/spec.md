@@ -1025,7 +1025,7 @@ The runner sets no global configuration and no store or cache path, so the user'
 
 `applyDefaults` checks that the manifest and config still match the reviewed text. A difference fails with `defaults_changed` and writes nothing. It saves `{ version: 1, cliVersion, config }` as `acceptedDefaults` in the existing manifest, preserving the other properties. It removes only the retired `defaults` key from the scope's JSONC config, preserving comments and overrides. Writes use the existing symlink and project-path checks and atomic file helpers. The manifest and config are separate atomic writes.
 
-`activeDefaults` reads the project manifest, then the user manifest. The first accepted snapshot supplies the base config. Without a snapshot it uses `DEFAULT_CONFIG`. `parseDefaultsSnapshot` validates the saved config and rejects a saved `update` key, which only the user config can set and fails with `defaults_snapshot` when it is invalid. There is no archived set catalog, date selector, or `omt defaults` command.
+`activeDefaults` reads the project manifest, then the user manifest. The first accepted snapshot supplies the base config. A snapshot from an older release can lack a workflow key that a later release added, outside the `git` group. `withNewWorkflowKeys` gives each missing key its current default before the completeness check and in `activeDefaults`, so the snapshot stays valid. `planDefaults` compares the snapshot as saved, so the review lists such a key as `none -> <default>`. Without a snapshot it uses `DEFAULT_CONFIG`. `parseDefaultsSnapshot` validates the saved config and rejects a saved `update` key, which only the user config can set and fails with `defaults_snapshot` when it is invalid. There is no archived set catalog, date selector, or `omt defaults` command.
 
 Config targets. `src/config/target.ts` exports `configTarget`, `readConfigTarget`, and `writeConfigTarget` for detect and the config editor. `--project` selects the project config, `--user` selects the user config, and no flag selects the project file when present, else the user file. Both flags together are a usage error. An absent target fails with exit 1 and the hint `run omt init` or `run omt config init`. `writeConfigTarget` checks the file text after confirmation. A difference fails with `config_changed` and writes nothing. A writer outside omt can still change the file between that read and the atomic rename.
 
@@ -1426,6 +1426,7 @@ The following keys are under `profiles.<name>.workflow`. The table shows the res
 | `plan.review` | `two-families`, `one`, `owner` | `two-families` | `one` |
 | `plan.testLayers` | array of `integration`, `e2e`, `unit` | `["integration"]` | `["integration"]` |
 | `design.variants` | integer 1 to 5 | 3 | 1 |
+| `design.tool` | `paper`, `html` | `paper` | `paper` |
 | `build.review` | `every-round`, `first-round`, `off` | `every-round` | `first-round` |
 | `build.qa` | `planned`, `off` | `planned` | `planned` |
 | `build.failureProofs` | `on`, `off` | `on` | `off` |
@@ -1434,11 +1435,11 @@ The following keys are under `profiles.<name>.workflow`. The table shows the res
 | `review.families` | `one`, `both` | `one` | `one` |
 | `review.oracle` | `on`, `off` | `on` | `off` |
 | `review.fixLoop` | `offer`, `off` | `offer` | `offer` |
-| `review.ci` | `off`, `check`, `fix` | `fix` | `off` |
-| `review.verify` | `off`, `changed-flows` | `changed-flows` | `off` |
-| `review.tests` | `off`, `offer` | `offer` | `off` |
-| `review.guardrails` | `off`, `propose` | `propose` | `off` |
-| `review.crap` | `off`, `report` | `report` | `off` |
+| `review.ci` | `off`, `check`, `fix` | `off` | `off` |
+| `review.verify` | `off`, `changed-flows` | `off` | `off` |
+| `review.tests` | `off`, `offer` | `off` | `off` |
+| `review.guardrails` | `off`, `propose` | `off` | `off` |
+| `review.crap` | `off`, `report` | `off` | `off` |
 | `git.branchCommits` | `auto`, `ask` | `auto` | `auto` |
 | `git.pullRequests` | `auto`, `ask`, `off` | `auto` | `auto` |
 | `git.defaultBranch` | `ask`, `auto` | `ask` | `ask` |
@@ -1446,7 +1447,7 @@ The following keys are under `profiles.<name>.workflow`. The table shows the res
 | `git.owners` | array of GitHub owners that match `^[A-Za-z0-9][A-Za-z0-9-]{0,38}$` | `[]` | `[]` |
 | `git.maxPrFiles` | integer from 0 to 10000; 0 means no limit | `100` | `100` |
 
-`plan.review` sets the plan reviewer of `omt-plan`. `two-families` keeps its name but means 1 `plan-review` child on the family other than the main thread's. `one` means 1 `plan-review` child on any family. `owner` means the owner reviews the plan, with no child. Every value runs at most 2 review rounds. `design.variants` is the number of variants of each screen that `omt-design` draws, in the main thread on Claude Opus or in 1 `design` child otherwise.
+`plan.review` sets the plan reviewer of `omt-plan`. `two-families` keeps its name but means 1 `plan-review` child on the family other than the main thread's. `one` means 1 `plan-review` child on any family. `owner` means the owner reviews the plan, with no child. Every value runs at most 2 review rounds. `design.variants` is the number of variants of each screen that `omt-design` draws. The main thread draws when its model is the model of the first target of the `design` role (`omt route design`), and 1 `design` child draws otherwise. `design.tool` picks the drawing tool: `paper` draws in Paper when its MCP tools load, else in HTML mockups; `html` draws HTML mockups only. The `review` PR extras (`ci`, `verify`, `tests`, `guardrails`, `crap`) are `off` in both presets; a user or project config turns them on.
 
 The build keys `verify`, `checkpoint`, and `stallMinutes` are retired (section 6.2). A run has no per-unit verify cadence, no owner check-in per layer or unit, and no stall heartbeat: the main thread builds, then one review child and one QA child check the work.
 

@@ -78,7 +78,7 @@ test("custom profiles without extends inherit normal, and preset workflows are c
   assert.equal(prototype.workflow.build.oracle, "off");
   assert.deepEqual(normal.workflow.review, {
     reviewers: "auto", families: "one", oracle: "on", fixLoop: "offer",
-    ci: "fix", verify: "changed-flows", tests: "offer", guardrails: "propose", crap: "report",
+    ci: "off", verify: "off", tests: "off", guardrails: "off", crap: "off",
   });
   assert.deepEqual(prototype.workflow.review, {
     reviewers: 1, families: "one", oracle: "off", fixLoop: "offer",
@@ -163,7 +163,7 @@ test("effectiveConfig selects argument, plan, project, user, then default withou
   ] as const) {
     const result = effectiveConfig(loaded, options);
     assert.equal(result.profile.name, "normal");
-    assert.equal(result.profile.workflow.review.ci, "fix");
+    assert.equal(result.profile.workflow.review.ci, "off");
     assert.equal(result.config.profile, "normal");
     assert.deepEqual(result.issues, [...loaded.issues, retired(source)]);
   }
