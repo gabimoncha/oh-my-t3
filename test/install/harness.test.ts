@@ -15,7 +15,7 @@ function codexOnlyMachine() {
   const env: NodeJS.ProcessEnv = { ...childEnv(root), PWD: project, PATH: bin };
   const settings = join(env.T3CODE_HOME as string, "userdata", "settings.json");
   writeFile(settings, JSON.stringify({ providerInstances: { claudeAgent: { driver: "claudeAgent", enabled: false } } }));
-  const config = join(project, ".omt", "config.jsonc");
+  const config = join(project, ".omt3", "config.jsonc");
   const cli = (args: string[]) => spawnOmt(args, { root, cwd: project, env });
   return { bin, settings, config, cli };
 }

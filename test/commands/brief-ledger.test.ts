@@ -11,7 +11,7 @@ function parse(text: string): BriefJsonOutput {
 }
 
 function ledger(project: Project): LedgerEntry[] {
-  const text = readFileSync(join(project.cwd, ".omt", "ledger.jsonl"), "utf8");
+  const text = readFileSync(join(project.cwd, ".omt3", "ledger.jsonl"), "utf8");
   return text.split("\n").filter((line) => line !== "").map((line) => JSON.parse(line) as LedgerEntry);
 }
 
@@ -45,7 +45,7 @@ test("brief --save records a start; at the limit it exits 75 and writes nothing;
   assert.equal(blocked.ctx.out(), "");
   assert.match(blocked.ctx.err(), /limit: 1 of 1 children are active; run this command again after one ends/);
   assert.equal(ledger(project).length, 1);
-  assert.deepEqual(readdirSync(join(project.cwd, ".omt", "evidence", "briefs")), ["omt:p:E1:explore:r1:a1.md"]);
+  assert.deepEqual(readdirSync(join(project.cwd, ".omt3", "evidence", "briefs")), ["omt:p:E1:explore:r1:a1.md"]);
 
   const resent = parse((await project.runOk(brief("E1"))).ctx.out());
   assert.deepEqual(resent, first);
@@ -172,9 +172,9 @@ test("a closed request id cannot start new work; the next attempt can", async ()
 
 test("the ledger lock clears an old lock of a dead process, waits for a live one, and never removes another owner's lock", async () => {
   const project = makeProject();
-  const lock = join(project.cwd, ".omt", "locks", "ledger.lock");
+  const lock = join(project.cwd, ".omt3", "locks", "ledger.lock");
   const old = new Date(Date.now() - 60_000);
-  mkdirSync(join(project.cwd, ".omt", "locks"), { recursive: true });
+  mkdirSync(join(project.cwd, ".omt3", "locks"), { recursive: true });
   writeFileSync(lock, "999999999 dead-token\n");
   utimesSync(lock, old, old);
   await project.runOk(brief("E1"));

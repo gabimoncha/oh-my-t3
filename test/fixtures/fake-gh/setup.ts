@@ -29,7 +29,7 @@ export function fakeHost(options: { files?: Record<string, string>; origin?: boo
   const root = tempDir("omt-git-host-");
   const cwd = join(root, "project");
   const git = gitRepo(root, cwd, options.files ?? {});
-  writeFile(join(cwd, ".git", "info", "exclude"), ".omt/\n");
+  writeFile(join(cwd, ".git", "info", "exclude"), ".omt3/\n");
   const bin = join(root, "bin");
   const state = join(root, "fake");
   mkdirSync(bin, { recursive: true });
@@ -53,7 +53,7 @@ export function fakeHost(options: { files?: Record<string, string>; origin?: boo
     cwd,
     git,
     omt: (args, at = cwd) => spawnOmt(args, { root, cwd: at, env }),
-    config: (value) => writeFile(join(cwd, ".omt", "config.jsonc"), JSON.stringify(value)),
+    config: (value) => writeFile(join(cwd, ".omt3", "config.jsonc"), JSON.stringify(value)),
     prs: (branch, value) => writeFileSync(join(state, `prs-${branch.replaceAll("/", "_")}.json`), JSON.stringify(value)),
     flag: (name, text = "") => writeFileSync(join(state, name), text),
     ghLog: () => lines(join(state, "gh.log")),

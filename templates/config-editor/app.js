@@ -2601,7 +2601,7 @@ function renderHeader() {
       h("span", { text: "Edit file" }), h("code", { text: DEFAULTS_FILE }), h("small", { class: "accent", text: "maintainer" }),
       h("button", { class: "help-button", type: "button", text: "i", "aria-label": "Maintainer mode help", onclick: () => { app.history = app.history === "files" ? null : "files"; render(); } })) : h("div", { class: "header-control file-picker" }, h("span", { text: "Edit file" }),
       seg(["project", "user"].map((kind) => ({ value: kind, label: `${kind === "project" ? "Project" : "User"}${absent(kind) ? " · absent" : ""}`,
-        detail: kind === "project" && usable(kind) ? ".omt/config.jsonc" : undefined,
+        detail: kind === "project" && usable(kind) ? ".omt3/config.jsonc" : undefined,
         disabled: !usable(kind), title: absent(kind) ? `Optional file. Create it with ${kind === "user" ? "omt config init" : "omt init"}.\n${file(kind).path}` : file(kind).path })), app.editIn,
       (kind) => { switchEditIn(kind); refreshDrafts(); render(); }, { label: "Edit file", disabled: app.stopped, fk: "editin" }),
       h("button", { class: "help-button", type: "button", text: "i", "aria-label": "Config file help", onclick: () => { app.history = app.history === "files" ? null : "files"; render(); } })),

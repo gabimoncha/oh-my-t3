@@ -75,7 +75,7 @@ test("brief --json adds clientRequestId only with both --plan and --unit", async
 
 test("brief --json accepts a plan id without a plan file and keeps it in the request id and header", async () => {
   const project = makeProject();
-  const plan = join(project.cwd, ".omt", "plans", "review-x.md");
+  const plan = join(project.cwd, ".omt3", "plans", "review-x.md");
   assert.equal(existsSync(plan), false);
   const { code, ctx } = await project.run(["brief", "review", "--task", "t", "--plan", "review-x", "--unit", "G1", "--json"]);
   assert.equal(code, 0, ctx.err());
@@ -178,7 +178,7 @@ test("brief --max-depth overrides the config max depth, and a deeper --depth is 
 test("brief adds the evidence line for edit roles only", async () => {
   const project = makeProject();
   const edit = await project.runOk(["brief", "execute", "--task", "x"]);
-  const line = `- Evidence: save command output and logs under ${join(project.cwd, ".omt", "evidence")}/.`;
+  const line = `- Evidence: save command output and logs under ${join(project.cwd, ".omt3", "evidence")}/.`;
   assert.ok(edit.ctx.out().split("\n").includes(line), edit.ctx.out());
   const readOnly = await project.runOk(["brief", "explore", "--task", "x"]);
   assert.doesNotMatch(readOnly.ctx.out(), /Evidence:/);
@@ -230,12 +230,12 @@ test("brief --against auto without --plan is a usage error", async () => {
   assert.match(ctx.err(), /--against auto needs --plan <slug>/);
 });
 
-test("plan, ledger, and brief warn when no .omt or .git is above the current folder", async () => {
+test("plan, ledger, and brief warn when no .omt3 or .git is above the current folder", async () => {
   const project = makeProject();
   const outside = join(project.root, "outside");
   mkdirSync(outside, { recursive: true });
   const warned = await project.runOk(["brief", "execute", "--task", "x"], { cwd: outside });
-  assert.match(warned.ctx.err(), /^warning: no \.omt or \.git found above .*; omt uses it as the project root\./m);
+  assert.match(warned.ctx.err(), /^warning: no \.omt3, \.omt, or \.git found above .*; omt uses it as the project root\./m);
   const inside = await project.run(["brief", "execute", "--task", "x"]);
-  assert.doesNotMatch(inside.ctx.err(), /no \.omt or \.git found/);
+  assert.doesNotMatch(inside.ctx.err(), /no \.omt3 or \.git found/);
 });

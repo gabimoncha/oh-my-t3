@@ -8,8 +8,8 @@ import { spawnOmt, tempDir, writeFile } from "../helpers.ts";
 test("config explain reports default, user, project, and profile sources in text and JSON", () => {
   const root = tempDir("omt-config-explain-");
   const project = join(root, "project");
-  const userPath = join(root, "home", ".config", "oh-my-t3code", "config.jsonc");
-  const projectPath = join(project, ".omt", "config.jsonc");
+  const userPath = join(root, "home", ".config", "oh-my-t3", "config.jsonc");
+  const projectPath = join(project, ".omt3", "config.jsonc");
   mkdirSync(join(project, ".git"), { recursive: true });
   writeFile(userPath, JSON.stringify({
     version: 1,

@@ -16,7 +16,7 @@ function setup() {
   const configDir = join(root, "cfg");
   const env = { OMT_CONFIG_DIR: configDir };
   const userPath = join(configDir, "config.jsonc");
-  const projectPath = join(project, ".omt", "config.jsonc");
+  const projectPath = join(project, ".omt3", "config.jsonc");
   const load = () => loadConfig({ cwd, env, homedir: home });
   return { userPath, projectPath, write: writeFile, load };
 }

@@ -16,18 +16,18 @@ function worktreeProject() {
   return { root, project, worktree, run, runOk: ok };
 }
 
-const WARNING = /^warning: .*[/\\]wt[/\\]\.omt holds plans or a ledger that omt no longer reads; move them to .*[/\\]project[/\\]\.omt$/;
+const WARNING = /^warning: .*[/\\]wt[/\\]\.omt3 holds plans or a ledger that omt no longer reads; move them to .*[/\\]project[/\\]\.omt3$/;
 
-test("init, plan new, and ledger add from a worktree write under the main checkout's .omt", async () => {
+test("init, plan new, and ledger add from a worktree write under the main checkout's .omt3", async () => {
   const p = worktreeProject();
   for (const argv of [["init"], ["plan", "new", "w1"], ["ledger", "add", "--plan", "w1", "--role", "explore", "--status", "completed"]]) {
     const { ctx } = await p.runOk(argv);
     assert.doesNotMatch(ctx.err(), /warning/, `${argv.join(" ")} prints no warning`);
   }
-  assert.ok(existsSync(join(p.project, ".omt", "config.jsonc")));
-  assert.ok(existsSync(join(p.project, ".omt", "plans", "w1.md")));
-  assert.match(readFileSync(join(p.project, ".omt", "ledger.jsonl"), "utf8"), /"plan":"w1"/);
-  assert.ok(!existsSync(join(p.worktree, ".omt")), "the worktree gets no .omt");
+  assert.ok(existsSync(join(p.project, ".omt3", "config.jsonc")));
+  assert.ok(existsSync(join(p.project, ".omt3", "plans", "w1.md")));
+  assert.match(readFileSync(join(p.project, ".omt3", "ledger.jsonl"), "utf8"), /"plan":"w1"/);
+  assert.ok(!existsSync(join(p.worktree, ".omt3")), "the worktree gets no .omt3");
 
   await p.runOk(["plan", "status", "w1"], p.project);
 });
@@ -35,13 +35,13 @@ test("init, plan new, and ledger add from a worktree write under the main checko
 test("omt paths prints the main checkout's paths from a worktree", async () => {
   const p = worktreeProject();
   const evidence = await p.runOk(["paths", "--evidence"]);
-  assert.equal(evidence.ctx.out(), `${join(p.project, ".omt", "evidence")}\n`);
+  assert.equal(evidence.ctx.out(), `${join(p.project, ".omt3", "evidence")}\n`);
 
   const root = await p.run(["paths", "--root"]);
   assert.equal(realpathSync(root.ctx.out().trim()), realpathSync(p.project));
 
   const json = await p.runOk(["paths", "--json"]);
-  const omt = join(p.project, ".omt");
+  const omt = join(p.project, ".omt3");
   assert.deepEqual(JSON.parse(json.ctx.out()), {
     root: p.project,
     omt,
@@ -56,7 +56,7 @@ test("omt paths prints the main checkout's paths from a worktree", async () => {
 
 test("omt paths prints text lines, JSON, or one path per flag", async () => {
   const p = worktreeProject();
-  const omt = join(p.project, ".omt");
+  const omt = join(p.project, ".omt3");
   const expected: Record<string, string> = {
     root: p.project,
     omt,
@@ -78,29 +78,29 @@ test("omt paths prints text lines, JSON, or one path per flag", async () => {
   assert.equal((await p.run(["paths", "extra"])).code, 2);
 });
 
-test("a worktree .omt with plans gives one shadowed-state warning and a hint; other state gives none", async () => {
+test("a worktree .omt3 with plans gives one shadowed-state warning and a hint; other state gives none", async () => {
   const p = worktreeProject();
-  mkdirSync(join(p.worktree, ".omt", "plans"), { recursive: true });
-  writeFileSync(join(p.worktree, ".omt", "config.jsonc"), "{}\n");
-  mkdirSync(join(p.worktree, ".omt", "plans", "dir.md"));
+  mkdirSync(join(p.worktree, ".omt3", "plans"), { recursive: true });
+  writeFileSync(join(p.worktree, ".omt3", "config.jsonc"), "{}\n");
+  mkdirSync(join(p.worktree, ".omt3", "plans", "dir.md"));
   for (const argv of [["plan", "list"], ["ledger", "list"]]) {
     const quiet = await p.runOk(argv);
     assert.equal(quiet.ctx.err(), "", `${argv.join(" ")}: no plans or ledger in the worktree`);
   }
-  writeFileSync(join(p.worktree, ".omt", "plans", "x.md"), "# x\n");
+  writeFileSync(join(p.worktree, ".omt3", "plans", "x.md"), "# x\n");
   const warned = await p.runOk(["plan", "list"]);
   const lines = warned.ctx.err().trimEnd().split("\n");
   assert.equal(lines.length, 2, warned.ctx.err());
   assert.match(lines[0] ?? "", WARNING);
   assert.equal(
     lines[1],
-    'hint: if git tracks them, untrack them with "git rm --cached" and commit; .omt/.gitignore keeps plans out of git',
+    'hint: if git tracks them, untrack them with "git rm --cached" and commit; .omt3/.gitignore keeps plans out of git',
   );
   assert.equal((await p.run(["paths"])).ctx.err(), "", "paths does not warn");
   assert.equal((await p.run(["plan", "list"], p.project)).ctx.err(), "", "no warning from the main checkout");
 });
 
-test("init from a worktree of a bare repository at <repo>/.git writes the worktree's .omt", async () => {
+test("init from a worktree of a bare repository at <repo>/.git writes the worktree's .omt3", async () => {
   const root = tempDir("omt-wt-");
   const seed = join(root, "seed");
   const git = gitRepo(root, seed);
@@ -110,6 +110,6 @@ test("init from a worktree of a bare repository at <repo>/.git writes the worktr
   const worktree = join(root, "wt");
   git(["worktree", "add", "-q", worktree, "main"], join(repo, ".git"));
   await runOk(["init"], { root, cwd: worktree });
-  assert.ok(existsSync(join(worktree, ".omt", "config.jsonc")));
-  assert.ok(!existsSync(join(repo, ".omt")), "the bare repository gets no .omt");
+  assert.ok(existsSync(join(worktree, ".omt3", "config.jsonc")));
+  assert.ok(!existsSync(join(repo, ".omt3")), "the bare repository gets no .omt3");
 });

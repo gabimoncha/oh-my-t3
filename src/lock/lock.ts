@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { constants as fsConstants, realpathSync } from "node:fs";
-import { access, readdir, stat } from "node:fs/promises";
+import { access, open, readdir, stat } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import { constants as osConstants } from "node:os";
 import { delimiter, join, relative, resolve } from "node:path";
@@ -174,6 +174,30 @@ export async function runLocked(ctx: CliContext, name: string, seconds: number, 
   } finally {
     await file.close();
   }
+}
+
+// The lock files in dir that a process holds now. Without flock or lockf no process can hold one, so none count.
+export async function heldLocks(ctx: CliContext, dir: string): Promise<string[]> {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (error) {
+    if (errorCode(error) === "ENOENT" || errorCode(error) === "ENOTDIR") return [];
+    throw error;
+  }
+  const tool = await findLockTool(ctx);
+  if (tool === undefined) return [];
+  const held: string[] = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith(".lock")) continue;
+    const file = await open(join(dir, entry.name), "r");
+    try {
+      if (!(await takeLock(ctx, tool, file, 0))) held.push(join(dir, entry.name));
+    } finally {
+      await file.close();
+    }
+  }
+  return held;
 }
 
 export async function listLocks(ctx: CliContext): Promise<number> {

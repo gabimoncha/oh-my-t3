@@ -9,7 +9,7 @@ Both runs are from before default set `2026-12` and the [workflow fold](design/w
 | [`code-health`](#run-1-code-health) | 4 | 29 | 2 hours 20 minutes on 2026-10-16 | Commit `58a85b0`: 353 fewer lines, no change in behavior |
 | [`workflow-profiles`](#run-2-workflow-profiles) | 10 | 128 | 5 days of work from 2026-10-09 to 2026-10-17 | Commits `3a44354`, `6ccb731`, `b2092fc`, `a9ca54a` |
 
-The plan files and the ledger are in `.omt/`, which git ignores. So the excerpts below are trimmed copies. To see the same data for your own runs, use these commands:
+The plan files and the ledger are in `.omt3/`, which git ignores. So the excerpts below are trimmed copies. To see the same data for your own runs, use these commands:
 
 ```sh
 omt plan status <slug>
@@ -112,7 +112,7 @@ The counts at the end of the run:
 
 ```text
 $ omt plan status code-health
-plan: code-health (.omt/plans/code-health.md)
+plan: code-health (.omt3/plans/code-health.md)
 profile: normal
 units: 4/4 done, 0 blocked, 0 open
 done-when: 5/5
@@ -167,7 +167,7 @@ The plan began with a budget of 60 tasks. Before the run, the owner raised it to
 
 ```text
 $ omt plan status workflow-profiles
-plan: workflow-profiles (.omt/plans/workflow-profiles.md)
+plan: workflow-profiles (.omt3/plans/workflow-profiles.md)
 profile: normal
 units: 10/10 done, 0 blocked, 0 open
 done-when: 10/10

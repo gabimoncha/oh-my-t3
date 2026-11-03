@@ -89,9 +89,9 @@ On a machine with Bun 1.4.4 or later and no Node, the bare `omt` command fails w
 
 When `node` is not on `PATH`, `bunx` runs the package with Bun. To run it with Bun also when an old Node is on `PATH`, add `--bun`, such as `bunx --bun omt`. `bun pm bin -g` prints the directory of the global Bun commands.
 
-An install that runs through Bun records Bun in the shim, so `.omt/bin/omt` works with no Node. A one-shot shim runs `bunx omt3@<version>`, which also works with no Node.
+An install that runs through Bun records Bun in the shim, so `.omt3/bin/omt` works with no Node. A one-shot shim runs `bunx omt3@<version>`, which also works with no Node.
 
-The global install through Bun works too: `bun "$(bun pm bin -g)/omt" install`. But the skills look for `omt` on `PATH` before `.omt/bin/omt`, and with no Node, that `omt` fails. This happens when the directory that `bun pm bin -g` prints is on `PATH`. On a machine with only Bun, use the release binary, a Bun dev dependency, or a one-shot run.
+The global install through Bun works too: `bun "$(bun pm bin -g)/omt" install`. But the skills look for `omt` on `PATH` before `.omt3/bin/omt`, and with no Node, that `omt` fails. This happens when the directory that `bun pm bin -g` prints is on `PATH`. On a machine with only Bun, use the release binary, a Bun dev dependency, or a one-shot run.
 
 ## Install into one project
 
@@ -141,16 +141,16 @@ The install writes these paths in the project root:
 | --- | --- |
 | `.agents/skills/<skill>` | A copy of each skill. Codex, Cursor, OpenCode, Pi, and Antigravity read this directory. |
 | `.claude/skills/<skill>` | A relative symlink to the copy, for Claude Code. |
-| `.omt/config.jsonc`, `.omt/plans/` | The project config and the plans directory, as `omt init` creates them. The config gets a `"harnesses"` key when a harness is missing. |
-| `.omt/bin/omt` | The shim: a shell script that runs the CLI that made the install. The next section lists its forms. |
-| `.claude/settings.local.json` | The ultrawork hook entry, only with `--hooks`. The hook calls `.omt/bin/omt`. |
-| `.omt/install.json`, `.omt/backups/` | The manifest and the backups. |
+| `.omt3/config.jsonc`, `.omt3/plans/` | The project config and the plans directory, as `omt init` creates them. The config gets a `"harnesses"` key when a harness is missing. |
+| `.omt3/bin/omt` | The shim: a shell script that runs the CLI that made the install. The next section lists its forms. |
+| `.claude/settings.local.json` | The ultrawork hook entry, only with `--hooks`. The hook calls `.omt3/bin/omt`. |
+| `.omt3/install.json`, `.omt3/backups/` | The manifest and the backups. |
 
-Agents in the project call the CLI as `.omt/bin/omt` when `omt` is not on `PATH`.
+Agents in the project call the CLI as `.omt3/bin/omt` when `omt` is not on `PATH`.
 
 ### What the shim runs
 
-The install records the CLI that made the install in `.omt/bin/omt`. The shim has one of these forms:
+The install records the CLI that made the install in `.omt3/bin/omt`. The shim has one of these forms:
 
 | CLI that made the install | The shim runs | When the recorded file is gone |
 | --- | --- | --- |
@@ -171,27 +171,27 @@ With `--hooks`, the Claude Code hook calls the shim on each prompt. After a one-
 
 ### How git stays clean
 
-Git does not see these files. The install writes one managed block into the repository's `.git/info/exclude`, so `git status` shows nothing new. That file is local to your clone and is never committed. The block names only the files that the install writes. A `.gitignore` with `*` in `.omt/backups/` hides the backups from git.
+Git does not see these files. The install writes one managed block into the repository's `.git/info/exclude`, so `git status` shows nothing new. That file is local to your clone and is never committed. The block names only the files that the install writes. A `.gitignore` with `*` in `.omt3/backups/` hides the backups from git.
 
-The plans in `.omt/plans/` are shared by all worktrees and do not show in git, because `.omt/.gitignore` holds `plans/`. To keep a finished plan, copy it outside `.omt/` and commit it there.
+The plans in `.omt3/plans/` are shared by all worktrees and do not show in git, because `.omt3/.gitignore` holds `plans/`. To keep a finished plan, copy it outside `.omt3/` and commit it there.
 
 Each project root has its own block. In a monorepo, the entries of a package start with the package path, so packages do not hide each other's files.
 
-A repository has one project install, in the main checkout. `install`, `uninstall`, or `doctor` with `--project` in a worktree acts on the main checkout and its `.omt`, which all worktrees share. The skill folders stay in the main checkout. So an agent in a worktree finds them only if its harness reads the skill folders of the main checkout.
+A repository has one project install, in the main checkout. `install`, `uninstall`, or `doctor` with `--project` in a worktree acts on the main checkout and its `.omt3`, which all worktrees share. The skill folders stay in the main checkout. So an agent in a worktree finds them only if its harness reads the skill folders of the main checkout.
 
 ### Set up new worktrees
 
 T3 can run a setup script in each new worktree before the agent starts. Without one, a worktree thread has no `node_modules`. `install --project`, `init`, and `doctor --project` each print one line about the setup of the current checkout. Check it in full:
 
 ```sh
-.omt/bin/omt worktree check
+.omt3/bin/omt worktree check
 ```
 
 For a Bun or pnpm project without a setup script, generate one:
 
 ```sh
-.omt/bin/omt worktree setup --dry-run
-.omt/bin/omt worktree setup --yes
+.omt3/bin/omt worktree setup --dry-run
+.omt3/bin/omt worktree setup --yes
 ```
 
 This writes `t3.json` and `.t3/omt-worktree-setup.mjs` in the current checkout, also in a linked worktree. For pnpm, it also writes `pnpm-workspace.yaml` with `enableGlobalVirtualStore: true` when that file is missing. The runner uses only Node, so it works in worktrees without omt. It installs from the lockfile with a frozen install and the isolated linker, into a global virtual store, so worktrees share the installed package directories. It needs Bun 1.4.4 or later, pnpm 10.34.5 on major 10, pnpm 11.11.0 on major 11, or pnpm 12 or later, already on `PATH`. It downloads no package manager and sets no global configuration. It stops instead of converting an existing `node_modules`.
@@ -210,15 +210,15 @@ The files do nothing until T3 saves the script. T3 runs setup scripts from the p
 
 One file can still show in git. When the repository tracks `.claude/settings.local.json`, `git status` shows it as modified while the hook is installed.
 
-The install edits the file in its own style. It keeps the indentation, and a final newline only when the file had one. It writes the whole file in that indentation, so inline arrays in an indented file become multi-line. When an install changes the layout of the file this way, it first saves the original bytes in `.omt/backups/`.
+The install edits the file in its own style. It keeps the indentation, and a final newline only when the file had one. It writes the whole file in that indentation, so inline arrays in an indented file become multi-line. When an install changes the layout of the file this way, it first saves the original bytes in `.omt3/backups/`.
 
 ### Commit the setup instead
 
-The install creates `.omt/.gitignore` only when it is missing, and never edits a file that the repository already has. When an earlier install created the file and nobody edited it, the install adds the new lines to it.
+The install creates `.omt3/.gitignore` only when it is missing, and never edits a file that the repository already has. When an earlier install created the file and nobody edited it, the install adds the new lines to it.
 
-Add `--no-git-exclude` to skip the block, for a setup that you want to commit. It also removes a block that an earlier install wrote. Then the install adds the missing lines to an existing `.omt/.gitignore`, and the uninstall removes them again.
+Add `--no-git-exclude` to skip the block, for a setup that you want to commit. It also removes a block that an earlier install wrote. Then the install adds the missing lines to an existing `.omt3/.gitignore`, and the uninstall removes them again.
 
-A teammate who clones a committed setup runs `install --project` to get the shim, because `.omt/.gitignore` keeps `.omt/bin/` out of git. That install records the committed skills and links as existing. The block does not hide them, and the uninstall keeps them. When the committed skills are older than the CLI, the install updates them, and git shows them as modified.
+A teammate who clones a committed setup runs `install --project` to get the shim, because `.omt3/.gitignore` keeps `.omt3/bin/` out of git. That install records the committed skills and links as existing. The block does not hide them, and the uninstall keeps them. When the committed skills are older than the CLI, the install updates them, and git shows them as modified.
 
 ### Copy or move a project
 
@@ -229,16 +229,16 @@ The install replaces the block of the old path, unless the old path still has it
 ### Remove the project install
 
 ```sh
-.omt/bin/omt uninstall --project
+.omt3/bin/omt uninstall --project
 ```
 
 The uninstall removes the shim. Run later commands with the command of your channel, such as `omt` or `npx oh-my-t3`.
 
 The uninstall removes the skills, the links, the shim, the hook entry, the exclude block, and the manifest. It also removes each file and empty directory that the install created.
 
-The uninstall removes the hook entry from the settings file. When the result equals the backup from the install, the uninstall writes the backup's bytes back and deletes the backup. So the project and `.git/info/exclude` are byte for byte as they were before the install, apart from the plans, the ledger, and the evidence that you added. These stay. When the ledger or the evidence stays, `.omt/.gitignore` stays too, so git does not show them.
+The uninstall removes the hook entry from the settings file. When the result equals the backup from the install, the uninstall writes the backup's bytes back and deletes the backup. So the project and `.git/info/exclude` are byte for byte as they were before the install, apart from the plans, the ledger, and the evidence that you added. These stay. When the ledger or the evidence stays, `.omt3/.gitignore` stays too, so git does not show them.
 
-A path that `install --force` replaced stays in `.omt/backups/`, and the uninstall does not move it back. Git does not show it there.
+A path that `install --force` replaced stays in `.omt3/backups/`, and the uninstall does not move it back. Git does not show it there.
 
 The uninstall keeps these files:
 
@@ -246,11 +246,11 @@ The uninstall keeps these files:
 - A locally modified skill.
 - A `settings.local.json` that the install created, when other keys are in it, such as the permissions that Claude Code writes there. The exclude block then keeps only the paths that stay.
 
-When you edited `settings.local.json` while omt was installed, the uninstall cannot write the old bytes back. It removes only the omt entry, and the backups stay in `.omt/backups/`, where git does not see them.
+When you edited `settings.local.json` while omt was installed, the uninstall cannot write the old bytes back. It removes only the omt entry, and the backups stay in `.omt3/backups/`, where git does not see them.
 
-Add `--purge` to also remove an edited `.omt/config.jsonc` that the install created.
+Add `--purge` to also remove an edited `.omt3/config.jsonc` that the install created.
 
-While a file that the install created stays, `.omt/install.json` stays too. The uninstall reduces it to a record of these files and of the skills and links that existed before the install. So a later install or uninstall keeps these files hidden from git and keeps the existing skills and links. The uninstall that removes the last of them also removes this record.
+While a file that the install created stays, `.omt3/install.json` stays too. The uninstall reduces it to a record of these files and of the skills and links that existed before the install. So a later install or uninstall keeps these files hidden from git and keeps the existing skills and links. The uninstall that removes the last of them also removes this record.
 
 The uninstall removes every omt hook entry. This includes an entry that was already in a tracked `settings.local.json` before you installed, such as the entry of another clone. Git then shows that file as modified.
 
@@ -289,11 +289,11 @@ Restart your agent sessions in T3 Code after the install. A running session does
 | `~/.agents/skills/<skill>` | A copy of each skill. Codex, Cursor, OpenCode, and Pi read this directory. |
 | `~/.claude/skills/<skill>` | A relative symlink to the copy, for Claude Code. |
 | `~/.gemini/config/skills/<skill>` | A symlink, only when `~/.gemini` exists or you select the `gemini` target. |
-| `~/.config/oh-my-t3code/config.jsonc` | Your config. |
-| `~/.config/oh-my-t3code/install.json` | The manifest of what the install added. |
-| `~/.config/oh-my-t3code/backups/` | Backups of anything that the install replaced or edited. |
+| `~/.config/oh-my-t3/config.jsonc` | Your config. |
+| `~/.config/oh-my-t3/install.json` | The manifest of what the install added. |
+| `~/.config/oh-my-t3/backups/` | Backups of anything that the install replaced or edited. |
 | `~/.claude/settings.json` | One `UserPromptSubmit` hook entry, only with `--hooks`. Other settings stay unchanged. |
-| `.omt/` in a project | The project config, plans, ledger, locks, local guardrail proposals, and evidence files. |
+| `.omt3/` in a project | The project config, plans, ledger, locks, local guardrail proposals, and evidence files. |
 
 Each installed skill directory holds a `.omt-managed.json` marker. The install never overwrites a path that it does not manage, unless you pass `--force`. With `--force`, it moves the old path to the backups directory first.
 
@@ -305,7 +305,7 @@ When the bundle no longer ships a skill that an earlier install wrote, such as `
 omt uninstall
 ```
 
-`omt uninstall` removes the managed skill copies, the links that point at them, the hook entry, and the manifest. It keeps your config. Add `--purge` to remove the config too. It never removes a path that it does not manage. Project `.omt/` directories stay in place.
+`omt uninstall` removes the managed skill copies, the links that point at them, the hook entry, and the manifest. It keeps your config. Add `--purge` to remove the config too. It never removes a path that it does not manage. Project `.omt3/` directories stay in place.
 
 `omt uninstall` does not remove the CLI. To remove it, use the command of its channel, such as `mise unuse -g github:gabimoncha/oh-my-t3`, `npm rm -g oh-my-t3`, `pnpm rm -g oh-my-t3`, or `bun rm -g oh-my-t3`.
 
@@ -322,9 +322,20 @@ The install records the choice in its manifest, so a later `omt install` or `omt
 
 An install from before this release wrote `omt-swarm` by default. The next `omt install` or `omt update` removes it when you did not edit it. Run the install with `--with omt-swarm` to keep it. An edited copy is handled as an edited retired skill: `omt install` stops on it, and `omt update` keeps it.
 
+## Move old folders
+
+Releases up to 0.6 kept project state in `.omt/` and your user folder in `~/.config/oh-my-t3code` (or `oh-my-t3code` under `XDG_CONFIG_HOME`). The current names are `.omt3/` and `~/.config/oh-my-t3`. omt still reads an old folder and prints one line that tells you to run `omt migrate`:
+
+```sh
+omt migrate --dry-run
+omt migrate
+```
+
+`omt migrate` lists the current project, each project that `omt install --project` recorded, and the user folder, and asks once. For each project, it copies the folder, updates the hook command, the git exclude block, the manifest, and the skills, runs the shim and the hook, and then deletes the old folder. When a check fails, it deletes the copy, and the old folder stays as it was. It skips a project while a delegated task runs there (an open ledger start), and a project whose shim runs an older omt: run `omt update` there first. `OMT_CONFIG_DIR` names its folder itself, so migrate never moves it. Restart the agent sessions of a moved project, because a session that still holds an old path can write to it again. A later `omt migrate` moves such files into `.omt3/`.
+
 ## Update omt
 
-Run `omt update`. In a project install without `omt` on `PATH`, run `.omt/bin/omt update`:
+Run `omt update`. In a project install without `omt` on `PATH`, run `.omt3/bin/omt update`:
 
 ```sh
 omt update --dry-run
@@ -339,7 +350,7 @@ omt update
 | mise, npm package | Runs `mise use -g npm:oh-my-t3@<version>`. |
 | npm, pnpm, or Bun, global | Runs `npm install -g`, `pnpm add -g`, or `bun add -g` with the installed package name, such as `oh-my-t3@<version>`. |
 | Dev dependency | Prints the commands of the project's package manager. The first updates the dependency, such as `pnpm add -D oh-my-t3@<version>`. The last syncs the skills with the new CLI, such as `pnpm exec omt update --skills-only --project`. omt runs none of them, because they change `package.json` and the lockfile. |
-| One-shot | Writes the new version into the shim `.omt/bin/omt`, after the runner starts that version. |
+| One-shot | Writes the new version into the shim `.omt3/bin/omt`, after the runner starts that version. |
 | Release binary elsewhere, or a clone | Prints a hint. |
 
 Each npm update keeps the package name that you installed, `oh-my-t3` or `omt3`. An install of the deprecated `oh-my-t3code` moves to `oh-my-t3`: `omt update` installs `oh-my-t3` and removes `oh-my-t3code`, so one omt stays. All three packages give the same commands, and npm and pnpm refuse two global packages with the same commands. So with npm and pnpm, `omt update` removes `oh-my-t3code` first, and installs it again when the `oh-my-t3` install fails. With Bun and mise, it installs `oh-my-t3` first, and removes `oh-my-t3code` after the new `omt` starts. For a dev dependency, the hint names the remove and add commands, such as `npm uninstall oh-my-t3code, then npm i -D oh-my-t3@<version>`. `--dry-run` and `--check` show each command. Each command installs the exact version that the registry returned. So the mise channels write an exact pin, such as `github:gabimoncha/oh-my-t3@0.3.0`, into your global mise config. A later `omt update` moves that pin. An exact version also skips the 24-hour wait of `minimum_release_age`.

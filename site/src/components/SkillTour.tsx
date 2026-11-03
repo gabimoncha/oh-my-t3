@@ -16,7 +16,7 @@ const AGENT_SKILLS: Skill[] = [
     name: "omt-plan",
     note: "You want a reviewed plan before any code changes.",
     shows:
-      "The agent explores the code, asks its questions in batches, and writes a plan. One model of the other family reviews it, for at most 2 rounds. The plan goes to .omt/plans/.",
+      "The agent explores the code, asks its questions in batches, and writes a plan. One model of the other family reviews it, for at most 2 rounds. The plan goes to .omt3/plans/.",
   },
   {
     name: "omt-design",

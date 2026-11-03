@@ -16,10 +16,10 @@ The website is `https://omt3.dev`, on the Cloudflare Pages project `oh-my-t3`. T
 
 ## Compatibility identities
 
-These strings identify existing installations. They retain their original values:
+These strings identify existing installations. They retain their original values, except the two folder names, which `omt migrate` moves:
 
-- The user config directory is `~/.config/oh-my-t3code`, or `oh-my-t3code` under `XDG_CONFIG_HOME`. `OMT_CONFIG_DIR` still overrides it.
-- Project state stays in `.omt/`. The `OMT_*` environment variables stay the same.
+- The user config directory is `~/.config/oh-my-t3`, or `oh-my-t3` under `XDG_CONFIG_HOME`. `OMT_CONFIG_DIR` still overrides it. Earlier releases used `oh-my-t3code`.
+- Project state lives in `.omt3/`. Earlier releases used `.omt/`. omt still reads an old folder, prints a hint, and `omt migrate` moves it. The `OMT_*` environment variables stay the same.
 - Managed skill markers and manifests retain the package identity `oh-my-t3code`. Hook signatures, shim signatures, and git exclude delimiters retain their existing text.
 - One-shot project shims continue to pin `omt3@<version>`. Public one-shot examples use `npx oh-my-t3`.
 - Release archives keep the prefix `oh-my-t3code-v`. Their executable is `omt`.

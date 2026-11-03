@@ -20,7 +20,7 @@ function setup() {
   const ctx = fakeContext({ root: tempDir() });
   mkdirSync(join(ctx.cwd, ".git"));
   const userPath = join(ctx.homedir, ".config", "oh-my-t3code", "config.jsonc");
-  const projectPath = join(ctx.cwd, ".omt", "config.jsonc");
+  const projectPath = join(ctx.cwd, ".omt3", "config.jsonc");
   const load = () => loadConfig(ctx);
   const write = (path: string, value: unknown) => writeFile(path, JSON.stringify(value));
   return { ctx, userPath, projectPath, load, write };

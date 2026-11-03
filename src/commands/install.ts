@@ -1,3 +1,4 @@
+import { relative } from "node:path";
 import { loadConfig } from "../config/load.ts";
 import { applyInstall } from "../install/apply.ts";
 import { confirmApply } from "../install/confirm.ts";
@@ -22,7 +23,7 @@ export const usage = `Usage: omt install [--project [--no-git-exclude]] [--targe
 Install the bundled skills into ~/.agents/skills and link them into the
 selected agent skill roots. Shows the plan first, then asks to apply it.
 With --project, install into the current project instead: skills in
-.agents/skills, links in .claude/skills, the CLI shim .omt/bin/omt, and the
+.agents/skills, links in .claude/skills, the CLI shim .omt3/bin/omt, and the
 hook in .claude/settings.local.json, all hidden from git. When omt runs
 from npx, pnpm dlx, or bunx, a user install is refused. Use --project, and
 the shim calls that runner. --project also prints the T3 worktree setup
@@ -124,7 +125,8 @@ export async function run(ctx: CliContext, seams: UpdateCheckSeams = {}): Promis
     ctx.stdout(`note: ${plan.project.excludeNote}\n`);
   }
   const runner = plan.project === undefined ? undefined : shimPaths(plan.project.shim.after).runner;
-  if (runner !== undefined) ctx.stdout(`note: .omt/bin/omt runs ${runner}, which needs the network again after its cache is cleared\n`);
+  const shim = plan.project === undefined ? "" : relative(plan.project.root, plan.project.shim.path);
+  if (runner !== undefined) ctx.stdout(`note: ${shim} runs ${runner}, which needs the network again after its cache is cleared\n`);
   const defaults = checkDefaults(await loadConfig(ctx));
   if (defaults.status === "INFO") ctx.stdout(`note: defaults ${defaults.message}\n`);
   ctx.stdout(
@@ -134,7 +136,7 @@ export async function run(ctx: CliContext, seams: UpdateCheckSeams = {}): Promis
           "  2. Try $omt-ulw <task>.\n"
       : "Next steps:\n" +
           "  1. Restart agent sessions in T3 Code for this project so they load the new skills.\n" +
-          "  2. Agents in this project call the CLI as .omt/bin/omt.\n" +
+          `  2. Agents in this project call the CLI as ${shim}.\n` +
           "  3. Try $omt-ulw <task>.\n",
   );
   await updateCheck(ctx, scope === "project", seams);

@@ -28,27 +28,27 @@ const HOME = "/fake/home";
 
 test("configDir prefers OMT_CONFIG_DIR, then XDG_CONFIG_HOME, then ~/.config", () => {
   assert.equal(configDir({ OMT_CONFIG_DIR: "/omt", XDG_CONFIG_HOME: "/xdg" }, HOME), "/omt");
-  assert.equal(configDir({ XDG_CONFIG_HOME: "/xdg" }, HOME), "/xdg/oh-my-t3code");
-  assert.equal(configDir({}, HOME), "/fake/home/.config/oh-my-t3code");
-  assert.equal(configDir({ OMT_CONFIG_DIR: "", XDG_CONFIG_HOME: "" }, HOME), "/fake/home/.config/oh-my-t3code");
+  assert.equal(configDir({ XDG_CONFIG_HOME: "/xdg" }, HOME), "/xdg/oh-my-t3");
+  assert.equal(configDir({}, HOME), "/fake/home/.config/oh-my-t3");
+  assert.equal(configDir({ OMT_CONFIG_DIR: "", XDG_CONFIG_HOME: "" }, HOME), "/fake/home/.config/oh-my-t3");
 });
 
 test("user config files live in the config directory", () => {
-  assert.equal(userConfigPath({}, HOME), "/fake/home/.config/oh-my-t3code/config.jsonc");
-  assert.equal(manifestPath({}, HOME), "/fake/home/.config/oh-my-t3code/install.json");
-  assert.equal(userRolesDir({}, HOME), "/fake/home/.config/oh-my-t3code/roles");
+  assert.equal(userConfigPath({}, HOME), "/fake/home/.config/oh-my-t3/config.jsonc");
+  assert.equal(manifestPath({}, HOME), "/fake/home/.config/oh-my-t3/install.json");
+  assert.equal(userRolesDir({}, HOME), "/fake/home/.config/oh-my-t3/roles");
   assert.equal(userConfigPath({ OMT_CONFIG_DIR: "/omt" }, HOME), "/omt/config.jsonc");
   assert.equal(manifestPath({ OMT_CONFIG_DIR: "/omt" }, HOME), "/omt/install.json");
   assert.equal(userRolesDir({ OMT_CONFIG_DIR: "/omt" }, HOME), "/omt/roles");
 });
 
-test("project paths live under <root>/.omt", () => {
-  assert.equal(omtDir("/repo"), "/repo/.omt");
-  assert.equal(projectConfigPath("/repo"), "/repo/.omt/config.jsonc");
-  assert.equal(projectRolesDir("/repo"), "/repo/.omt/roles");
-  assert.equal(plansDir("/repo"), "/repo/.omt/plans");
-  assert.equal(ledgerPath("/repo"), "/repo/.omt/ledger.jsonl");
-  assert.equal(evidenceDir("/repo"), "/repo/.omt/evidence");
+test("project paths live under <root>/.omt3", () => {
+  assert.equal(omtDir("/repo"), "/repo/.omt3");
+  assert.equal(projectConfigPath("/repo"), "/repo/.omt3/config.jsonc");
+  assert.equal(projectRolesDir("/repo"), "/repo/.omt3/roles");
+  assert.equal(plansDir("/repo"), "/repo/.omt3/plans");
+  assert.equal(ledgerPath("/repo"), "/repo/.omt3/ledger.jsonl");
+  assert.equal(evidenceDir("/repo"), "/repo/.omt3/evidence");
 });
 
 test("claude paths honor CLAUDE_CONFIG_DIR", () => {
@@ -74,7 +74,7 @@ test("t3 paths honor T3CODE_HOME", () => {
   assert.equal(t3SettingsPath({ T3CODE_HOME: "/t3" }, HOME), "/t3/userdata/settings.json");
 });
 
-test("findProjectRoot finds the nearest ancestor with .git or .omt", () => {
+test("findProjectRoot finds the nearest ancestor with .git or .omt3", () => {
   const root = tempDir();
   const repo = join(root, "repo");
   const deep = join(repo, "a", "b");
@@ -83,7 +83,7 @@ test("findProjectRoot finds the nearest ancestor with .git or .omt", () => {
   assert.equal(findProjectRoot(deep), repo);
   assert.equal(findProjectRoot(repo), repo);
 
-  mkdirSync(join(repo, "a", ".omt"));
+  mkdirSync(join(repo, "a", ".omt3"));
   assert.equal(findProjectRoot(deep), join(repo, "a"));
 });
 
@@ -159,11 +159,11 @@ test("mainCheckoutOf takes a relative or absolute commondir, and rejects a bare 
 test("findProjectRoot resolves a linked worktree to its main checkout", () => {
   const { main, worktree } = worktreeRepo();
   mkdirSync(join(worktree, "src"));
-  assert.equal(realpathSync(findProjectRoot(join(worktree, "src"))), realpathSync(main), "main without .omt");
-  mkdirSync(join(main, ".omt"));
-  assert.equal(realpathSync(findProjectRoot(worktree)), realpathSync(main), "main with .omt");
-  mkdirSync(join(worktree, ".omt"));
-  assert.equal(realpathSync(findProjectRoot(worktree)), realpathSync(main), "the worktree's own .omt never wins");
+  assert.equal(realpathSync(findProjectRoot(join(worktree, "src"))), realpathSync(main), "main without .omt3");
+  mkdirSync(join(main, ".omt3"));
+  assert.equal(realpathSync(findProjectRoot(worktree)), realpathSync(main), "main with .omt3");
+  mkdirSync(join(worktree, ".omt3"));
+  assert.equal(realpathSync(findProjectRoot(worktree)), realpathSync(main), "the worktree's own .omt3 never wins");
   assert.equal(findProjectRoot(main), main, "a normal checkout is unchanged");
   assert.equal(findProjectRoot(worktree), main, "the root keeps the path form of the cwd");
 });
@@ -187,22 +187,27 @@ test("findProjectRoot keeps a worktree whose gitdir is broken", () => {
   assert.equal(findProjectRoot(worktree), worktree);
 });
 
-test("shadowedWorktreeState reports a worktree .omt with plans or a ledger", () => {
+test("shadowedWorktreeState reports a worktree .omt3 with plans or a ledger", () => {
   const { main, worktree } = worktreeRepo();
   assert.equal(shadowedWorktreeState(worktree), undefined);
-  mkdirSync(join(worktree, ".omt", "plans"), { recursive: true });
-  writeFileSync(join(worktree, ".omt", "plans", "notes.txt"), "x\n");
-  mkdirSync(join(worktree, ".omt", "plans", "dir.md"));
-  mkdirSync(join(worktree, ".omt", "ledger.jsonl"));
+  mkdirSync(join(worktree, ".omt3", "plans"), { recursive: true });
+  writeFileSync(join(worktree, ".omt3", "plans", "notes.txt"), "x\n");
+  mkdirSync(join(worktree, ".omt3", "plans", "dir.md"));
+  mkdirSync(join(worktree, ".omt3", "ledger.jsonl"));
   assert.equal(shadowedWorktreeState(worktree), undefined, "only regular .md files and a regular ledger file count");
-  writeFileSync(join(worktree, ".omt", "plans", "x.md"), "# x\n");
-  assert.deepEqual(shadowedWorktreeState(worktree), { worktree, main });
-  mkdirSync(join(main, ".omt", "plans"), { recursive: true });
-  writeFileSync(join(main, ".omt", "plans", "y.md"), "# y\n");
+  writeFileSync(join(worktree, ".omt3", "plans", "x.md"), "# x\n");
+  assert.deepEqual(shadowedWorktreeState(worktree), { worktree, main, dir: join(worktree, ".omt3") });
+  mkdirSync(join(main, ".omt3", "plans"), { recursive: true });
+  writeFileSync(join(main, ".omt3", "plans", "y.md"), "# y\n");
   assert.equal(shadowedWorktreeState(main), undefined, "the main checkout is never shadowed");
 
   const other = worktreeRepo();
-  mkdirSync(join(other.worktree, ".omt"));
-  writeFileSync(join(other.worktree, ".omt", "ledger.jsonl"), "");
-  assert.deepEqual(shadowedWorktreeState(other.worktree), { worktree: other.worktree, main: other.main });
+  mkdirSync(join(other.worktree, ".omt3"));
+  writeFileSync(join(other.worktree, ".omt3", "ledger.jsonl"), "");
+  assert.deepEqual(shadowedWorktreeState(other.worktree), { worktree: other.worktree, main: other.main, dir: join(other.worktree, ".omt3") });
+
+  const legacy = worktreeRepo();
+  mkdirSync(join(legacy.worktree, ".omt", "plans"), { recursive: true });
+  writeFileSync(join(legacy.worktree, ".omt", "plans", "x.md"), "# x\n");
+  assert.deepEqual(shadowedWorktreeState(legacy.worktree), { worktree: legacy.worktree, main: legacy.main, dir: join(legacy.worktree, ".omt") });
 });

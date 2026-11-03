@@ -82,7 +82,7 @@ function fixture() {
   });
   const root = tempDir();
   const ctx = fakeContext({ root, env: childEnv(root) });
-  mkdirSync(join(ctx.cwd, ".omt"));
+  mkdirSync(join(ctx.cwd, ".omt3"));
   function start(args: string[], cwd = ctx.cwd, env: NodeJS.ProcessEnv = {}) {
     const child = spawn(process.execPath, [CLI_PATH, ...args], {
       cwd,
@@ -233,14 +233,14 @@ test("D4(e): without a lock tool, the command runs and returns its exit code", a
   assert.equal(result.code, 19, result.stderr);
   assert.equal(result.stdout, '["--help","--wait"]\n');
   assert.equal(result.stderr, `warning: no flock or lockf on PATH; running ${command.join(" ")} without a lock\n`);
-  assert.ok(!existsSync(join(f.ctx.cwd, ".omt", "locks")));
+  assert.ok(!existsSync(join(f.ctx.cwd, ".omt3", "locks")));
 }, 180_000);
 
 lockTest("concurrent runs wait once, list the holder, and preserve the lock file", async () => {
   const f = fixture();
   const holder = await f.hold();
-  const path = join(f.ctx.cwd, ".omt", "locks", "build.lock");
-  assert.equal(readFileSync(join(f.ctx.cwd, ".omt", "locks", ".gitignore"), "utf8"), "*\n");
+  const path = join(f.ctx.cwd, ".omt3", "locks", "build.lock");
+  assert.equal(readFileSync(join(f.ctx.cwd, ".omt3", "locks", ".gitignore"), "utf8"), "*\n");
   const owner = await waitForFile(path, (text) => {
     if (!text.endsWith("\n")) return undefined;
     try {
@@ -275,7 +275,7 @@ for (const separate of [false, true]) {
     lockTest(`linked worktrees with trailing spaces share one ignored lock for a ${subdir === "" ? "root" : "nested"} project with a ${separate ? "separate" : "normal"} git directory`, async () => {
       const f = fixture();
       const project = join(f.ctx.cwd, subdir);
-      writeFile(join(project, ".omt", ".gitignore"), OMT_GITIGNORE);
+      writeFile(join(project, ".omt3", ".gitignore"), OMT_GITIGNORE);
       const git = gitRepo(f.root, f.ctx.cwd);
       if (separate) {
         execFileSync(GIT, ["init", "-q", "--separate-git-dir", join(f.root, "git-store ")], {
@@ -286,7 +286,7 @@ for (const separate of [false, true]) {
       }
       const worktrees = [join(f.root, "worktree-one"), join(f.root, "worktree-two ")];
       for (const worktree of worktrees) git(["worktree", "add", "-q", "--detach", worktree]);
-      const dir = separate ? join(f.root, "git-store ", "omt", "locks", subdir) : join(project, ".omt", "locks");
+      const dir = separate ? join(f.root, "git-store ", "omt", "locks", subdir) : join(project, ".omt3", "locks");
       const path = join(dir, "build.lock");
       const holder = await f.hold("build", undefined, project);
       const inode = statSync(path).ino;
@@ -295,14 +295,14 @@ for (const separate of [false, true]) {
         const cwd = join(worktree, subdir);
         const busy = await f.tryRun(0, cwd);
         assert.equal(busy.code, 75, busy.stderr);
-        assert.ok(!existsSync(join(cwd, ".omt", "locks")));
+        assert.ok(!existsSync(join(cwd, ".omt3", "locks")));
         assert.match((await f.run(["lock", "list"], cwd)).stdout, /^build\.lock held /);
         assert.equal(git(["status", "--porcelain", "--untracked-files=all"], worktree), "");
       }
       assert.deepEqual(readdirSync(dir).sort(), [".gitignore", "build.lock"]);
       assert.equal(readFileSync(join(dir, ".gitignore"), "utf8"), "*\n");
-      if (separate) assert.ok(!existsSync(join(project, ".omt", "locks")));
-      if (subdir !== "") assert.ok(!existsSync(join(f.ctx.cwd, ".omt", "locks")));
+      if (separate) assert.ok(!existsSync(join(project, ".omt3", "locks")));
+      if (subdir !== "") assert.ok(!existsSync(join(f.ctx.cwd, ".omt3", "locks")));
       assert.equal(git(["status", "--porcelain", "--untracked-files=all"]), "");
       holder.release();
       assert.equal((await holder.exited).code, 0, holder.err());
@@ -333,7 +333,7 @@ lockTest("a project only in a linked worktree keeps the main checkout clean", as
   const worktree = join(f.root, "worktree");
   git(["worktree", "add", "-q", worktree]);
   const project = join(worktree, "newpkg");
-  mkdirSync(join(project, ".omt"), { recursive: true });
+  mkdirSync(join(project, ".omt3"), { recursive: true });
   const initialized = await f.run(["init"], project);
   assert.equal(initialized.code, 0, initialized.stderr);
   git(["add", "newpkg"], worktree);
@@ -341,10 +341,10 @@ lockTest("a project only in a linked worktree keeps the main checkout clean", as
   const mainProject = join(f.ctx.cwd, "newpkg");
   assert.ok(!existsSync(mainProject));
   const holder = await f.hold("build", undefined, project);
-  const dir = join(mainProject, ".omt", "locks");
+  const dir = join(mainProject, ".omt3", "locks");
   assert.deepEqual(readdirSync(dir).sort(), [".gitignore", "build.lock"]);
   assert.equal(readFileSync(join(dir, ".gitignore"), "utf8"), "*\n");
-  assert.ok(!existsSync(join(project, ".omt", "locks")));
+  assert.ok(!existsSync(join(project, ".omt3", "locks")));
   for (const cwd of [project, mainProject]) {
     const busy = await f.tryRun(0, cwd);
     assert.equal(busy.code, 75, busy.stderr);
@@ -379,13 +379,13 @@ test("lock validates its arguments and appears in help and project warnings", as
   const empty = await f.run(["lock", "list"], plain);
   assert.equal(empty.code, 0, empty.stderr);
   assert.equal(empty.stdout, "");
-  assert.match(empty.stderr, /warning: no .omt or .git found above/);
+  assert.match(empty.stderr, /warning: no .omt3, .omt, or .git found above/);
 }, 180_000);
 
 lockTest("lock storage rejects leaf and directory symlinks without changing their targets", async () => {
   for (const parent of [false, true]) {
     const f = fixture();
-    const dir = join(f.ctx.cwd, ".omt", "locks");
+    const dir = join(f.ctx.cwd, ".omt3", "locks");
     const outside = join(tempDir(), "build.lock");
     writeFile(outside, "keep\n");
     if (parent) symlinkSync(join(outside, ".."), dir);

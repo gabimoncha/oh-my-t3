@@ -38,7 +38,7 @@ const STEPS: Step[] = [
     title: "Plan",
     station: "st8-08-night.svg",
     role: { src: "role-plans-night.svg", alt: "" },
-    body: "The agent asks its questions, then writes a plan in .omt/plans/.",
+    body: "The agent asks its questions, then writes a plan in .omt3/plans/.",
   },
   {
     title: "Build",
@@ -61,9 +61,9 @@ const STEPS: Step[] = [
 ];
 
 const OMT_FILES = [
-  { path: ".omt/plans/", note: "The plan of each run, split into units." },
-  { path: ".omt/ledger.jsonl", note: "One line for each task start and each result." },
-  { path: ".omt/config.jsonc", note: "The profile: the models, the checks, and the limits." },
+  { path: ".omt3/plans/", note: "The plan of each run, split into units." },
+  { path: ".omt3/ledger.jsonl", note: "One line for each task start and each result." },
+  { path: ".omt3/config.jsonc", note: "The profile: the models, the checks, and the limits." },
 ];
 
 const NAV = [
@@ -347,7 +347,7 @@ function Evidence() {
   return (
     <section className="section wrap" aria-labelledby="evidence-title">
       <h2 id="evidence-title" className="h2-wide">
-        You can read the plan, the task count, and each review verdict in files under .omt/.
+        You can read the plan, the task count, and each review verdict in files under .omt3/.
       </h2>
       <div className="split evidence">
         <div className="col-even evidence-files">
@@ -362,7 +362,7 @@ function Evidence() {
             ))}
           </dl>
           <p className="muted">
-            A plan and its ledger stay in .omt/ after context compaction and across sessions, so one plan can run for
+            A plan and its ledger stay in .omt3/ after context compaction and across sessions, so one plan can run for
             days.
           </p>
           <p>

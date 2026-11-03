@@ -13,8 +13,8 @@ function entry(fields: Partial<LedgerEntry>): LedgerEntry {
   return { ts: TS, role: "execute", status: "dispatched", ...fields };
 }
 
-test("appendLedger creates .omt and writes one JSON line per entry", async () => {
-  const path = join(tempDir(), "project", ".omt", "ledger.jsonl");
+test("appendLedger creates .omt3 and writes one JSON line per entry", async () => {
+  const path = join(tempDir(), "project", ".omt3", "ledger.jsonl");
   await appendLedger(path, entry({ taskId: "t1" }));
   await appendLedger(path, entry({ taskId: "t1", status: "completed", verdict: "DONE" }));
   const lines = readFileSync(path, "utf8").split("\n");
@@ -24,7 +24,7 @@ test("appendLedger creates .omt and writes one JSON line per entry", async () =>
 });
 
 test("concurrent appends keep every entry", async () => {
-  const path = join(tempDir(), ".omt", "ledger.jsonl");
+  const path = join(tempDir(), ".omt3", "ledger.jsonl");
   await Promise.all(Array.from({ length: 50 }, (_, i) => appendLedger(path, entry({ taskId: `t${i}` }))));
   const { entries, warnings } = await readLedger(path);
   assert.equal(entries.length, 50);
@@ -123,7 +123,7 @@ test("ledger add appends an entry and prints it as JSON", async () => {
     note: "first try",
   };
   assert.deepEqual(JSON.parse(ctx.out()), expected);
-  const { entries } = await readLedger(join(ctx.cwd, ".omt", "ledger.jsonl"));
+  const { entries } = await readLedger(join(ctx.cwd, ".omt3", "ledger.jsonl"));
   assert.deepEqual(entries, [expected]);
 });
 
@@ -147,7 +147,7 @@ test("ledger add rejects bad input with exit code 2", async () => {
 
 test("ledger list prints a table, filters by plan, and warns on malformed lines", async () => {
   const ctx = projectContext(["list"]);
-  const path = join(ctx.cwd, ".omt", "ledger.jsonl");
+  const path = join(ctx.cwd, ".omt3", "ledger.jsonl");
   await appendLedger(path, entry({ plan: "auth", unit: "U3", role: "review", round: 2, taskId: "task-0123456789abcdef" }));
   appendFileSync(path, "{broken\n");
   await appendLedger(path, entry({ plan: "other", status: "completed", verdict: "DONE" }));
@@ -168,7 +168,7 @@ test("ledger list prints a table, filters by plan, and warns on malformed lines"
 
 test("ledger stats prints LedgerStats as text and JSON", async () => {
   const ctx = projectContext(["stats"]);
-  const path = join(ctx.cwd, ".omt", "ledger.jsonl");
+  const path = join(ctx.cwd, ".omt3", "ledger.jsonl");
   await appendLedger(path, entry({ plan: "auth", taskId: "t1" }));
   await appendLedger(path, entry({ plan: "auth", taskId: "t2" }));
   await appendLedger(path, entry({ plan: "auth", taskId: "t1", status: "completed" }));
@@ -193,8 +193,8 @@ test("ledger stats prints LedgerStats as text and JSON", async () => {
 
 test("ledger stats reads the limits from the project config", async () => {
   const ctx = projectContext(["stats", "--plan", "auth"]);
-  writeFile(join(ctx.cwd, ".omt", "config.jsonc"), '{ "version": 1, "limits": { "maxParallel": 1 } }\n');
-  await appendLedger(join(ctx.cwd, ".omt", "ledger.jsonl"), entry({ plan: "auth", taskId: "t1" }));
+  writeFile(join(ctx.cwd, ".omt3", "config.jsonc"), '{ "version": 1, "limits": { "maxParallel": 1 } }\n');
+  await appendLedger(join(ctx.cwd, ".omt3", "ledger.jsonl"), entry({ plan: "auth", taskId: "t1" }));
   assert.equal(await run(ctx), 0);
   assert.match(ctx.out(), /^max parallel: 1$/m);
   assert.match(ctx.out(), /^can dispatch: no$/m);
@@ -202,12 +202,12 @@ test("ledger stats reads the limits from the project config", async () => {
 
 test("ledger stats --plan uses the lower of the plan and config max parallel", async () => {
   const ctx = projectContext(["stats", "--plan", "auth"]);
-  writeFile(join(ctx.cwd, ".omt", "config.jsonc"), '{ "version": 1, "limits": { "maxParallel": 4 } }\n');
+  writeFile(join(ctx.cwd, ".omt3", "config.jsonc"), '{ "version": 1, "limits": { "maxParallel": 4 } }\n');
   writeFile(
-    join(ctx.cwd, ".omt", "plans", "auth.md"),
+    join(ctx.cwd, ".omt3", "plans", "auth.md"),
     "# Auth\n\n<!-- omt-plan v1 slug=auth created=2026-01-01T00:00:00.000Z max-parallel=1 -->\n",
   );
-  await appendLedger(join(ctx.cwd, ".omt", "ledger.jsonl"), entry({ plan: "auth", taskId: "t1" }));
+  await appendLedger(join(ctx.cwd, ".omt3", "ledger.jsonl"), entry({ plan: "auth", taskId: "t1" }));
   assert.equal(await run(ctx), 0);
   assert.match(ctx.out(), /^max parallel: 1 \(plan 1, config 4\)$/m);
   assert.match(ctx.out(), /^can dispatch: no$/m);
@@ -233,9 +233,9 @@ test("ledger stats --plan uses the lower of the plan and config max parallel", a
 
 test("ledger stats --plan ignores a max-parallel key quoted in the plan body", async () => {
   const ctx = projectContext(["stats", "--plan", "auth"]);
-  writeFile(join(ctx.cwd, ".omt", "config.jsonc"), '{ "version": 1, "limits": { "maxParallel": 4 } }\n');
+  writeFile(join(ctx.cwd, ".omt3", "config.jsonc"), '{ "version": 1, "limits": { "maxParallel": 4 } }\n');
   writeFile(
-    join(ctx.cwd, ".omt", "plans", "auth.md"),
+    join(ctx.cwd, ".omt3", "plans", "auth.md"),
     "# Auth\n\n<!-- omt-plan v1 slug=auth created=2026-01-01T00:00:00.000Z -->\n\n" +
       "- [ ] U2. Example `<!-- omt-plan v1 slug=x created=... max-parallel=1 -->`\n\n" +
       "<!-- omt-plan v1 slug=x created=2026-01-01T00:00:00.000Z max-parallel=1 -->\n",
@@ -246,12 +246,12 @@ test("ledger stats --plan ignores a max-parallel key quoted in the plan body", a
 
 test("ledger stats ignores a retired maxTasksPerRun limit and a plan max-tasks key", async () => {
   const ctx = projectContext(["stats", "--plan", "auth"]);
-  writeFile(join(ctx.cwd, ".omt", "config.jsonc"), '{ "version": 1, "limits": { "maxTasksPerRun": 1 } }\n');
+  writeFile(join(ctx.cwd, ".omt3", "config.jsonc"), '{ "version": 1, "limits": { "maxTasksPerRun": 1 } }\n');
   writeFile(
-    join(ctx.cwd, ".omt", "plans", "auth.md"),
+    join(ctx.cwd, ".omt3", "plans", "auth.md"),
     "# Auth\n\n<!-- omt-plan v1 slug=auth created=2026-01-01T00:00:00.000Z max-tasks=1 -->\n",
   );
-  const path = join(ctx.cwd, ".omt", "ledger.jsonl");
+  const path = join(ctx.cwd, ".omt3", "ledger.jsonl");
   for (const taskId of ["t1", "t2", "t3"]) {
     await appendLedger(path, entry({ plan: "auth", taskId }));
     await appendLedger(path, entry({ plan: "auth", taskId, status: "completed" }));
@@ -274,7 +274,7 @@ test("ledger add accepts any role name, such as swarm and loop", async () => {
     const ctx = projectContext(["add", "--role", role, "--status", "dispatched", "--unit", "U1"]);
     assert.equal(await run(ctx), 0, role);
     assert.equal(JSON.parse(ctx.out()).role, role);
-    const { entries } = await readLedger(join(ctx.cwd, ".omt", "ledger.jsonl"));
+    const { entries } = await readLedger(join(ctx.cwd, ".omt3", "ledger.jsonl"));
     assert.equal(entries[0]?.role, role);
   }
 });
@@ -346,7 +346,7 @@ test("ledger add with a terminal status that closes nothing still appends and wa
   const ctx = projectContext(["add", "--role", "execute", "--status", "completed", "--plan", "demo", "--unit", "U1"]);
   assert.equal(await run(ctx), 0);
   assert.equal(ctx.err(), "omt: no dispatched entry matches; nothing was closed\n");
-  const { entries } = await readLedger(join(ctx.cwd, ".omt", "ledger.jsonl"));
+  const { entries } = await readLedger(join(ctx.cwd, ".omt3", "ledger.jsonl"));
   assert.equal(entries.length, 1);
 });
 
@@ -383,12 +383,12 @@ test("ledger rejects an invalid --plan or --unit with exit code 2", async () => 
 test("ledger appends reject leaf, parent, and hard links without changing their targets", async () => {
   for (const kind of ["leaf", "parent", "hard"] as const) {
     const root = tempDir();
-    const path = join(root, ".omt", "ledger.jsonl");
+    const path = join(root, ".omt3", "ledger.jsonl");
     const outside = join(tempDir(), "ledger.jsonl");
     writeFile(outside, "keep\n");
-    if (kind === "parent") symlinkSync(join(outside, ".."), join(root, ".omt"));
+    if (kind === "parent") symlinkSync(join(outside, ".."), join(root, ".omt3"));
     else {
-      mkdirSync(join(root, ".omt"));
+      mkdirSync(join(root, ".omt3"));
       if (kind === "leaf") symlinkSync(outside, path);
       else linkSync(outside, path);
     }

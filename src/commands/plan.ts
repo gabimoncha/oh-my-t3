@@ -25,7 +25,7 @@ export const usage = `Usage: omt plan new <slug> [--title <text>] [--light] [--m
        omt plan list [--json]
 
 Subcommands:
-  new <slug>        write .omt/plans/<slug>.md from the template
+  new <slug>        write .omt3/plans/<slug>.md from the template
   mark <slug> <id>  set the checkbox of an item such as U3, D1, or F2, and
                     append a line to the log
   limit <slug> <n>  set the plan's max-parallel header key (1 to 32), or

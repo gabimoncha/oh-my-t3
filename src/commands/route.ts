@@ -15,7 +15,7 @@ Exits 1 when the role is unknown or unavailable.
 Options:
   --capabilities <file>  orchestrator_capabilities output (- for stdin)
   --against <value>      the provider or driver of the worker whose change the task reviews;
-                         auto reads the worker from .omt/ledger.jsonl and needs --plan
+                         auto reads the worker from .omt3/ledger.jsonl and needs --plan
   --plan <slug>          use the plan's selected profile; plan for --against auto
   --profile <name>       override the selected profile
   --unit <id>            unit for --against auto

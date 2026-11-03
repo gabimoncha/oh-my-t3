@@ -49,7 +49,7 @@ test("end to end: install, use every command in a project, then uninstall", () =
   assert.equal(route.status, "unverified");
   assert.equal(route.delegateTask?.role, "implementation");
 
-  assert.match(ok(["init"]), /^create .*\.omt[/\\]config\.jsonc$/m);
+  assert.match(ok(["init"]), /^create .*\.omt3[/\\]config\.jsonc$/m);
   assert.match(ok(["plan", "new", "demo"]), /demo\.md$/m);
   assert.match(ok(["plan", "status", "demo"]), /^next: U1 /m);
   assert.match(ok(["profile", "list"]), /^normal\s+/m);
@@ -86,9 +86,9 @@ test("end to end: install, use every command in a project, then uninstall", () =
 test("end to end: the shared grills path works from a worktree, and plan-review routes against each family", () => {
   const p = gitProject({ "README.md": "demo\n" });
 
-  assert.match(p.omt("init"), /^create .*\.omt[/\\]config\.jsonc$/m);
-  assert.ok(readFileSync(join(p.project, ".omt", ".gitignore"), "utf8").split("\n").includes("grills/"));
-  const sharedPath = `${join(realpathSync(p.project), ".omt", "grills")}\n`;
+  assert.match(p.omt("init"), /^create .*\.omt3[/\\]config\.jsonc$/m);
+  assert.ok(readFileSync(join(p.project, ".omt3", ".gitignore"), "utf8").split("\n").includes("grills/"));
+  const sharedPath = `${join(realpathSync(p.project), ".omt3", "grills")}\n`;
   assert.equal(p.omt("paths", "--grills"), sharedPath);
 
   const worktree = join(p.project, "..", "grill-worktree");
@@ -121,8 +121,8 @@ test("end to end: git policy checks each action on feature and default branches 
     }
   }
   p.git(["checkout", "-q", "feat/x"]);
-  mkdirSync(join(p.project, ".omt"));
-  writeFileSync(join(p.project, ".omt", "config.jsonc"), JSON.stringify({ profiles: { normal: { workflow: { git: { branchCommits: "ask" } } } } }));
+  mkdirSync(join(p.project, ".omt3"));
+  writeFileSync(join(p.project, ".omt3", "config.jsonc"), JSON.stringify({ profiles: { normal: { workflow: { git: { branchCommits: "ask" } } } } }));
   assert.match(p.omt("git", "check", "commit", "--user", "alice"), /^ask: /);
 });
 
@@ -136,8 +136,8 @@ test("end to end: git policy permits owned repos and asks for another owner's re
   assert.match(p.omt("git", "check", "commit", "--user", "bob"), /^ask: .*alice\/app/);
   assert.match(p.omt("git", "check", "commit", "--user", "alice"), /^auto: /);
 
-  mkdirSync(join(p.project, ".omt"));
-  writeFileSync(join(p.project, ".omt", "config.jsonc"), JSON.stringify({
+  mkdirSync(join(p.project, ".omt3"));
+  writeFileSync(join(p.project, ".omt3", "config.jsonc"), JSON.stringify({
     profiles: { normal: { workflow: { git: { owners: ["acme"] } } } },
   }));
   p.git(["remote", "set-url", "origin", "https://github.com/acme/app.git"]);
@@ -167,8 +167,8 @@ function gitProject(files: Record<string, string>) {
 }
 
 for (const [label, files] of [
-  ["a tracked .omt/plans/x.md", { "README.md": "demo\n", ".omt/plans/x.md": "# x\n" }],
-  ["no .omt and no .claude", { "README.md": "demo\n" }],
+  ["a tracked .omt3/plans/x.md", { "README.md": "demo\n", ".omt3/plans/x.md": "# x\n" }],
+  ["no .omt3 and no .claude", { "README.md": "demo\n" }],
 ] as const) {
   test(`end to end: install --project with ${label} leaves no trace in git, and uninstall restores the tree`, () => {
     const p = gitProject(files);
@@ -176,13 +176,13 @@ for (const [label, files] of [
     const treeBefore = Object.keys(contentTree(p.project));
 
     assert.match(p.omt("install", "--project", "--hooks", "--yes"), /^Applied \d+ changes\.$/m);
-    const written = [".agents/skills/omt-ulw", ".claude/skills/omt-ulw", ".claude/settings.local.json", ".omt/bin/omt", ".omt/config.jsonc"];
+    const written = [".agents/skills/omt-ulw", ".claude/skills/omt-ulw", ".claude/settings.local.json", ".omt3/bin/omt", ".omt3/config.jsonc"];
     for (const path of written) {
       assert.ok(existsSync(join(p.project, path)), path);
     }
     assert.equal(p.git(["status", "--porcelain", "--untracked-files=all"]), "");
-    assert.equal(p.run(join(p.project, ".omt", "bin", "omt"), ["--version"]).trim(), PACKAGE_VERSION);
-    assert.match(p.run(join(p.project, ".omt", "bin", "omt"), ["roles"]), /^execute\s+unverified\s+/m);
+    assert.equal(p.run(join(p.project, ".omt3", "bin", "omt"), ["--version"]).trim(), PACKAGE_VERSION);
+    assert.match(p.run(join(p.project, ".omt3", "bin", "omt"), ["roles"]), /^execute\s+unverified\s+/m);
     assert.deepEqual(omtEntries(join(p.env.HOME as string, ".agents", "skills")), []);
 
     assert.match(p.omt("uninstall", "--project", "--yes"), /^Removed \d+ paths\.$/m);

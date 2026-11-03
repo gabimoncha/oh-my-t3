@@ -40,15 +40,15 @@ export interface ManifestExisting {
 }
 
 export interface ManifestProject {
-  omtDirCreated: boolean; // the install created <root>/.omt
+  omtDirCreated: boolean; // the install created <root>/.omt3
   settingsCreated: boolean; // the install created <root>/.claude/settings.local.json
   shim?: string;
   gitExclude?: string; // the exclude file that holds the managed block
   excludeFile?: ManifestExcludeFile;
   gitExcludeOff?: boolean; // the last install ran with --no-git-exclude
-  gitignoreRestore?: { before: string; sha256: string }; // an existing .omt/.gitignore that the install appended to
+  gitignoreRestore?: { before: string; sha256: string }; // an existing .omt3/.gitignore that the install appended to
   existing?: ManifestExisting;
-  files?: ManifestFile[]; // files the install created, such as .omt/config.jsonc and .omt/.gitignore
+  files?: ManifestFile[]; // files the install created, such as .omt3/config.jsonc and .omt3/.gitignore
   dirs?: string[]; // directories the install created
 }
 

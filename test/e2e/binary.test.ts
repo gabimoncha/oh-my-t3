@@ -53,7 +53,7 @@ test("compiled host binary installs matching skills and hooks, passes doctor, an
     }
   }
 
-  const shim = join(project, ".omt", "bin", "omt");
+  const shim = join(project, ".omt3", "bin", "omt");
   const doctor = run(shim, ["doctor", "--project"]);
   assert.doesNotMatch(doctor, /^FAIL\b/m);
   assert.match(doctor, /^PASS\s+runtime\s+omt \S+ binary$/m);

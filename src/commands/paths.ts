@@ -4,11 +4,11 @@ import { parseArgs } from "../util/args.ts";
 import { usageError } from "../util/errors.ts";
 import { formatJson } from "../util/output.ts";
 
-export const summary = "Print the absolute paths of the project's .omt state.";
+export const summary = "Print the absolute paths of the project's .omt3 state.";
 
 export const usage = `Usage: omt paths [--json] [--root|--plans|--grills|--ledger|--evidence|--config|--shim]
 
-Print the project root, .omt, plans, grills, ledger, evidence, project
+Print the project root, .omt3, plans, grills, ledger, evidence, project
 config, and shim paths, one "name: path" line each. From a linked git
 worktree, the paths are in the main checkout.
 

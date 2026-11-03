@@ -136,7 +136,7 @@ test("profile errors name unknown names, cycles, and chains deeper than eight", 
 test("effectiveConfig selects argument, plan, project, user, then default without changing loaded config", async () => {
   const ctx = projectContext();
   const user = userConfigPath(ctx.env, ctx.homedir);
-  const project = join(ctx.cwd, ".omt", "config.jsonc");
+  const project = join(ctx.cwd, ".omt3", "config.jsonc");
   assert.equal(effectiveConfig(await loadConfig(ctx)).profile.source, "default");
   writeFile(user, JSON.stringify({ profile: "prototype" }));
   assert.equal(effectiveConfig(await loadConfig(ctx)).profile.name, "prototype");

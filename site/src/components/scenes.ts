@@ -102,7 +102,7 @@ function plan(): Scene {
   g.verdict(312, 108, "approve", "open", t);
   t = g.line([[300, MID], [420, MID]], t + 200);
   g.station(420, MID, "done", t);
-  g.text(420, MID + 36, ".omt/plans/", t, { style: "code", size: 14 });
+  g.text(420, MID + 36, ".omt3/plans/", t, { style: "code", size: 14 });
   return g.scene();
 }
 

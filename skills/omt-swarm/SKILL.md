@@ -34,7 +34,7 @@ Done when: both modes match and you are on an up-to-date feature branch, or you 
 
 Find the plan slug in the user's message or `omt plan list`. With no plan, tell the user to run `omt-plan` first, and stop. Keep the output of `omt plan status <slug>` and `omt profile show --plan <slug> --json`.
 
-When `git status --porcelain` lists changes outside `.omt/`, tell the user that uncommitted edits do not reach the tracks, and stop. Then run `omt git start --plan <slug>`.
+When `git status --porcelain` lists changes outside `.omt3/` or `.omt/`, tell the user that uncommitted edits do not reach the tracks, and stop. Then run `omt git start --plan <slug>`.
 
 Done when: the plan exists, the checkout is clean, and the start record exists.
 
@@ -44,7 +44,7 @@ Run the `omt-ulw` step 6 design check here: run a requested design pass with `om
 
 Split the open units into at most `maxParallel` tracks, each with a kebab-case name, its units, and its scope paths. Two tracks share no file, and a unit goes in the track of the units that it depends on.
 
-Keep `<base>` from `git rev-parse HEAD`. For each track, run `omt plan new <slug>-<track> --light --profile <profile>`, and copy in its units, their `## Tests` lines, done conditions, final checks, the `## Summary`, and design specs. Record the tier by `omt-ulw` step 3. Run `omt plan limit <slug>-<track> <k>` with `<k>` 1 or 2, and leave `limits` in the shared `.omt/` config as it is.
+Keep `<base>` from `git rev-parse HEAD`. For each track, run `omt plan new <slug>-<track> --light --profile <profile>`, and copy in its units, their `## Tests` lines, done conditions, final checks, the `## Summary`, and design specs. Record the tier by `omt-ulw` step 3. Run `omt plan limit <slug>-<track> <k>` with `<k>` 1 or 2, and leave `limits` in the shared `.omt3/` config as it is.
 
 Log the split in the plan: each track, its units, scope, branch `omt/<slug>/<track>`, and `<base>`.
 
