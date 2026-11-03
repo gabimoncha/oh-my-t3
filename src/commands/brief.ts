@@ -107,7 +107,7 @@ export const run: CommandRun = async (ctx) => {
   const maxDepthFlag = values["max-depth"];
   const maxDepthOverride = maxDepthFlag === undefined ? undefined : limitArg("--max-depth", maxDepthFlag, "maxDepth");
 
-  const { config } = await loadEffectiveConfigReporting(ctx, { plan: values.plan, profile: values.profile, allowMissingPlan: true });
+  const { config, profile } = await loadEffectiveConfigReporting(ctx, { plan: values.plan, profile: values.profile, allowMissingPlan: true });
   const role = findRole(config, name);
 
   const maxDepth = maxDepthOverride ?? config.limits.maxDepth;
@@ -136,7 +136,7 @@ export const run: CommandRun = async (ctx) => {
   if (context !== undefined) input.context = context;
   if (prior !== undefined) input.prior = prior;
   if (values.plan !== undefined) input.plan = values.plan;
-  if (values.profile !== undefined) input.profile = values.profile;
+  if (values.profile !== undefined) input.profile = profile.name;
   if (values.unit !== undefined) input.unit = values.unit;
 
   const projectRoot = findProjectRoot(ctx.cwd);

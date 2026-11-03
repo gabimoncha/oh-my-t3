@@ -128,12 +128,12 @@ async function planNew(
   checkPositionals(positionals, 2);
   checkPlanSlug(slug);
   const maxParallel = options.maxParallel === undefined ? undefined : limitArg("--max-parallel", options.maxParallel, "maxParallel");
-  await loadEffectiveConfigReporting(ctx, { profile: options.profile });
+  const { profile } = await loadEffectiveConfigReporting(ctx, { profile: options.profile });
   const path = planPath(root, slug);
   if (!options.force && (await pathExists(path))) {
     throw new OmtError("plan_exists", `plan already exists: ${path}`, { hint: "pass --force to overwrite it" });
   }
-  const template = planTemplate(slug, options.title ?? slug, ctx.now().toISOString(), { light: options.light, maxParallel, profile: options.profile });
+  const template = planTemplate(slug, options.title ?? slug, ctx.now().toISOString(), { light: options.light, maxParallel, profile: options.profile === undefined ? undefined : profile.name });
   await writeFileAtomic(await projectWriteTarget(findProjectRoot(ctx.cwd), path), template);
   ctx.stdout(`${path}\n`);
   return 0;
@@ -182,13 +182,13 @@ async function planProfile(ctx: CliContext, root: string, positionals: string[])
   if (slug === undefined || name === undefined) throw usageError("plan profile needs <slug> <name|none>");
   checkPositionals(positionals, 3);
   checkPlanSlug(slug);
-  await loadEffectiveConfigReporting(ctx, { profile: name === "none" ? undefined : name });
+  const { profile } = await loadEffectiveConfigReporting(ctx, { profile: name === "none" ? undefined : name });
   const { path, markdown } = await readPlan(root, slug);
   const header = findPlanHeader(markdown);
   if (header === undefined) throw new OmtError("plan_header_not_found", `plan "${slug}" has no omt-plan header comment`);
-  const updated = setHeaderKey(header.text, "profile", name === "none" ? undefined : name);
+  const updated = setHeaderKey(header.text, "profile", name === "none" ? undefined : profile.name);
   await writeFileAtomic(await projectWriteTarget(findProjectRoot(ctx.cwd), path), markdown.slice(0, header.index) + updated + markdown.slice(header.index + header.text.length));
-  ctx.stdout(name === "none" ? `removed the profile of ${slug}\n` : `set profile=${name} for ${slug}\n`);
+  ctx.stdout(name === "none" ? `removed the profile of ${slug}\n` : `set profile=${profile.name} for ${slug}\n`);
   return 0;
 }
 

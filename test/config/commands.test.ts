@@ -28,13 +28,13 @@ function setup() {
   return { root, project, configDir, userPath, projectPath, ctx, write: writeFile };
 }
 
-test("config show --defaults prints the 13 default roles as JSON", async () => {
+test("config show --defaults prints the 12 default roles as JSON", async () => {
   const { ctx } = setup();
   const c = ctx(["show", "--defaults"]);
   assert.equal(await config(c), 0);
   const printed = JSON.parse(c.out());
   assert.deepEqual(printed, DEFAULT_CONFIG);
-  assert.equal(Object.keys(printed.roles).length, 13);
+  assert.equal(Object.keys(printed.roles).length, 12);
   assert.equal("visuals" in printed, false);
 });
 
@@ -42,7 +42,7 @@ test("an old config with retired keys and roles still loads, with one warning pe
   const { ctx, write, userPath } = setup();
   write(userPath, JSON.stringify({
     limits: { maxParallel: 2, maxTasksPerRun: 9 },
-    roles: { verify: { fast: true }, quick: null, deep: { description: "Deep." } },
+    roles: { verify: { fast: true }, quick: null, deep: { description: "Deep." }, plan: { fast: true } },
     profiles: {
       normal: { workflow: { build: { verify: "heavy", checkpoint: "unit", stallMinutes: 20, review: "off" } } },
       prototype: { limits: { maxTasksPerRun: 3 }, roles: { verify: { fast: true } } },
@@ -52,7 +52,7 @@ test("an old config with retired keys and roles still loads, with one warning pe
   assert.equal(await config(c), 0);
   const printed = JSON.parse(c.out());
   assert.deepEqual(printed.limits, { ...DEFAULT_CONFIG.limits, maxParallel: 2 });
-  for (const name of ["verify", "quick", "deep"]) assert.equal(name in printed.roles, false, name);
+  for (const name of ["verify", "quick", "deep", "plan"]) assert.equal(name in printed.roles, false, name);
   assert.deepEqual(printed.profiles.normal.workflow.build, { ...DEFAULT_CONFIG.profiles.normal?.workflow?.build, review: "off" });
   assert.equal("limits" in printed.profiles.prototype, DEFAULT_CONFIG.profiles.prototype?.limits !== undefined);
   assert.deepEqual(printed.profiles.prototype.limits, DEFAULT_CONFIG.profiles.prototype?.limits);
@@ -62,6 +62,7 @@ test("an old config with retired keys and roles still loads, with one warning pe
     "roles.verify",
     "roles.quick",
     "roles.deep",
+    "roles.plan",
     "profiles.normal.workflow.build.verify",
     "profiles.normal.workflow.build.checkpoint",
     "profiles.normal.workflow.build.stallMinutes",

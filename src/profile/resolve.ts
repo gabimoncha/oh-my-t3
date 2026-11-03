@@ -1,6 +1,6 @@
 import { DEFAULT_CONFIG } from "../config/defaults.ts";
 import { mergeLayer } from "../config/merge.ts";
-import { PROFILE_CHAIN_MAX } from "../config/validate.ts";
+import { PROFILE_CHAIN_MAX, RETIRED_PROFILE_FALLBACK, retiredProfileIssue } from "../config/validate.ts";
 import type { ConfigIssue, LoadedConfig, OmtConfig, ProfileConfig, Workflow } from "../types.ts";
 import { OmtError, usageError } from "../util/errors.ts";
 
@@ -117,8 +117,12 @@ export function profileIssues(
   return issues;
 }
 
+// The returned issues are the loaded issues, plus a warning when the argument or the plan selects a
+// retired profile.
 export function effectiveConfig(loaded: LoadedConfig, options: EffectiveConfigOptions = {}): LoadedConfig & { profile: ResolvedProfile } {
-  const name = options.profile ?? options.planProfile ?? loaded.config.profile;
+  const requested = options.profile ?? options.planProfile ?? loaded.config.profile;
+  const retired = retiredProfileIssue(requested, options.profile !== undefined ? "--profile" : "plan header", "");
+  const name = retired === undefined ? requested : RETIRED_PROFILE_FALLBACK;
   const profile = resolveProfile(loaded.config, name);
   profile.source = options.profile !== undefined ? "argument"
     : options.planProfile !== undefined ? "plan"
@@ -127,6 +131,6 @@ export function effectiveConfig(loaded: LoadedConfig, options: EffectiveConfigOp
     ...loaded,
     config: { ...loaded.config, profile: name, limits: profile.limits, roles: profile.roles, models: profile.models },
     profile,
-    issues: loaded.issues,
+    issues: retired === undefined ? loaded.issues : [...loaded.issues, retired],
   };
 }

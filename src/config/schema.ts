@@ -1,5 +1,5 @@
 import { EFFORT_LADDER } from "../types.ts";
-import { RETIRED_BUILD_KEYS, RETIRED_LIMIT_KEYS } from "./defaults.ts";
+import { RETIRED_BUILD_KEYS, RETIRED_LIMIT_KEYS, RETIRED_PROFILES } from "./defaults.ts";
 import { SCHEMA_URL } from "./starter.ts";
 import {
   ACCESS_VALUES,
@@ -59,7 +59,10 @@ export const CONFIG_SCHEMA = {
       type: "object",
       description: "Profile overrides and new profiles. A new profile needs a description. Null removes a custom profile.",
       propertyNames: { pattern: ROLE_NAME_PATTERN },
-      properties: Object.fromEntries(PRESET_PROFILE_NAMES.map((name) => [name, { $ref: "#/$defs/profile" }])),
+      properties: {
+        ...Object.fromEntries(PRESET_PROFILE_NAMES.map((name) => [name, { $ref: "#/$defs/profile" }])),
+        ...retired(RETIRED_PROFILES),
+      },
       additionalProperties: { oneOf: [{ type: "null" }, { $ref: "#/$defs/profile" }] },
     },
     models: {

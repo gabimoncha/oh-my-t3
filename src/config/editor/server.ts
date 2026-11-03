@@ -2,12 +2,15 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, STATUS_CODES } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
-import type { CliContext } from "../../types.ts";
+import type { Capabilities, CliContext } from "../../types.ts";
 import { errorMessage, OmtError } from "../../util/errors.ts";
 import { openUrl } from "../../util/open.ts";
 import { EditorError, editorState, explainProfile, parseEditRequest, previewEdits, writeEdits } from "./api.ts";
+import type { MaintainerTarget } from "./api.ts";
 import { ASSETS } from "./assets.ts";
+import { bundledSkillText } from "./catalog.ts";
 import type { Asset } from "./assets.ts";
+import { parseSkillWrite, skillFiles, writeSkillFile } from "./skillFiles.ts";
 
 export interface ConfigEditor {
   url: string;
@@ -20,6 +23,8 @@ export interface ConfigEditorOptions {
   open: boolean;
   idleMs?: number; // after the first ping, stop when no ping comes for this long
   closeGraceMs?: number; // after api/close, stop unless a ping comes within this time
+  capabilities?: Capabilities; // orchestrator_capabilities output, for the provider and model lists
+  maintainer?: MaintainerTarget; // edit the built-in defaults and the skill files of an omt clone
 }
 
 const MAX_BODY = 1024 * 1024;
@@ -50,6 +55,9 @@ const ROUTES: Readonly<Record<string, "GET" | "POST">> = {
   "app.js": "GET",
   "api/state": "GET",
   "api/explain": "GET",
+  "api/skill": "GET",
+  "api/skill-files": "GET",
+  "api/skill-file": "POST",
   "api/preview": "POST",
   "api/write": "POST",
   "api/ping": "POST",
@@ -184,9 +192,23 @@ export async function startConfigEditor(ctx: CliContext, opts: ConfigEditorOptio
       const asset = ASSETS[route] as Asset;
       return send(res, 200, asset.body, { "Content-Type": asset.type });
     }
-    if (route === "api/state") return sendJson(res, 200, await editorState(ctx));
-    if (route === "api/explain") return sendJson(res, 200, await explainProfile(ctx, new URLSearchParams(query).get("profile")));
-    const edit = route === "api/preview" || route === "api/write";
+    const maintainer = opts.maintainer;
+    if (route === "api/state") return sendJson(res, 200, await editorState(ctx, opts.capabilities, maintainer));
+    if (route === "api/skill") {
+      const skill = await bundledSkillText(ctx.packageRoot, new URLSearchParams(query).get("name") ?? "");
+      if (skill === undefined) throw new EditorError(404, "unknown_skill", "no bundled skill with this name");
+      return sendJson(res, 200, skill);
+    }
+    if (route === "api/explain") return sendJson(res, 200, await explainProfile(ctx, new URLSearchParams(query).get("profile"), maintainer));
+    if (route === "api/skill-files" || route === "api/skill-file") {
+      if (maintainer === undefined) throw new EditorError(404, "not_found", "skill files are editable only in maintainer mode");
+    }
+    if (route === "api/skill-files") {
+      const files = await skillFiles(maintainer?.skillsRoot ?? "", new URLSearchParams(query).get("name") ?? "");
+      if (files === undefined) throw new EditorError(404, "unknown_skill", "no skill with this name");
+      return sendJson(res, 200, { files });
+    }
+    const edit = route === "api/preview" || route === "api/write" || route === "api/skill-file";
     if (edit && !isJson(req.headers["content-type"])) {
       throw new EditorError(415, "unsupported_media_type", "send the request body as application/json");
     }
@@ -194,8 +216,13 @@ export async function startConfigEditor(ctx: CliContext, opts: ConfigEditorOptio
     if (route === "api/ping") ping();
     if (route === "api/close") requestClose();
     if (!edit) return send(res, 204);
+    if (route === "api/skill-file") {
+      const write = parseSkillWrite(body);
+      return sendJson(res, 200, await serial(() => writeSkillFile(maintainer?.skillsRoot ?? "", write)));
+    }
     const request = parseEditRequest(body);
-    sendJson(res, 200, await serial<unknown>(() => (route === "api/write" ? writeEdits(ctx, request) : previewEdits(ctx, request))));
+    sendJson(res, 200, await serial<unknown>(() =>
+      route === "api/write" ? writeEdits(ctx, request, opts.capabilities, maintainer) : previewEdits(ctx, request, maintainer)));
   };
 
   // Throws the 403 or 404 that the request earns before its method is checked.

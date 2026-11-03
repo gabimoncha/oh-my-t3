@@ -35,7 +35,8 @@
           "$ref": "#/$defs/profile"
         },
         "pr-review": {
-          "$ref": "#/$defs/profile"
+          "deprecated": true,
+          "description": "No longer used. omt ignores this key."
         }
       },
       "additionalProperties": {

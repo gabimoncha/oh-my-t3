@@ -22,7 +22,7 @@ omt runs workflows in this T3 thread: the main thread explores, plans, and build
 | `omt-help` | The user asks for help, what omt can do, what to do next, how to do something, which skill to use, or what a command means, or wants a tour. It only reads, and hands changes to `omt-setup`. |
 | `omt-setup` | The user wants omt set up, configured, or updated: harnesses, the defaults, models, roles, profiles, or worktree setup. It asks before each write. |
 
-For a pull request review, load `omt-code-review` with `omt-code-review --profile pr-review <number>`.
+For a pull request review, load `omt-code-review` with `omt-code-review <number>`. The `normal` profile runs all PR steps. The `prototype` profile turns them off.
 
 Before each commit, push, PR, or merge, a skill runs `omt git check` and follows the [Git actions](references/delegation.md#git-actions) rules.
 

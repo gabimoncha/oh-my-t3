@@ -1,0 +1,366 @@
+// The built-in omt defaults. omt reads this file when it is built, so a change reaches users in the next release.
+// Users review the changes with omt doctor or omt update before they apply. Edit it with `bun run defaults:edit`.
+// T3 names each built-in provider instance after its driver kind. A rung that names the instance with "provider"
+// gets T3 re-check of a stale provider snapshot, which a target with only "driver" does not get.
+{
+  "version": 1,
+  "profile": "normal",
+  "profiles": {
+    "normal": {
+      "description": "Plan, build, and review with the standard workflow.",
+      "workflow": {
+        "plan": {
+          "review": "two-families",
+          "testLayers": [
+            "e2e"
+          ]
+        },
+        "design": {
+          "variants": 3
+        },
+        "review": {
+          "reviewers": "auto",
+          "families": "one",
+          "oracle": "on",
+          "fixLoop": "offer",
+          "ci": "fix",
+          "verify": "changed-flows",
+          "tests": "offer",
+          "guardrails": "propose",
+          "crap": "report"
+        },
+        "git": {
+          "branchCommits": "auto",
+          "pullRequests": "auto",
+          "defaultBranch": "ask",
+          "merge": "ask",
+          "owners": [],
+          "maxPrFiles": 100
+        },
+        "build": {
+          "review": "every-round",
+          "qa": "planned",
+          "failureProofs": "on",
+          "oracle": "heavy"
+        }
+      }
+    },
+    "prototype": {
+      "description": "Build a prototype with fewer reviews and no failure proofs.",
+      "extends": "normal",
+      "workflow": {
+        "plan": {
+          "review": "one"
+        },
+        "design": {
+          "variants": 1
+        },
+        "review": {
+          "reviewers": 1,
+          "oracle": "off",
+          "ci": "off",
+          "verify": "off",
+          "tests": "off",
+          "guardrails": "off",
+          "crap": "off"
+        },
+        "build": {
+          "review": "first-round",
+          "failureProofs": "off",
+          "oracle": "off"
+        }
+      },
+      "limits": {
+        "maxReviewRounds": 2
+      }
+    }
+  },
+  "models": {
+    "gpt-6.1-sol": {
+      "fast": true
+    }
+  },
+  "roles": {
+    "explore": {
+      "description": "Search this repository and answer one narrow question with file and line citations.",
+      "access": "read-only",
+      "result": "research",
+      "t3Role": "research",
+      "interactionMode": "plan",
+      "runtimeMode": "inherit",
+      "crossFamily": false,
+      "chain": [
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6.1-terra",
+          "effort": "low"
+        },
+        {
+          "provider": "claudeAgent",
+          "driver": "claudeAgent",
+          "model": "claude-haiku-5-5",
+          "effort": "medium"
+        }
+      ]
+    },
+    "research": {
+      "description": "Answer a question from docs, the web, and code, with cited sources.",
+      "access": "read-only",
+      "result": "research",
+      "t3Role": "research",
+      "interactionMode": "plan",
+      "runtimeMode": "inherit",
+      "crossFamily": false,
+      "chain": [
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6.1-sol",
+          "effort": "low"
+        },
+        {
+          "provider": "claudeAgent",
+          "driver": "claudeAgent",
+          "model": "claude-sonnet-5-5",
+          "effort": "medium"
+        }
+      ]
+    },
+    "plan-review": {
+      "description": "Check a plan for gaps, ambiguity, and steps that cannot be verified.",
+      "access": "read-only",
+      "result": "review",
+      "t3Role": "review",
+      "interactionMode": "plan",
+      "runtimeMode": "inherit",
+      "crossFamily": true,
+      "chain": [
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6-astra",
+          "effort": "medium"
+        },
+        {
+          "provider": "claudeAgent",
+          "driver": "claudeAgent",
+          "model": "claude-opus-5-5",
+          "effort": "medium"
+        }
+      ]
+    },
+    "grill": {
+      "description": "Test a goal before it has a plan: find its edge cases, open questions, and options.",
+      "access": "read-only",
+      "result": "grill",
+      "t3Role": "review",
+      "interactionMode": "plan",
+      "runtimeMode": "inherit",
+      "crossFamily": true,
+      "chain": [
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6-astra",
+          "effort": "medium"
+        },
+        {
+          "provider": "claudeAgent",
+          "driver": "claudeAgent",
+          "model": "claude-opus-5-5",
+          "effort": "medium"
+        }
+      ]
+    },
+    "execute": {
+      "description": "Implement one planned unit inside its scope and run its verify commands.",
+      "access": "edit",
+      "result": "work",
+      "t3Role": "implementation",
+      "interactionMode": "default",
+      "runtimeMode": "inherit",
+      "crossFamily": false,
+      "chain": [
+        {
+          "provider": "claudeAgent",
+          "driver": "claudeAgent",
+          "model": "claude-opus-5-5",
+          "effort": "low"
+        },
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6.1-sol",
+          "effort": "high"
+        }
+      ]
+    },
+    "review": {
+      "description": "Review a diff against its brief, fix local findings in the changed files, and report the rest by severity. Runs on the family that did not make the change.",
+      "access": "edit",
+      "result": "review",
+      "t3Role": "review",
+      "interactionMode": "default",
+      "runtimeMode": "inherit",
+      "crossFamily": true,
+      "chain": [
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6-astra",
+          "effort": "medium"
+        },
+        {
+          "provider": "claudeAgent",
+          "driver": "claudeAgent",
+          "model": "claude-opus-5-5",
+          "effort": "medium"
+        }
+      ]
+    },
+    "oracle": {
+      "description": "Attack the finished change from the family other than the main implementer's, fix local findings, and report the rest before it counts as done.",
+      "access": "edit",
+      "result": "review",
+      "t3Role": "review",
+      "interactionMode": "default",
+      "runtimeMode": "inherit",
+      "crossFamily": true,
+      "chain": [
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6-astra",
+          "effort": "medium"
+        },
+        {
+          "provider": "claudeAgent",
+          "driver": "claudeAgent",
+          "model": "claude-opus-5-5",
+          "effort": "medium"
+        }
+      ]
+    },
+    "qa": {
+      "description": "Run the given check commands and device flows, and return each exit code with its log and screenshots. Edits nothing.",
+      "access": "edit",
+      "result": "test",
+      "t3Role": "test",
+      "interactionMode": "default",
+      "runtimeMode": "inherit",
+      "crossFamily": false,
+      "chain": [
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6.1-sol",
+          "effort": "medium"
+        },
+        {
+          "provider": "claudeAgent",
+          "driver": "claudeAgent",
+          "model": "claude-sonnet-5-5",
+          "effort": "low"
+        }
+      ]
+    },
+    "guardrail": {
+      "description": "Turn review findings into deterministic checks and rule fixes, so that the next change cannot repeat them.",
+      "access": "read-only",
+      "result": "guardrail",
+      "t3Role": "review",
+      "interactionMode": "plan",
+      "runtimeMode": "inherit",
+      "crossFamily": false,
+      "chain": [
+        {
+          "provider": "claudeAgent",
+          "driver": "claudeAgent",
+          "model": "claude-opus-5-5",
+          "effort": "high"
+        },
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6-astra",
+          "effort": "high"
+        }
+      ]
+    },
+    "writing": {
+      "description": "Write or edit documentation and other prose.",
+      "access": "edit",
+      "result": "work",
+      "t3Role": "implementation",
+      "interactionMode": "default",
+      "runtimeMode": "inherit",
+      "crossFamily": false,
+      "chain": [
+        {
+          "provider": "claudeAgent",
+          "driver": "claudeAgent",
+          "model": "claude-opus-5-5",
+          "effort": "medium"
+        },
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6-astra",
+          "effort": "medium"
+        }
+      ]
+    },
+    "design": {
+      "description": "Design screens and flows in Paper, and write a design spec that UI units cite.",
+      "access": "edit",
+      "result": "work",
+      "t3Role": "design",
+      "interactionMode": "default",
+      "runtimeMode": "inherit",
+      "crossFamily": false,
+      "chain": [
+        {
+          "provider": "claudeAgent",
+          "driver": "claudeAgent",
+          "model": "claude-opus-5-5",
+          "effort": "medium"
+        },
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6-astra",
+          "effort": "high"
+        }
+      ]
+    },
+    "ui": {
+      "description": "Implement one UI unit from its design spec or task requirements, inside its scope.",
+      "access": "edit",
+      "result": "work",
+      "t3Role": "implementation",
+      "interactionMode": "default",
+      "runtimeMode": "inherit",
+      "crossFamily": false,
+      "chain": [
+        {
+          "provider": "claudeAgent",
+          "driver": "claudeAgent",
+          "model": "claude-opus-5-5",
+          "effort": "low"
+        },
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6.1-sol",
+          "effort": "high"
+        }
+      ]
+    }
+  },
+  "limits": {
+    "maxParallel": 6,
+    "maxDepth": 1,
+    "maxReviewRounds": 4
+  }
+}

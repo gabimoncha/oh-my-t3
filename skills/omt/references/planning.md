@@ -1,4 +1,6 @@
-You turn a goal into an execution spec: a plan file that the main thread can build from without making a design decision. The main thread builds the units itself.
+# Planning
+
+The main thread follows this standard when it writes a plan file, in `omt-plan` and in a LIGHT `omt-ulw` plan. A plan is an execution spec: the main thread can build from it without making a design decision.
 
 How you work:
 
@@ -6,7 +8,7 @@ How you work:
 - Create the file with `omt plan new <slug>` and fill every section. Keep the checkbox grammar: `- [ ] U1. <title>` at column zero.
 - Write `Done when` items (D1, D2, ...) as checks that can fail: a command, a test, or an observable result.
 - When a unit reads outside data, such as recordings, files, or API responses, give it a done condition on an input shaped like real data, not only a seeded or ideal sample.
-- Give every unit a role, a scope (files or directories), a done condition, a verify command, and its dependencies. The role is `main` for a unit that the main thread builds, and `ui` for a unit that implements a design or changes UI.
+- Give every unit a role, a scope (files or directories), a done condition, a verify command, and its dependencies. The role is `main` for a unit that the main thread builds, `ui` for a unit that implements a design or changes UI, and `writing` for a unit that only writes documentation or other prose.
 - Give parallel units disjoint scopes. When two units must touch the same file, make one depend on the other.
 - Settle every design choice in the plan: names, signatures, data shapes, error behavior. A choice that only the owner can make goes under `DECISIONS NEEDED` with 2 to 4 options and your recommendation.
 - Size units so that each is one step of the build: one concern, a few files, one verify command that proves it.
@@ -16,4 +18,4 @@ How you work:
 
 What good output looks like: an implementer reading only one unit and its scope knows what to build, where, and how to prove it.
 
-Stop when every unit has all five fields and every done condition maps to at least one unit or final check. Write only the plan file; leave the code to the main thread.
+Stop when every unit has all five fields and every done condition maps to at least one unit or final check. Write only the plan file. Build no unit while you plan.

@@ -40,6 +40,21 @@ export function defaultsSnapshotPath(ctx: Context, scope: Scope): string {
   return scope === "project" ? projectManifestPath(findProjectRoot(ctx.cwd)) : manifestPath(ctx.env, ctx.homedir);
 }
 
+// A complete defaults config sets every key that omt reads without a fallback. The accepted snapshot and the
+// built-in defaults.jsonc must both be complete.
+export function isCompleteDefaults(layer: ConfigLayer): boolean {
+  if (layer.version !== 1 || layer.profile === undefined || layer.profiles === undefined || layer.roles === undefined ||
+    layer.models === undefined || layer.limits === undefined || layer.limits.maxParallel === undefined ||
+    layer.limits.maxDepth === undefined || layer.limits.maxReviewRounds === undefined ||
+    layer.profiles.normal?.workflow === undefined || !Object.hasOwn(layer.profiles, layer.profile) ||
+    layer.profiles[layer.profile] == null) return false;
+  for (const role of Object.values(layer.roles)) {
+    if (role === null || role.description === undefined || role.access === undefined || role.chain === undefined ||
+      role.result === undefined || role.t3Role === undefined || role.interactionMode === undefined || role.runtimeMode === undefined) return false;
+  }
+  return !Object.values(layer.profiles).some((profile) => profile === null || profile.description === undefined);
+}
+
 export function parseDefaultsSnapshot(text: string, path: string): DefaultsSnapshot {
   let value: unknown;
   try {
@@ -53,15 +68,7 @@ export function parseDefaultsSnapshot(text: string, path: string): DefaultsSnaps
   });
   if (!isRecord(value) || value.version !== 1 || typeof value.cliVersion !== "string" || !isRecord(raw) || raw.update !== undefined) throw invalid();
   const { layer, issues } = validateLayer(raw, path);
-  if (issues.some((issue) => issue.severity === "error") || layer.version !== 1 || layer.profile === undefined ||
-    layer.profiles === undefined || layer.roles === undefined || layer.models === undefined || layer.limits === undefined ||
-    layer.limits.maxParallel === undefined || layer.limits.maxDepth === undefined || layer.limits.maxReviewRounds === undefined ||
-    layer.profiles.normal?.workflow === undefined || !Object.hasOwn(layer.profiles, layer.profile) || layer.profiles[layer.profile] == null) throw invalid();
-  for (const role of Object.values(layer.roles)) {
-    if (role === null || role.description === undefined || role.access === undefined || role.chain === undefined ||
-      role.result === undefined || role.t3Role === undefined || role.interactionMode === undefined || role.runtimeMode === undefined) throw invalid();
-  }
-  if (Object.values(layer.profiles).some((profile) => profile === null || profile.description === undefined)) throw invalid();
+  if (issues.some((issue) => issue.severity === "error") || !isCompleteDefaults(layer)) throw invalid();
   return { version: 1, cliVersion: value.cliVersion, config: layer as OmtConfig };
 }
 

@@ -12,7 +12,7 @@ test("end to end: pick and switch a custom profile, then use its limits for the 
   mkdirSync(env.HOME!, { recursive: true });
   const configPath = join(project, ".omt", "config.jsonc");
   const config = {
-    profile: "pr-review",
+    profile: "prototype",
     limits: { maxParallel: 2 },
     profiles: {
       hackathon: {
@@ -33,8 +33,8 @@ test("end to end: pick and switch a custom profile, then use its limits for the 
     return result.stdout;
   };
   const list = ok("profile", "list");
-  for (const name of ["normal", "prototype", "pr-review", "hackathon"]) assert.match(list, new RegExp(`^${name}\\s+`, "m"));
-  assert.deepEqual(JSON.parse(ok("profile", "list", "--json")).map((profile: { name: string }) => profile.name), ["normal", "prototype", "pr-review", "hackathon"]);
+  for (const name of ["normal", "prototype", "hackathon"]) assert.match(list, new RegExp(`^${name}\\s+`, "m"));
+  assert.deepEqual(JSON.parse(ok("profile", "list", "--json")).map((profile: { name: string }) => profile.name), ["normal", "prototype", "hackathon"]);
   const prototype = JSON.parse(ok("profile", "show", "prototype", "--json"));
   assert.equal(prototype.profile, "prototype");
   assert.equal(prototype.source, "argument");
@@ -76,8 +76,8 @@ test("end to end: pick and switch a custom profile, then use its limits for the 
   ok("plan", "profile", "demo", "none");
   assert.doesNotMatch(readFileSync(path, "utf8"), / profile=/);
   assert.match(readFileSync(path, "utf8"), / max-parallel=12\b/);
-  assert.match(ok("plan", "status", "demo"), /^profile: pr-review$/m);
-  assert.match(ok("ledger", "stats", "--plan", "demo"), /^profile: pr-review$/m);
+  assert.match(ok("plan", "status", "demo"), /^profile: prototype$/m);
+  assert.match(ok("ledger", "stats", "--plan", "demo"), /^profile: prototype$/m);
   assert.deepEqual(JSON.parse(ok("ledger", "stats", "--json")).limits, { maxParallel: 2 });
   config.profile = "hackathon";
   writeFileSync(configPath, JSON.stringify(config));
@@ -102,14 +102,14 @@ test("profile CLI rejects unknown selections and broken chains and prints role m
     const result = run(...args);
     assert.equal(result.code, 2, args.join(" "));
     assert.match(result.stderr, /unknown profile/);
-    assert.match(result.stderr, /known profiles: normal, prototype, pr-review, custom/);
+    assert.match(result.stderr, /known profiles: normal, prototype, custom/);
     assert.equal(readFileSync(path, "utf8"), original);
   }
   writeFileSync(path, original.replace(" -->", " profile=missing -->"));
   for (const args of [["profile", "show", "--plan", "demo"], ["plan", "status", "demo"], ["ledger", "stats", "--plan", "demo"]]) {
     const result = run(...args);
     assert.equal(result.code, 2, args.join(" "));
-    assert.match(result.stderr, /known profiles: normal, prototype, pr-review, custom/);
+    assert.match(result.stderr, /known profiles: normal, prototype, custom/);
   }
   writeFileSync(configPath, JSON.stringify({ profiles: { custom: { description: "Custom.", extends: "custom" } } }));
   const broken = run("profile", "show", "custom");
@@ -123,4 +123,41 @@ test("profile CLI rejects unknown selections and broken chains and prints role m
     assert.match(result.stderr, /error \S+config\.jsonc profiles\.custom\.roles\.brandnew: a new role needs description, access, and chain/);
     assert.equal(result.stderr.match(/roles\.brandnew/g)?.length, 1);
   }
+});
+
+test("profile CLI resolves a retired pr-review selection to normal with a warning", () => {
+  const root = tempDir("omt-profile-retired-");
+  const project = join(root, "project");
+  mkdirSync(join(project, ".git"), { recursive: true });
+  const configPath = join(project, ".omt", "config.jsonc");
+  writeFile(configPath, JSON.stringify({ profile: "pr-review", profiles: { "pr-review": { description: "Old." } } }));
+  const run = (...args: string[]) => spawnOmt(args, { root, cwd: project });
+  const retired = /warning --profile: profile "pr-review" is no longer used; normal runs the PR steps\n/;
+  const loaded = run("profile", "show", "--json");
+  assert.equal(loaded.code, 0, loaded.stderr);
+  assert.equal(JSON.parse(loaded.stdout).profile, "normal");
+  assert.match(loaded.stderr, /warning \S+config\.jsonc profile: profile "pr-review" is no longer used; normal runs the PR steps\n/);
+  assert.match(loaded.stderr, /warning \S+config\.jsonc profiles\.pr-review: profiles\.pr-review is no longer used; remove it\n/);
+  writeFile(configPath, "{}");
+  for (const args of [["profile", "show", "pr-review", "--json"], ["profile", "show", "--profile", "pr-review", "--json"]]) {
+    const result = run(...args);
+    assert.equal(result.code, 0, `${args.join(" ")}\n${result.stderr}`);
+    assert.equal(result.stderr.match(retired)?.length, 1);
+    const shown = JSON.parse(result.stdout);
+    assert.equal(shown.profile, "normal");
+    assert.equal(shown.workflow.review.ci, "fix");
+  }
+  const created = run("plan", "new", "demo", "--profile", "pr-review");
+  assert.equal(created.code, 0, created.stderr);
+  assert.match(created.stderr, retired);
+  const path = join(project, ".omt", "plans", "demo.md");
+  assert.match(readFileSync(path, "utf8"), /^<!-- omt-plan .* profile=normal -->$/m);
+  const switched = run("plan", "profile", "demo", "pr-review");
+  assert.equal(switched.code, 0, switched.stderr);
+  assert.equal(switched.stdout, "set profile=normal for demo\n");
+  writeFileSync(path, readFileSync(path, "utf8").replace(" profile=normal", " profile=pr-review"));
+  const status = run("plan", "status", "demo");
+  assert.equal(status.code, 0, status.stderr);
+  assert.match(status.stdout, /^profile: normal$/m);
+  assert.match(status.stderr, /warning plan header: profile "pr-review" is no longer used; normal runs the PR steps\n/);
 });

@@ -15,7 +15,7 @@ import type {
   WorkflowLayer,
 } from "../types.ts";
 import { usageError } from "../util/errors.ts";
-import { RETIRED_BUILD_KEYS, RETIRED_LIMIT_KEYS, RETIRED_ROLES } from "./defaults.ts";
+import { RETIRED_BUILD_KEYS, RETIRED_LIMIT_KEYS, RETIRED_PROFILES, RETIRED_ROLES } from "./defaults.ts";
 import { isRecord } from "../util/json.ts";
 
 export const ROOT_KEYS: readonly string[] = ["$schema", "version", "profile", "profiles", "models", "roles", "limits", "harnesses", "update"];
@@ -37,10 +37,17 @@ export const RUNG_KEYS: readonly string[] = ["provider", "driver", "model", "eff
 export const LIMIT_KEYS: readonly string[] = ["maxParallel", "maxDepth", "maxReviewRounds"];
 export const PROFILE_KEYS: readonly string[] = ["description", "extends", "workflow", "limits", "roles", "models"];
 export const MODEL_KEYS: readonly string[] = ["fast"];
-export const PRESET_PROFILE_NAMES: readonly string[] = ["normal", "prototype", "pr-review"];
+export const PRESET_PROFILE_NAMES: readonly string[] = ["normal", "prototype"];
+export const RETIRED_PROFILE_FALLBACK = "normal";
 export const PROFILE_CHAIN_MAX = 8;
 
 type WorkflowRule = { values: readonly string[] } | { minimum: number; maximum: number; auto?: boolean } | { items: readonly string[] } | { strings: string };
+
+// A selection of a retired profile gets this warning and resolves to RETIRED_PROFILE_FALLBACK.
+export function retiredProfileIssue(name: string, source: string, path: string): ConfigIssue | undefined {
+  if (!RETIRED_PROFILES.includes(name)) return undefined;
+  return { source, path, message: `profile "${name}" is no longer used; ${RETIRED_PROFILE_FALLBACK} runs the PR steps`, severity: "warning" };
+}
 
 export const GIT_OWNER_PATTERN = "^[A-Za-z0-9][A-Za-z0-9-]{0,38}$";
 
@@ -154,6 +161,12 @@ class Collector {
 
   error(path: string, message: string): void {
     this.issues.push({ source: this.source, path, message, severity: "error" });
+  }
+
+  retiredProfile(name: string, path: string): boolean {
+    const issue = retiredProfileIssue(name, this.source, path);
+    if (issue !== undefined) this.issues.push(issue);
+    return issue !== undefined;
   }
 
   retired(path: string): void {
@@ -387,6 +400,10 @@ function validateProfiles(value: unknown, out: Collector): ConfigLayer["profiles
       out.error(path, `profile name "${name}" must match ${ROLE_NAME_PATTERN}`);
       continue;
     }
+    if (RETIRED_PROFILES.includes(name)) {
+      out.retired(path);
+      continue;
+    }
     if (item === null) {
       if (PRESET_PROFILE_NAMES.includes(name)) out.error(path, `cannot remove preset profile "${name}"`);
       else profiles[name] = null;
@@ -405,8 +422,9 @@ function validateProfiles(value: unknown, out: Collector): ConfigLayer["profiles
         if (typeof field === "string" && field.length > 0 && codePointLength(field) <= DESCRIPTION_MAX) profile.description = field;
         else out.error(keyPath, `must be a non-empty string of at most ${DESCRIPTION_MAX} characters`);
       } else if (key === "extends") {
-        if (typeof field === "string" && ROLE_NAME_RE.test(field)) profile.extends = field;
-        else out.error(keyPath, `must be a string that matches ${ROLE_NAME_PATTERN}, got ${describe(field)}`);
+        if (typeof field === "string" && ROLE_NAME_RE.test(field)) {
+          profile.extends = out.retiredProfile(field, keyPath) ? RETIRED_PROFILE_FALLBACK : field;
+        } else out.error(keyPath, `must be a string that matches ${ROLE_NAME_PATTERN}, got ${describe(field)}`);
       } else if (key === "workflow") {
         const workflow = validateWorkflow(field, keyPath, out);
         if (workflow !== undefined) profile.workflow = workflow;
@@ -465,8 +483,9 @@ export function validateLayer(value: unknown, source: string): { layer: ConfigLa
       const limits = validateLimits(item, key, out);
       if (limits !== undefined) layer.limits = limits;
     } else if (key === "profile") {
-      if (typeof item === "string" && ROLE_NAME_RE.test(item)) layer.profile = item;
-      else out.error(key, `must be a string that matches ${ROLE_NAME_PATTERN}, got ${describe(item)}`);
+      if (typeof item === "string" && ROLE_NAME_RE.test(item)) {
+        layer.profile = out.retiredProfile(item, key) ? RETIRED_PROFILE_FALLBACK : item;
+      } else out.error(key, `must be a string that matches ${ROLE_NAME_PATTERN}, got ${describe(item)}`);
     } else if (key === "profiles") {
       const profiles = validateProfiles(item, out);
       if (profiles !== undefined) layer.profiles = profiles;

@@ -2,7 +2,7 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { RETIRED_BUILD_KEYS, RETIRED_LIMIT_KEYS } from "../../src/config/defaults.ts";
+import { RETIRED_BUILD_KEYS, RETIRED_LIMIT_KEYS, RETIRED_PROFILES } from "../../src/config/defaults.ts";
 import { CONFIG_SCHEMA } from "../../src/config/schema.ts";
 import {
   LIMIT_KEYS,
@@ -39,7 +39,7 @@ test("the schema allows exactly the keys that validateLayer allows", () => {
   assert.deepEqual(sorted(Object.keys(s.$defs.rung.properties)), sorted(RUNG_KEYS));
   assert.deepEqual(sorted(Object.keys(s.$defs.profile.properties)), sorted(PROFILE_KEYS));
   assert.deepEqual(sorted(Object.keys(s.$defs.model.properties)), sorted(MODEL_KEYS));
-  assert.deepEqual(sorted(Object.keys(s.properties.profiles.properties)), sorted(PRESET_PROFILE_NAMES));
+  assert.deepEqual(sorted(Object.keys(s.properties.profiles.properties)), sorted([...PRESET_PROFILE_NAMES, ...RETIRED_PROFILES]));
   assert.deepEqual(sorted(Object.keys(s.$defs.workflow.properties)), sorted(Object.keys(WORKFLOW_RULES)));
   for (const key of Object.keys(WORKFLOW_RULES) as (keyof typeof WORKFLOW_RULES)[]) {
     const retired = key === "build" ? RETIRED_BUILD_KEYS : [];
@@ -50,6 +50,8 @@ test("the schema allows exactly the keys that validateLayer allows", () => {
   const limits = s.properties.limits.properties as unknown as Record<string, { deprecated?: boolean }>;
   for (const key of RETIRED_BUILD_KEYS) assert.equal(build[key]?.deprecated, true, key);
   for (const key of RETIRED_LIMIT_KEYS) assert.equal(limits[key]?.deprecated, true, key);
+  const profiles = s.properties.profiles.properties as unknown as Record<string, { deprecated?: boolean }>;
+  for (const name of RETIRED_PROFILES) assert.equal(profiles[name]?.deprecated, true, name);
 });
 
 test("every object that the validator closes has additionalProperties false", () => {

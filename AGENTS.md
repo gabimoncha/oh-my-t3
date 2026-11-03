@@ -25,6 +25,7 @@ Run each command through `mise exec --` (or in a shell where mise is active), so
 | `bun test` | Run the tests (files `test/**/*.test.ts`). |
 | `bun run typecheck` | Run `scripts/tsrs.sh -p tsconfig.json`. It runs the native binary of `tsrs`, the Rust port of the TypeScript 7 compiler. |
 | `bun run schema` | Write `schema/omt.schema.json` from `src/config/schema.ts`. |
+| `bun run defaults:edit` | Edit the built-in defaults (`src/config/defaults.jsonc`) and the skill files (`skills/`) in the config editor. It saves to this clone. Run `bun run verify` after you save. |
 | `bun src/cli.ts <command>` | Run the CLI from source. |
 
 ## TypeScript rules

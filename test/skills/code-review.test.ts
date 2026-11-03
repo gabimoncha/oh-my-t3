@@ -1,6 +1,6 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { SKILLS_DIR, readSkill, section } from "./shared.ts";
 
@@ -175,7 +175,9 @@ test("omt-code-review pins 6. Write and report", () => {
 test("omt-code-review pins the PR path and switches", () => {
   const text = section(readSkill("omt-code-review"), "## PR review");
   assert.match(text, /Run these eleven steps for a pull request with any profile\./);
-  assert.match(text, /`omt-code-review --profile pr-review <number>` enables all PR steps\./);
+  assert.match(text, /`omt-code-review <number>` uses the `normal` profile, which enables all PR steps\./);
+  assert.match(text, /The `prototype` profile turns the PR steps off\./);
+  assert.doesNotMatch(readSkill("omt-code-review"), /pr-review/);
   assert.match(text, /Steps 1, 2, 6, and 10 always run\./);
   assert.match(text, /Step 11 applies its named switches\./);
   assert.match(text, /For a switch set to `off`, mark its step skipped and continue in order\./);
@@ -409,4 +411,11 @@ test("omt-code-review keeps all eleven PR steps in order", () => {
     "### PR 11. Offers",
   ]);
   assert.doesNotMatch(section(text, "### PR 11. Offers"), /require `BLOCKED`/);
+});
+
+test("no skill or reference names the retired pr-review profile", () => {
+  const files = readdirSync(SKILLS_DIR, { recursive: true, encoding: "utf8" }).filter((file) => file.endsWith(".md"));
+  assert.ok(files.length > 0);
+  for (const file of files) assert.doesNotMatch(readFileSync(join(SKILLS_DIR, file), "utf8"), /pr-review/, file);
+  assert.match(readSkill("omt-help"), /For a pull request, `\$omt-code-review <number>`\. It runs all PR steps, and `--profile prototype` turns them off\./);
 });

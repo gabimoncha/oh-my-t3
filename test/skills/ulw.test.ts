@@ -124,7 +124,7 @@ test("omt-ulw selects the profile before exploration and frames the run", () => 
 
 test("omt-ulw plans LIGHT runs itself and HEAVY runs through omt-plan", () => {
   const plan = section(readSkill("omt-ulw"), "### 5. ");
-  assert.match(plan, /LIGHT: run `omt plan new <slug> --light` and fill it yourself, `## Summary` last by the rule in \[roles\/plan\.md\]/);
+  assert.match(plan, /LIGHT: run `omt plan new <slug> --light` and fill it yourself, `## Summary` last by the rule in \[planning\.md\]/);
   assert.match(plan, /The LIGHT plan needs no owner approval\./);
   assert.match(plan, /HEAVY: run the `omt-plan` skill with the slug before any plan file exists\./);
   assert.match(plan, /The owner approves the HEAVY plan before you build\./);
@@ -159,7 +159,7 @@ test("omt-ulw builds every unit in the main thread", () => {
   assert.match(build, /Run `omt plan mark <slug> <unit> done`\./);
   assert.match(build, /Try the configured `ui` fallbacks when T3 refuses a target\./);
   assert.match(build, /When every configured `ui` target fails, stop and tell the user\. Do not switch to `execute`\./);
-  assert.match(build, /Independent track: a large unit with a scope that no other open unit touches may go to an `execute` child, or to a `ui` child for a `ui` unit\./);
+  assert.match(build, /Independent track: a large unit with a scope that no other open unit touches may go to an `execute` child, to a `ui` child for a `ui` unit, or to a `writing` child for a `writing` unit\./);
   assert.match(build, /omt brief <role> --task-file - --title "<role> <unit>: <short unit title>" --scope \.\.\. --done \.\.\. --verify \.\.\. --plan <slug> --unit <id> --round 1 --attempt 1 --save --json/);
   assert.match(build, /Dispatch only while `omt ledger stats --plan <slug>` reports `can dispatch: yes`\./);
   assert.match(build, /run its printed `ledger\.dispatched` line/);
@@ -377,9 +377,10 @@ test("briefs pin the CLI, test policy, saved files, and the qa device rule", () 
   }
 });
 
-test("omt routes pull request reviews to pr-review and lists the profile commands", () => {
+test("omt routes pull request reviews to the normal PR steps and lists the profile commands", () => {
   const text = readSkill("omt");
-  assert.match(text, /For a pull request review, load `omt-code-review` with `omt-code-review --profile pr-review <number>`\./);
+  assert.match(text, /For a pull request review, load `omt-code-review` with `omt-code-review <number>`\. The `normal` profile runs all PR steps\. The `prototype` profile turns them off\./);
+  assert.doesNotMatch(text, /pr-review/);
   assert.match(text, /\| `omt brief <role> --task-file - --title "<role> <unit>: <title>" --scope <p> --done <c> --verify <cmd> --plan <slug> --unit <id> --round <n> --attempt <n> \[--against <provider\\\|driver\\\|auto>\] --save --json` \| `\{ delegateTask, fallbacks, ledger \}`; the full brief is in a file and `delegateTask\.task` names it \|/);
   assert.match(text, /\| `omt profile list` \| available workflow profiles \|/);
   assert.match(text, /\| `omt profile show \[<name>\] \[--plan <slug>\] --json` \| the effective `profile`, `source`, `workflow`, `limits`, `roles`, and `models` \|/);

@@ -96,6 +96,8 @@ Done when: the user knows whether the skill is available, and has the installati
 3. Show the edit and ask. After the user agrees, make the edit and keep every other byte of the file, comments included.
 4. The check: `omt config validate`, then `omt profile show <name>` for the profile that the change affects.
 
+When the user wants to edit in a browser page, run `omt config edit --web --capabilities <file>` in the background, with the capabilities file of step 3, and give the user the URL that it prints. Without the T3 tools, omit `--capabilities <file>`. The page writes the files itself, so skip items 2 and 3, and run item 4 after the user says that they are done.
+
 Done when: `omt config validate` exits 0, and `omt profile show <name>` shows the new values.
 
 ### 7. Update omt

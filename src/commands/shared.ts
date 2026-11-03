@@ -39,7 +39,9 @@ export async function loadEffectiveConfigReporting(
     planProfile = markdown === undefined ? undefined : parsePlan(markdown).profile;
   }
   const loaded = await loadConfigReporting(ctx);
-  return effectiveConfig(loaded, { profile: options.profile, planProfile });
+  const effective = effectiveConfig(loaded, { profile: options.profile, planProfile });
+  for (const issue of effective.issues.slice(loaded.issues.length)) ctx.stderr(formatIssue(issue));
+  return effective;
 }
 
 const AGAINST_RE = new RegExp(PROVIDER_PATTERN);

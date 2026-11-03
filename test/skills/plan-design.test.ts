@@ -181,7 +181,7 @@ test("omt-plan writes the plan summary in its hand-off reply, and every plan has
   assert.match(handOff, /Show the plan to the owner first, also when `omt-ulw` called this skill\. Write the `## Summary` text in full in the reply\./);
   assert.doesNotMatch(plan, /heartbeat|schedule_task|end the turn after each dispatch/i);
   assert.doesNotMatch(handOff, /omt-show|visuals|html_render/);
-  assert.match(section(plan, "### 3. "), /Fill `## Summary` last, by the summary rule in \[roles\/plan\.md\]/);
+  assert.match(section(plan, "### 3. "), /Fill `## Summary` last, by the summary rule in \[planning\.md\]/);
 });
 
 test("omt-design reads the profile with a plan file or a ledger-only id", () => {

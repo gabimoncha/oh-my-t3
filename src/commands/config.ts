@@ -5,6 +5,7 @@ import { explainConfig, sourceLabel } from "../config/explain.ts";
 import type { ExplainEntry } from "../config/explain.ts";
 import { loadConfig, mergeConfigLayers, readConfigLayers } from "../config/load.ts";
 import { USER_STARTER_CONFIG } from "../config/starter.ts";
+import { retiredProfileIssue } from "../config/validate.ts";
 import { findProjectRoot, projectConfigPath, userConfigPath } from "../paths.ts";
 import type { CliContext, CommandRun } from "../types.ts";
 import { parseArgs } from "../util/args.ts";
@@ -12,13 +13,13 @@ import { OmtError, usageError } from "../util/errors.ts";
 import { writeTargetFor } from "../install/fsops.ts";
 import { pathExists, writeFileAtomic } from "../util/fs.ts";
 import { formatJson } from "../util/output.ts";
-import { formatIssue, loadConfigReporting } from "./shared.ts";
+import { formatIssue, loadConfigReporting, readCapabilities } from "./shared.ts";
 
 export const summary = "Show, explain, edit, locate, validate, or create the omt config.";
 
 export const usage = `Usage: omt config [show | explain | path | validate | init] [--json] [--defaults] [--force]
        omt config explain [--profile <name>] [--json]
-       omt config edit --web [--no-open]
+       omt config edit --web [--no-open] [--capabilities <file>]
 
 Subcommands:
   show              print the merged config as JSON before profile selection (default)
@@ -35,6 +36,10 @@ Options:
   --profile <name>  with explain: explain this profile instead of the selected one
   --web             with edit: start the editor and open it in the default browser
   --no-open         with edit: print the editor URL and open no browser
+  --capabilities <file>
+                    with edit: orchestrator_capabilities output (- for stdin);
+                    the role editor lists the T3 providers, models, effort
+                    levels, and fast mode from it
   --defaults        with show: print the installed release's current defaults
   --force           with init: overwrite an existing file
   -h, --help        print this help
@@ -62,6 +67,8 @@ async function explain(ctx: CliContext, profile: string | undefined, json: boole
   const layers = await readConfigLayers(ctx);
   const loaded = mergeConfigLayers(layers, await activeDefaults(ctx));
   for (const issue of loaded.issues) ctx.stderr(formatIssue(issue));
+  const retired = profile === undefined ? undefined : retiredProfileIssue(profile, "--profile", "");
+  if (retired !== undefined) ctx.stderr(formatIssue(retired));
   const report = explainConfig(layers, loaded, profile);
   if (json) {
     ctx.stdout(formatJson(report));
@@ -81,8 +88,9 @@ async function explain(ctx: CliContext, profile: string | undefined, json: boole
   return 0;
 }
 
-async function edit(ctx: CliContext, open: boolean): Promise<number> {
-  const editor = await startConfigEditor(ctx, { open });
+async function edit(ctx: CliContext, open: boolean, capabilities: string | undefined): Promise<number> {
+  const caps = await readCapabilities(ctx, capabilities);
+  const editor = await startConfigEditor(ctx, { open, ...(caps === undefined ? {} : { capabilities: caps }) });
   const stop = () => {
     void editor.close();
   };
@@ -141,18 +149,19 @@ export const run: CommandRun = async (ctx) => {
     profile: { type: "string" },
     web: { type: "boolean" },
     "no-open": { type: "boolean" },
+    capabilities: { type: "string" },
   }, { maxPositionals: 1 });
   const sub = positionals[0] ?? "show";
   if (!SUBCOMMANDS.includes(sub)) {
     throw usageError(`unknown subcommand "${sub}"`, `use one of: ${SUBCOMMANDS.join(", ")}`);
   }
   if (values.profile !== undefined && sub !== "explain") throw usageError("--profile applies only to config explain");
-  if ((values.web !== undefined || values["no-open"] !== undefined) && sub !== "edit") {
-    throw usageError("--web and --no-open apply only to config edit");
+  if ((values.web !== undefined || values["no-open"] !== undefined || values.capabilities !== undefined) && sub !== "edit") {
+    throw usageError("--web, --no-open, and --capabilities apply only to config edit");
   }
   if (sub === "edit") {
     if (values.web !== true) throw usageError("config edit needs --web", "use omt config edit --web");
-    return edit(ctx, values["no-open"] !== true);
+    return edit(ctx, values["no-open"] !== true, values.capabilities);
   }
   if (sub === "explain") return explain(ctx, values.profile, values.json === true);
   if (sub === "path") return path(ctx);

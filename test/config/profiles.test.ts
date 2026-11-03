@@ -26,9 +26,10 @@ function setup() {
   return { ctx, userPath, projectPath, load, write };
 }
 
-test("the presets store a full normal workflow and sparse prototype and PR overrides", () => {
-  const { normal, prototype, "pr-review": prReview } = DEFAULT_CONFIG.profiles;
-  assert.ok(normal && prototype && prReview);
+test("the presets store a full normal workflow with the PR steps and sparse prototype overrides", () => {
+  const { normal, prototype } = DEFAULT_CONFIG.profiles;
+  assert.ok(normal && prototype);
+  assert.deepEqual(Object.keys(DEFAULT_CONFIG.profiles), ["normal", "prototype"]);
   assert.equal(DEFAULT_CONFIG.profile, "normal");
   assert.deepEqual(Object.keys(normal).sort(), ["description", "workflow"]);
   assert.deepEqual(normal.workflow, {
@@ -36,8 +37,8 @@ test("the presets store a full normal workflow and sparse prototype and PR overr
     design: { variants: 3 },
     build: { review: "every-round", qa: "planned", failureProofs: "on", oracle: "heavy" },
     review: {
-      reviewers: "auto", families: "one", oracle: "on", fixLoop: "offer", ci: "check", verify: "off",
-      tests: "off", guardrails: "off", crap: "off",
+      reviewers: "auto", families: "one", oracle: "on", fixLoop: "offer", ci: "fix", verify: "changed-flows",
+      tests: "offer", guardrails: "propose", crap: "report",
     },
     git: { branchCommits: "auto", pullRequests: "auto", defaultBranch: "ask", merge: "ask", owners: [], maxPrFiles: 100 },
   });
@@ -47,12 +48,7 @@ test("the presets store a full normal workflow and sparse prototype and PR overr
     plan: { review: "one" },
     design: { variants: 1 },
     build: { review: "first-round", failureProofs: "off", oracle: "off" },
-    review: { reviewers: 1, oracle: "off", ci: "off" },
-  });
-  assert.equal(prReview.extends, "normal");
-  assert.deepEqual(Object.keys(prReview).sort(), ["description", "extends", "workflow"]);
-  assert.deepEqual(prReview.workflow, {
-    review: { ci: "fix", verify: "changed-flows", tests: "offer", guardrails: "propose", crap: "report" },
+    review: { reviewers: 1, oracle: "off", ci: "off", verify: "off", tests: "off", guardrails: "off", crap: "off" },
   });
   assert.deepEqual(DEFAULT_CONFIG.models, { "gpt-6.1-sol": { fast: true } });
   for (const role of Object.values(DEFAULT_CONFIG.roles)) {
@@ -160,13 +156,33 @@ test("null removes custom profiles but cannot remove any preset", () => {
   assert.deepEqual(removed.issues, []);
   assert.equal(Object.hasOwn(removed.config.profiles, "custom"), false);
   assert.equal(merge({ profiles: { missing: null } }).issues[0]?.severity, "warning");
-  for (const name of ["normal", "prototype", "pr-review"]) {
+  for (const name of ["normal", "prototype"]) {
     const checked = merge({ profiles: { [name]: null } });
     assert.deepEqual(checked.config.profiles[name], DEFAULT_CONFIG.profiles[name]);
     assert.deepEqual(checked.issues.map((issue) => [issue.path, issue.severity]), [[`profiles.${name}`, "error"]]);
     assert.match(checked.issues[0]?.message ?? "", /cannot remove preset profile/);
     assert.equal(mergeLayer(DEFAULT_CONFIG, { profiles: { [name]: null } }, "src").issues[0]?.severity, "error");
   }
+});
+
+test("a retired pr-review declaration warns and is dropped, and a pr-review selection resolves to normal", () => {
+  for (const value of [{ description: "Old." }, { workflow: { review: { ci: "fix" } } }, null]) {
+    const checked = merge({ profiles: { "pr-review": value } });
+    assert.equal(Object.hasOwn(checked.config.profiles, "pr-review"), false);
+    assert.deepEqual(checked.issues, [{
+      source: "src", path: "profiles.pr-review", severity: "warning", message: "profiles.pr-review is no longer used; remove it",
+    }]);
+  }
+  const retiredSelection = {
+    severity: "warning", message: 'profile "pr-review" is no longer used; normal runs the PR steps',
+  };
+  const selected = merge({ profile: "pr-review" });
+  assert.equal(selected.config.profile, "normal");
+  assert.deepEqual(selected.issues, [{ source: "src", path: "profile", ...retiredSelection }]);
+  const extended = merge({ profiles: { custom: { description: "Custom.", extends: "pr-review" } } });
+  assert.equal(extended.config.profiles.custom?.extends, "normal");
+  assert.deepEqual(extended.issues, [{ source: "src", path: "profiles.custom.extends", ...retiredSelection }]);
+  assert.deepEqual(validateMergedProfiles(extended.config), []);
 });
 
 test("profile names and profile fields reject invalid shapes and unknown keys", () => {
