@@ -92,3 +92,24 @@ test("npx omt3@A install --project, then .omt/bin/omt update --yes pins the shim
   }
   assert.ok(out.includes(RESTART), "output must print the restart line");
 }, LONG);
+
+test("global npm oh-my-t3code install of A switches to oh-my-t3 B with --yes, and the project shim follows", async () => {
+  const tool = tools();
+  const reg = await releaseRegistry("u6-switch-", tool, { next: true });
+  const B = reg.nextVersion!;
+  const env = reg.env("switch", tool.nodePath);
+  const project = join(reg.root, "project");
+  const omt = await globalInstall(tool, env, reg.root, reg.version);
+  await installAll(omt, env, join(reg.root, "user-cwd"), project);
+
+  const out = await run(omt, ["update", "--yes"], join(reg.root, "user-cwd"), env);
+
+  assert.match(out, /run: npm uninstall -g oh-my-t3code\n/);
+  assert.match(out, new RegExp(`run: npm install -g oh-my-t3@${B.replaceAll(".", "\\.")}\\n`));
+  const lib = join(reg.root, "global-prefix", "lib", "node_modules");
+  assert.equal(existsSync(join(lib, "oh-my-t3code")), false, "npm must have removed oh-my-t3code");
+  assert.equal(JSON.parse(readFileSync(join(lib, "oh-my-t3", "package.json"), "utf8")).version, B);
+  assert.equal(lastLine(await run(omt, ["--version"], reg.root, env)), B, "the omt bin must run oh-my-t3 B");
+  assert.equal(lastLine(await run(join(project, ".omt", "bin", "omt"), ["--version"], project, env)), B, "the project shim must run B");
+  assert.equal(JSON.parse(readFileSync(projectManifestPath(project), "utf8")).version, B, "project manifest must record B");
+}, LONG);

@@ -50,7 +50,7 @@ mise checks the archive against the `SHA256SUMS` file of the release. mise puts 
 
 ### npm package
 
-The release script builds the same JavaScript file, `dist/cli.js`, and skills for the npm packages `oh-my-t3`, `oh-my-t3code`, and `omt3`. They have no dependencies. From version `0.5.0`, `oh-my-t3` is another name for the package. The `oh-my-t3` package gives four commands: `omt`, `omt3`, `oh-my-t3code`, and `oh-my-t3`. All four run the same file. The file starts with `#!/usr/bin/env node`, so these commands need Node 22 or later on `PATH`. Bun 1.4.4 or later can also run the file, through `bunx` or `bun`.
+The release script builds the same JavaScript file, `dist/cli.js`, and skills for the npm packages `oh-my-t3`, `oh-my-t3code`, and `omt3`. They have no dependencies. `oh-my-t3code` is deprecated, and `omt update` moves an install of it to `oh-my-t3`. From version `0.5.0`, `oh-my-t3` is another name for the package. The `oh-my-t3` package gives four commands: `omt`, `omt3`, `oh-my-t3code`, and `oh-my-t3`. All four run the same file. The file starts with `#!/usr/bin/env node`, so these commands need Node 22 or later on `PATH`. Bun 1.4.4 or later can also run the file, through `bunx` or `bun`.
 
 `mise use -g npm:oh-my-t3` installs the npm package through mise. To make mise install it with Bun instead of npm, set the mise setting first:
 
@@ -72,7 +72,7 @@ bunx oh-my-t3 install --project
 pnpm dlx oh-my-t3 install --project
 ```
 
-`omt3` and `oh-my-t3code` remain compatible package aliases. Project shims from all three packages use the pinned `omt3` package. Outside a project that installed omt, `npx omt` downloads a different npm package named `omt`. Use `npx oh-my-t3` for a one-shot run.
+`omt3` remains a compatible package alias. Project shims from all three packages use the pinned `omt3` package. Outside a project that installed omt, `npx omt` downloads a different npm package named `omt`. Use `npx oh-my-t3` for a one-shot run.
 
 A one-shot run can install only into a project. A global install from a one-shot run is refused, because no `omt` command would stay for the skills and the hook.
 
@@ -307,7 +307,7 @@ omt uninstall
 
 `omt uninstall` removes the managed skill copies, the links that point at them, the hook entry, and the manifest. It keeps your config. Add `--purge` to remove the config too. It never removes a path that it does not manage. Project `.omt/` directories stay in place.
 
-`omt uninstall` does not remove the CLI. To remove it, use the command of its channel, such as `mise unuse -g github:gabimoncha/oh-my-t3`, `npm rm -g oh-my-t3code`, `pnpm rm -g oh-my-t3code`, or `bun rm -g oh-my-t3code`.
+`omt uninstall` does not remove the CLI. To remove it, use the command of its channel, such as `mise unuse -g github:gabimoncha/oh-my-t3`, `npm rm -g oh-my-t3`, `pnpm rm -g oh-my-t3`, or `bun rm -g oh-my-t3`.
 
 ## Update omt
 
@@ -325,11 +325,11 @@ omt update
 | mise, release binary | Runs `mise use -g github:gabimoncha/oh-my-t3@<version>`. |
 | mise, npm package | Runs `mise use -g npm:oh-my-t3@<version>`. |
 | npm, pnpm, or Bun, global | Runs `npm install -g`, `pnpm add -g`, or `bun add -g` with the installed package name, such as `oh-my-t3@<version>`. |
-| Dev dependency | Prints two commands of the project's package manager. The first updates the dependency, such as `pnpm add -D oh-my-t3@<version>`. The second syncs the skills with the new CLI, such as `pnpm exec omt update --skills-only --project`. omt runs neither, because the first command changes `package.json` and the lockfile. |
+| Dev dependency | Prints the commands of the project's package manager. The first updates the dependency, such as `pnpm add -D oh-my-t3@<version>`. The last syncs the skills with the new CLI, such as `pnpm exec omt update --skills-only --project`. omt runs none of them, because they change `package.json` and the lockfile. |
 | One-shot | Writes the new version into the shim `.omt/bin/omt`, after the runner starts that version. |
 | Release binary elsewhere, or a clone | Prints a hint. |
 
-Each npm update keeps the package name that you installed, whether `oh-my-t3`, `oh-my-t3code`, or `omt3`. Each command installs the exact version that the registry returned. So the mise channels write an exact pin, such as `github:gabimoncha/oh-my-t3@0.3.0`, into your global mise config. A later `omt update` moves that pin. An exact version also skips the 24-hour wait of `minimum_release_age`.
+Each npm update keeps the package name that you installed, `oh-my-t3` or `omt3`. An install of the deprecated `oh-my-t3code` moves to `oh-my-t3`: `omt update` installs `oh-my-t3` and removes `oh-my-t3code`, so one omt stays. All three packages give the same commands, and npm and pnpm refuse two global packages with the same commands. So with npm and pnpm, `omt update` removes `oh-my-t3code` first, and installs it again when the `oh-my-t3` install fails. With Bun and mise, it installs `oh-my-t3` first, and removes `oh-my-t3code` after the new `omt` starts. For a dev dependency, the hint names the remove and add commands, such as `npm uninstall oh-my-t3code, then npm i -D oh-my-t3@<version>`. `--dry-run` and `--check` show each command. Each command installs the exact version that the registry returned. So the mise channels write an exact pin, such as `github:gabimoncha/oh-my-t3@0.3.0`, into your global mise config. A later `omt update` moves that pin. An exact version also skips the 24-hour wait of `minimum_release_age`.
 
 The sync keeps a skill that you edited, and prints `kept <skill>  (<reason>)`. `omt install --force` replaces it. The sync removes a managed skill that the new bundle no longer ships, with its links, as `omt install` does. It keeps an edited one with the reason `locally modified; no longer shipped; omt install --force backs it up and removes it`. A project that runs another omt, such as a dev dependency, gets the command to run in that project. The command shows defaults changes and asks before accepting them. `--yes` also accepts the current defaults. Declining keeps the last accepted defaults. When any skill changed, restart your agent sessions in T3 Code.
 

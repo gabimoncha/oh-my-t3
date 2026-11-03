@@ -1,6 +1,6 @@
 # Release oh-my-t3
 
-This page is for the owner. A release has the primary npm package `oh-my-t3`, the aliases `oh-my-t3code` and `omt3`, and one GitHub release with the binary archives. When you push a `v<version>` tag, the workflow `.github/workflows/release.yml` builds the release, publishes all three npm packages, and creates the GitHub release. [Spec section 17](spec.md#17-packaging-and-release) describes the release script and the workflows.
+This page is for the owner. A release has the primary npm package `oh-my-t3`, the alias `omt3`, the deprecated alias `oh-my-t3code` ([Retire the oh-my-t3code package](#retire-the-oh-my-t3code-package)), and one GitHub release with the binary archives. When you push a `v<version>` tag, the workflow `.github/workflows/release.yml` builds the release, publishes all three npm packages, and creates the GitHub release. [Spec section 17](spec.md#17-packaging-and-release) describes the release script and the workflows.
 
 Before the first automated release, do the steps in [Set up once](#set-up-once).
 
@@ -175,6 +175,20 @@ Use these steps when the workflow cannot publish, or when it stops partway. Do s
 oh-my-t3 version `0.5.0` was published under the new npm name on 2026-10-30. The existing `oh-my-t3code@0.5.0` and `omt3@0.5.0` packages remain available. npm never accepts a second publish of the same package version. Repository and artwork changes reach npm with the next release.
 
 The GitHub repository is now `gabimoncha/oh-my-t3`. Trusted publishers for all three npm packages must name this repository, `release.yml`, and the `npm` environment. A publisher still configured for the old repository name cannot publish from the renamed workflow. Use the commands in [Set up once](#set-up-once) to configure the new repository.
+
+## Retire the oh-my-t3code package
+
+The first release after 0.5.1 moves each `oh-my-t3code` install to `oh-my-t3`: `omt update` installs `oh-my-t3` and removes `oh-my-t3code` ([spec section 5.14](spec.md#514-omt-update)). That release still publishes `oh-my-t3code`, so its users receive the update that does the switch.
+
+After the release workflow publishes all three packages and step 6 of [Publish a release](#publish-a-release) passes, deprecate the package. npm asks for your 2FA code:
+
+```sh
+npm deprecate oh-my-t3code "oh-my-t3code is now oh-my-t3. Run omt update to switch, or run npm i -g oh-my-t3."
+```
+
+npm then shows the message each time someone installs `oh-my-t3code`. The published versions stay available, so old lockfiles still install.
+
+A later release removes `oh-my-t3code` from the two publish loops in `.github/workflows/release.yml`. Keep `omt3`, because project shims pin `omt3@<version>`.
 
 ## What happened in the first release
 
