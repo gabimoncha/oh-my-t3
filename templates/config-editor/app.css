@@ -1673,7 +1673,7 @@ small, .small, .meta, .meta-caps, .prose { font-size: 13px; line-height: 16px; }
 .back-link:hover { color: var(--text); }
 .directory-row { position: relative; }
 .directory-row:hover { background: var(--bg-panel); }
-.directory-name::after { content: ""; position: absolute; inset: 0; }
+.directory-row .directory-name::after { content: ""; position: absolute; inset: 0; }
 .stage-notes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .flow-note { background: var(--line-soft); border-radius: 4px; padding: 3px 8px; font-size: 13px; line-height: 16px; color: var(--text); }
 .stage-panel { width: 400px; flex-shrink: 0; background: var(--bg-panel); border-left: 1px solid var(--line); padding: 24px; display: flex; flex-direction: column; gap: 20px; }
