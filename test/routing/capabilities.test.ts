@@ -127,3 +127,24 @@ test("bad input throws capabilities_parse", () => {
     assert.equal(capsError(text).code, "capabilities_parse", text);
   }
 });
+
+test("reads the compact option form of newer T3 builds", async () => {
+  const caps = parseCapabilities(await Bun.file(new URL("../fixtures/capabilities-compact.json", import.meta.url)).text());
+  const sol = caps.providers.find((p) => p.providerInstanceId === "codex")?.models[0];
+  assert.equal(sol?.id, "gpt-6.1-sol");
+  assert.deepEqual(sol?.options[0], {
+    id: "reasoningEffort",
+    type: "select",
+    options: [{ id: "low", isDefault: true }, { id: "medium" }, { id: "high" }, { id: "xhigh" }, { id: "max" }, { id: "ultra" }],
+  });
+  const opus = caps.providers.find((p) => p.providerInstanceId === "claudeAgent")?.models[0];
+  assert.deepEqual(opus?.options[1], { id: "fastMode", type: "boolean" });
+  assert.equal(caps.providers.find((p) => p.providerInstanceId === "grok")?.canRunChildTask, false);
+});
+
+test("a compact option with a bad value throws capabilities_parse", () => {
+  const text = JSON.stringify({
+    providers: [{ providerInstanceId: "x", driverKind: "x", models: [{ id: "m", options: [{ id: "effort", values: [1] }] }] }],
+  });
+  assert.equal(capsError(text).code, "capabilities_parse");
+});
