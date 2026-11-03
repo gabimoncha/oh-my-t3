@@ -1082,12 +1082,20 @@ function roleEditor(name) {
     if (edit && !edit.remove) return edit.value;
     return stackOf(["roles", name, field]).value;
   };
+  const boolFields = ["crossFamily", "fast"];
+  const ownBool = (field) => {
+    if (queued(kind, [...baseNow(), field])?.remove) return "__inherit";
+    const value = ownLeaf(kind, [...baseNow(), field]).value;
+    return value === undefined ? "__inherit" : value;
+  };
   const baseline = (field) => {
+    if (boolFields.includes(field)) return ownBool(field);
     const edit = queued(kind, [...baseNow(), field]);
     return edit && !edit.remove ? edit.value : stackOf(["roles", name, field]).value;
   };
   const setField = (field, value, rerender = true) => {
-    if (same(value, current(field))) return;
+    const was = boolFields.includes(field) && !Object.hasOwn(draft.fields, field) ? ownBool(field) : current(field);
+    if (same(value, was)) return;
     touch(draft);
     draft.fields[field] = value;
     if (rerender) render();
@@ -1118,9 +1126,9 @@ function roleEditor(name) {
   const desc = h("input", { type: "text", class: "text sans full", value: current("description") || "", disabled, "data-fk": "role:description", "aria-label": "description", maxlength: String(vocab.descriptionMax) });
   desc.addEventListener("input", () => setField("description", desc.value, false));
   const boolBox = (field) => {
-    const own = Object.hasOwn(draft.fields, field) ? draft.fields[field] : queued(kind, [...base, field])?.remove ? "__inherit" : ownLeaf(kind, [...base, field]).value;
+    const own = Object.hasOwn(draft.fields, field) ? draft.fields[field] : ownBool(field);
     return seg([{ value: "__inherit", label: "Inherit" }, { value: "true", label: "On" }, { value: "false", label: "Off" }],
-      own === undefined || own === "__inherit" ? "__inherit" : String(own), (value) => setField(field, value === "__inherit" ? value : value === "true"), { label: field, disabled, fk: `role:${field}` });
+      own === "__inherit" ? "__inherit" : String(own), (value) => setField(field, value === "__inherit" ? value : value === "true"), { label: field, disabled, fk: `role:${field}` });
   };
   const chainNow = () => draft.chain || clone(current("chain")) || [];
   const chainOut = () => resolveOptions(chainNow(), draft.rows);
@@ -2851,9 +2859,21 @@ function harnessesPanel() {
     const base = current || drivers;
     const next = drivers.filter((item) => (item === driver ? on : base.includes(item)));
     if (!next.length) return;
-    if (drivers.every((item) => next.includes(item))) stageValue(["harnesses"], undefined, true);
-    else stageValue(["harnesses"], next);
+    stageHarnesses(next);
     render();
+  };
+  // Removing the key falls back to the layers below the edited file, so remove it only when they give the same drivers.
+  const stageHarnesses = (wanted) => {
+    let below;
+    for (const kind of ["defaults", ...FILES]) {
+      if (kind === app.editIn) break;
+      const own = ownLeaf(kind, ["harnesses"]).value;
+      if (own !== undefined) below = own === null ? undefined : own;
+    }
+    const fallback = Array.isArray(below) ? below : drivers;
+    const sameSet = wanted.every((item) => fallback.includes(item)) && fallback.every((item) => wanted.includes(item));
+    if (sameSet) stageValue(["harnesses"], undefined, true);
+    else stageValue(["harnesses"], wanted);
   };
   const recommended = catalog.providers.filter((item) => item.available).map((item) => item.driver);
   return h("section", { class: "harnesses-panel" },
@@ -2871,8 +2891,7 @@ function harnessesPanel() {
       h("button", { type: "button", class: "link", text: "Undo", disabled, onclick: () => { unqueue(app.editIn, editTarget(["harnesses"])); render(); } })) : null,
     !same([...recommended].sort(), [...(current || drivers)].sort()) && recommended.length ? h("p", { class: "warning-text" }, `The detected drivers are ${recommended.join(", ")}. `,
       h("button", { type: "button", class: "link", text: "Use the detected drivers", disabled, onclick: () => {
-        if (drivers.every((item) => recommended.includes(item))) stageValue(["harnesses"], undefined, true);
-        else stageValue(["harnesses"], recommended);
+        stageHarnesses(recommended);
         render();
       } })) : null);
 }
