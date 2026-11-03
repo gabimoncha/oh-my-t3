@@ -326,6 +326,7 @@ function installManifest(plan: InstallPlan, now: Date, fields: Pick<Manifest, "c
       .filter((step) => !removesRetired(step))
       .filter((step) => owns(plan, step.action, ownedSkills.has(step.name), plan.project?.existing.skills.includes(step.name) === true))
       .map((step) => step.name),
+    ...(plan.optIn.length === 0 ? {} : { optIn: plan.optIn }),
     links: plan.links
       .filter((link) => !removesRetired(link))
       .filter((link) => owns(plan, link.action, ownedLinks.has(link.path), plan.project?.existing.links.includes(link.path) === true))

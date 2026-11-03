@@ -31,7 +31,7 @@ import {
 } from "./project.ts";
 import { worktreeSummary } from "../worktree/check.ts";
 import { DEFAULT_HARNESSES, harnessEffects } from "./harness.ts";
-import { classifySkill, isManagedDir, listBundledSkills } from "./skills.ts";
+import { classifySkill, isManagedDir, listBundledSkills, OPT_IN_SKILLS, selectedSkills } from "./skills.ts";
 import type { BundledSkill } from "./skills.ts";
 
 export type CheckStatus = "PASS" | "WARN" | "FAIL" | "INFO";
@@ -128,7 +128,8 @@ async function checkSkills(ctx: CliContext, paths: ScopePaths, bundled: BundledS
     return check("skills", "FAIL", `the omt CLI has no bundled skills in ${join(ctx.packageRoot, "skills")}; reinstall omt`);
   }
   const groups: Record<string, string[]> = { missing: [], outdated: [], modified: [], unmanaged: [] };
-  for (const skill of bundled) {
+  const selected = selectedSkills(bundled, optInOf(loaded));
+  for (const skill of selected) {
     const result = await classifySkill(skill.dir, join(root, skill.name));
     if (result.action === "create") groups.missing?.push(skill.name);
     else if (result.action === "update") groups.outdated?.push(skill.name);
@@ -137,13 +138,20 @@ async function checkSkills(ctx: CliContext, paths: ScopePaths, bundled: BundledS
     }
   }
   if ("manifest" in loaded) {
-    groups["no longer shipped"] = await retiredSkills(root, loaded.manifest, bundled.map((skill) => skill.name));
+    const retired = await retiredSkills(root, loaded.manifest, bundled.map((skill) => skill.name));
+    groups["no longer shipped"] = retired.filter((name) => !OPT_IN_SKILLS.includes(name));
+    groups["opt-in, not selected"] = retired.filter((name) => OPT_IN_SKILLS.includes(name));
   }
   const problems = Object.entries(groups)
     .filter(([, names]) => names.length > 0)
     .map(([kind, names]) => `${kind}: ${names.join(", ")}`);
   if (problems.length > 0) return check("skills", "WARN", `${problems.join("; ")} in ${root}; run ${installHint(ctx, paths)}`);
-  return check("skills", "PASS", `${plural(bundled.length, "skill")} installed in ${root}`);
+  return check("skills", "PASS", `${plural(selected.length, "skill")} installed in ${root}`);
+}
+
+// The opt-in skills that the scope's manifest selects; none when it cannot be read.
+function optInOf(loaded: ScopeManifest): string[] {
+  return "manifest" in loaded ? (loaded.manifest?.optIn ?? []) : [];
 }
 
 async function checkLinks(ctx: CliContext, paths: ScopePaths, names: string[]): Promise<DoctorCheck> {
@@ -421,7 +429,6 @@ export async function runDoctor(
   const paths = await scopePaths(ctx, scope);
   const loadedConfig = await loadConfig(ctx);
   const bundled = await listBundledSkills(ctx.packageRoot);
-  const names = bundled.map((skill) => skill.name);
   const daily = seams.skipUpdate === true ? undefined : await dailyCheck(ctx, { mode: loadedConfig.config.update, ...(seams.fetch === undefined ? {} : { fetch: seams.fetch }) });
   const checks = [
     checkRuntime(ctx),
@@ -436,6 +443,7 @@ export async function runDoctor(
   } catch (error) {
     loaded = { error };
   }
+  const names = selectedSkills(bundled, optInOf(loaded)).map((skill) => skill.name);
   checks.push(await checkSkills(ctx, paths, bundled, loaded), await checkLinks(ctx, paths, names));
   checks.push(await checkHooks(ctx, paths, loaded));
   if (scope === "project") {

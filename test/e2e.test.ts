@@ -36,7 +36,6 @@ test("end to end: install, use every command in a project, then uninstall", () =
     "omt-plan",
     "omt-research",
     "omt-setup",
-    "omt-swarm",
     "omt-ulw",
   ]);
 
