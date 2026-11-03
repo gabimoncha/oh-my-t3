@@ -42,8 +42,6 @@ const BANNED: RegExp[] = [
 
 // Files not rewritten yet. Each skill unit of the trim removes its files; the last one empties the set.
 const PENDING: ReadonlySet<string> = new Set([
-  "omt/SKILL.md",
-  "omt-ulw/SKILL.md",
   "omt-plan/SKILL.md",
   "omt-research/SKILL.md",
   "omt-code-review/SKILL.md",

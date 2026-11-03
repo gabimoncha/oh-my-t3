@@ -23,7 +23,6 @@ const RULES: { file: string; rule: string; pattern: RegExp }[] = [
 
 // Rules that the old text does not hold yet. Each skill unit of the trim removes its entries.
 const PENDING: ReadonlySet<string> = new Set([
-  "omt-ulw/SKILL.md: the cross-family review passes --strict",
   "omt-plan/SKILL.md: the cross-family plan review passes --strict",
 ]);
 
