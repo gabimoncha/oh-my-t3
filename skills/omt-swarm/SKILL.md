@@ -27,7 +27,7 @@ Invoking this skill is the explicit user request that T3 requires before `t3_thr
 
 ### 0. Check the modes
 
-Call `t3_thread_configuration` with no `threadId` and read `runtimeMode` and `interactionMode` ([delegation.md](../omt/references/delegation.md#your-interaction-mode)). `t3_thread_launch` requires `full-access` runtime mode and `default` interaction mode. Keep the driver of `modelSelection`, such as `claudeAgent` or `codex`, as `<your family>`.
+Call `t3_thread_configure` with no arguments and read `runtimeMode` and `interactionMode` ([delegation.md](../omt/references/delegation.md#your-interaction-mode)). `t3_thread_launch` requires `full-access` runtime mode and `default` interaction mode. Keep the driver of `modelSelection`, such as `claudeAgent` or `codex`, as `<your family>`.
 
 Run the [branch check](../omt/references/delegation.md#branch-check). When the current branch is the default branch, ask the owner for a feature branch and stop. The PR goes from this branch.
 
@@ -79,7 +79,7 @@ For each track, call `t3_thread_launch` with:
 The launch message is a plain task, not an `omt brief`. It says:
 
 1. You are track `<track>` of the swarm plan `<slug>`. Your plan is `<slug>-<track>`. Your scope is `<scope paths>`. Edit no file outside it.
-2. First call `t3_thread_configuration` to read your own modes and `modelSelection`. Read `omt profile show --plan <slug>-<track> --json`, the track plan, and its tier. Use your own driver as `<your family>` for review. Apply the `F2` rule from `omt-ulw` step 5. Cite the approved design spec in `<base>` when one exists. Otherwise implement the task requirements directly. Do not run `omt-design`. The main thread completed the step 6 design check before the split. Then run steps 7 to 12 of the `omt-ulw` skill for the units of plan `<slug>-<track>` only. Build, run your own review child and QA child, and fix.
+2. First call `t3_thread_configure` with no arguments to read your own modes and `modelSelection`. Read `omt profile show --plan <slug>-<track> --json`, the track plan, and its tier. Use your own driver as `<your family>` for review. Apply the `F2` rule from `omt-ulw` step 5. Cite the approved design spec in `<base>` when one exists. Otherwise implement the task requirements directly. Do not run `omt-design`. The main thread completed the step 6 design check before the split. Then run steps 7 to 12 of the `omt-ulw` skill for the units of plan `<slug>-<track>` only. Build, run your own review child and QA child, and fix.
 3. Commit on branch `omt/<slug>/<track>` by the `Git actions` rules of the omt `delegation.md` reference, with `--plan <slug>-<track>`. Do not push. Do not open a PR. The main thread owns the PR.
 4. Report what changed, each check with its exit code and log path, and the commit hash.
 5. End with one line: `TRACK <track>: DONE <commit hash>`, or `TRACK <track>: BLOCKED <reason>`.

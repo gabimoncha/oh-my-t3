@@ -13,7 +13,7 @@ The owner is the design review. No `review`, `oracle`, `plan-review`, or other m
 
 ### 0. Check your mode
 
-Call `t3_thread_configuration` with no `threadId` and read your `interactionMode` and `modelSelection` ([delegation.md](../omt/references/delegation.md#your-interaction-mode)). A design pass writes files, so in `plan` mode ask the user to switch this thread to default mode.
+Call `t3_thread_configure` with no arguments and read your `interactionMode` and `modelSelection` ([delegation.md](../omt/references/delegation.md#your-interaction-mode)). A design pass writes files, so in `plan` mode ask the user to switch this thread to default mode.
 
 Keep the drawer for steps 2 to 4:
 

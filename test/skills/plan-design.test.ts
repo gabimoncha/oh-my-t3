@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { SKILLS_DIR, readSkill, section } from "./shared.ts";
 
-test("each mode-check step calls t3_thread_configuration, and no skill reads modes from orchestrator_capabilities (plan-design)", () => {
+test("each mode-check step calls t3_thread_configure, and no skill reads modes from orchestrator_capabilities (plan-design)", () => {
   const modeSteps: Record<string, string> = {
     "omt-plan": "### 0. ",
     "omt-design": "### 0. ",
@@ -15,7 +15,7 @@ test("each mode-check step calls t3_thread_configuration, and no skill reads mod
     assert.ok(start >= 0, `${name} has no step ${heading.trim()}`);
     const end = text.indexOf("\n### ", start + 1);
     const step = text.slice(start, end < 0 ? undefined : end);
-    assert.match(step, /t3_thread_configuration/, `${name} mode step`);
+    assert.match(step, /t3_thread_configure/, `${name} mode step`);
     assert.doesNotMatch(step, /orchestrator_capabilities/, `${name} mode step`);
   }
 });

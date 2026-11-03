@@ -35,7 +35,7 @@ The shared T3 rules are in [delegation.md](../omt/references/delegation.md). Rea
 
 ### 0. Check your mode
 
-Call `t3_thread_configuration` with no `threadId` and read your `interactionMode` and `modelSelection` ([delegation.md](../omt/references/delegation.md#your-interaction-mode)). Keep the driver of `modelSelection` as your family for step 8. Ultrawork edits files, so in `plan` mode ask the user to switch this thread to default mode, or offer `omt-plan` to deliver a plan in your final message.
+Call `t3_thread_configure` with no arguments and read your `interactionMode` and `modelSelection` ([delegation.md](../omt/references/delegation.md#your-interaction-mode)). Keep the driver of `modelSelection` as your family for step 8. Ultrawork edits files, so in `plan` mode ask the user to switch this thread to default mode, or offer `omt-plan` to deliver a plan in your final message.
 
 Then run the [branch check](../omt/references/delegation.md#branch-check).
 

@@ -425,7 +425,7 @@ footer.page-footer ul { columns: 2 300px; }
     <div class="fig-scroll" tabindex="0" role="region" aria-label="Sequence of one ulw request">
 <svg class="diagram" role="img" aria-labelledby="fig2-t fig2-d" width="904" height="900" viewBox="0 0 904 900">
   <title id="fig2-t">Sequence of one ulw request</title>
-  <desc id="fig2-d">Swimlanes for the user, the hook, the main thread, the omt CLI, T3, and the children. The prompt goes through the hook pointer to the main thread. The main thread prints the banner, calls t3_thread_configuration, runs omt-research instead when the message is a question, sends broad reads to explore children and waits for them in the turn, frames the goal and reads the profile and roles, asks the user question batches until no question is open, makes the plan with omt plan new --light or omt-plan, and runs the design check. It builds each unit itself, runs the verify command, writes the planned tests, and marks the unit done. It stages its work, builds a review or oracle brief with --against its own family, and calls delegate_task in wait mode. The reviewer fixes local findings and returns a VERDICT block with FIXES. The main thread reads the fix diff and fixes the reported findings. It builds a qa brief and calls delegate_task in wait mode. The QA child edits nothing and returns CHECKS with exit codes and log paths. The main thread fixes failed checks, and QA runs only the failed checks again, at most 2 times. Then the main thread commits, pushes, opens the PR, and reports to the user with evidence.</desc>
+  <desc id="fig2-d">Swimlanes for the user, the hook, the main thread, the omt CLI, T3, and the children. The prompt goes through the hook pointer to the main thread. The main thread prints the banner, calls t3_thread_configure, runs omt-research instead when the message is a question, sends broad reads to explore children and waits for them in the turn, frames the goal and reads the profile and roles, asks the user question batches until no question is open, makes the plan with omt plan new --light or omt-plan, and runs the design check. It builds each unit itself, runs the verify command, writes the planned tests, and marks the unit done. It stages its work, builds a review or oracle brief with --against its own family, and calls delegate_task in wait mode. The reviewer fixes local findings and returns a VERDICT block with FIXES. The main thread reads the fix diff and fixes the reported findings. It builds a qa brief and calls delegate_task in wait mode. The QA child edits nothing and returns CHECKS with exit codes and log paths. The main thread fixes failed checks, and QA runs only the failed checks again, at most 2 times. Then the main thread commits, pushes, opens the PR, and reports to the user with evidence.</desc>
   <!-- lane heads -->
   <text class="s" x="16" y="62" text-anchor="middle">step</text>
   <rect class="box-a" x="30" y="10" width="80" height="28" rx="6"/><text class="b" x="70" y="29" text-anchor="middle">User</text>
@@ -451,7 +451,7 @@ footer.page-footer ul { columns: 2 300px; }
   <!-- step 0 -->
   <text class="b" x="18" y="170" text-anchor="middle">0</text>
   <path class="ln" d="M290,166 L738,166" marker-end="url(#ah)"/>
-  <text class="m halo" x="515" y="160" text-anchor="middle">t3_thread_configuration (no threadId)</text>
+  <text class="m halo" x="515" y="160" text-anchor="middle">t3_thread_configure (no arguments)</text>
   <!-- step 1 -->
   <text class="b" x="18" y="200" text-anchor="middle">1</text>
   <rect class="box-a" x="296" y="185" width="380" height="22" rx="4"/>
@@ -530,7 +530,7 @@ footer.page-footer ul { columns: 2 300px; }
   <h3>The steps of <code>omt-ulw</code></h3>
   <p>The main thread prints the banner <code>omt ultrawork: explore, ask, plan, build, review, test.</code> as its first line. Then it runs these steps in order.</p>
   <ol class="steps">
-    <li><span class="n">0</span><p><strong>Check your mode.</strong> Call <code>t3_thread_configuration</code> with no <code>threadId</code> and read <code>interactionMode</code> and <code>modelSelection</code>. Keep the driver as your family for step 8. In <code>plan</code> mode, ask the user to switch to default mode, or offer <code>omt-plan</code>. Then run the branch check in <code>delegation.md</code>: it checks whether the current branch is behind the default branch.</p></li>
+    <li><span class="n">0</span><p><strong>Check your mode.</strong> Call <code>t3_thread_configure</code> with no arguments and read <code>interactionMode</code> and <code>modelSelection</code>. Keep the driver as your family for step 8. In <code>plan</code> mode, ask the user to switch to default mode, or offer <code>omt-plan</code>. Then run the branch check in <code>delegation.md</code>: it checks whether the current branch is behind the default branch.</p></li>
     <li><span class="n">1</span><p><strong>Question or goal.</strong> When the message asks a question and names no change, run <code>omt-research</code> instead and stop.</p></li>
     <li><span class="n">2</span><p><strong>Explore.</strong> Read the code that the goal touches yourself. Send only broad reads to 1 to <code>maxParallel</code> read-only <code>explore</code> children with units <code>E&lt;k&gt;</code>, in parallel, and wait for them in this turn.</p></li>
     <li><span class="n">3</span><p><strong>Frame.</strong> Write the objective in one sentence, the done conditions, the tier, and the plan slug. Each done condition is a check that can fail. Run <code>omt profile show --json</code> (with <code>--plan &lt;slug&gt;</code> when the plan file exists) and <code>omt roles --plan &lt;slug&gt;</code>. Without the CLI, use the resolve-by-hand table in <code>roles.md</code>.</p></li>
@@ -679,7 +679,7 @@ footer.page-footer ul { columns: 2 300px; }
     </table>
   </div>
   <p>Status <code>unverified</code> is the normal case. The <code>--against</code> reorder comes first. Then the first ok rung becomes <code>delegateTask</code>, and the later ok rungs become <code>fallbacks</code>. Rung labels such as <code>rung 2</code> keep the configured number after a reorder.</p>
-  <p>To verify routes, the parent agent calls <code>orchestrator_capabilities</code>, saves the result to a temp file (never inside the repository), and passes it with <code>--capabilities</code>. This is the only use of that tool. Skills read their own modes with <code>t3_thread_configuration</code>, because the capabilities result holds the full catalog and is large. On ACP providers without T3 tools, <code>roles.md</code> gives a shell command that writes the file.</p>
+  <p>To verify routes, the parent agent calls <code>orchestrator_capabilities</code>, saves the result to a temp file (never inside the repository), and passes it with <code>--capabilities</code>. This is the only use of that tool. Skills read their own modes with <code>t3_thread_configure</code>, because the capabilities result holds the full catalog and is large. On ACP providers without T3 tools, <code>roles.md</code> gives a shell command that writes the file.</p>
 
   <figure>
     <div class="fig-scroll" tabindex="0" role="region" aria-label="Cross-family order and fallback for the review role">
@@ -1286,7 +1286,7 @@ can dispatch: yes</code></pre>
     <li><strong>Review and QA never overlap.</strong> The reviewer edits files, so QA starts only after the main thread read the reviewer's fix diff. QA edits nothing.</li>
     <li><strong>Reviewers come from the other family.</strong> <code>plan-review</code>, <code>grill</code>, <code>review</code>, and <code>oracle</code> are cross-family relative to the author of the change. When the other family is not available, the same family reviews.</li>
     <li><strong>Modes only narrow.</strong> Runtime rank is <code>approval-required</code> &lt; <code>auto-accept-edits</code> &lt; <code>auto</code> &lt; <code>full-access</code>. Interaction rank is <code>plan</code> &lt; <code>default</code>.</li>
-    <li><strong>Skills read modes with <code>t3_thread_configuration</code>.</strong> They must not call <code>orchestrator_capabilities</code> to read modes.</li>
+    <li><strong>Skills read modes with <code>t3_thread_configure</code>.</strong> They must not call <code>orchestrator_capabilities</code> to read modes.</li>
   </ul>
   <div class="table-wrap" tabindex="0" role="region" aria-label="T3 failure codes and the skill's action (delegation.md)">
     <table>

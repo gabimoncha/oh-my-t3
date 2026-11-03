@@ -94,7 +94,7 @@ test("every relative Markdown link under skills/ resolves to a file", () => {
   assert.deepEqual(broken, []);
 });
 
-test("each mode-check step calls t3_thread_configuration, and no skill reads modes from orchestrator_capabilities (common)", () => {
+test("each mode-check step calls t3_thread_configure, and no skill reads modes from orchestrator_capabilities (common)", () => {
   const modeSteps: Record<string, string> = {
     "omt-research": "### 0. ",
   };
@@ -104,7 +104,7 @@ test("each mode-check step calls t3_thread_configuration, and no skill reads mod
     assert.ok(start >= 0, `${name} has no step ${heading.trim()}`);
     const end = text.indexOf("\n### ", start + 1);
     const step = text.slice(start, end < 0 ? undefined : end);
-    assert.match(step, /t3_thread_configuration/, `${name} mode step`);
+    assert.match(step, /t3_thread_configure/, `${name} mode step`);
     assert.doesNotMatch(step, /orchestrator_capabilities/, `${name} mode step`);
   }
   const offenders: string[] = [];
@@ -113,6 +113,22 @@ test("each mode-check step calls t3_thread_configuration, and no skill reads mod
       if (!sentence.includes("orchestrator_capabilities") || !sentence.includes("interactionMode")) continue;
       if (/^Do not call `orchestrator_capabilities` to read your modes\.$/.test(sentence.trim())) continue;
       offenders.push(`${relative(PACKAGE_ROOT, file)}: ${sentence.trim()}`);
+    }
+  }
+  assert.deepEqual(offenders, []);
+});
+
+test("the mode check calls t3_thread_configure with no arguments, so it cannot set the model", () => {
+  const delegation = readFileSync(join(SKILLS_DIR, "omt", "references", "delegation.md"), "utf8");
+  assert.match(delegation, /It calls `t3_thread_configure` with no arguments\./);
+  assert.match(delegation, /Pass no `threadId` and no `modelSelection`, so that the call only reads\./);
+  assert.match(delegation, /acp-mcp-call t3_thread_configure '\{\}'/);
+  const offenders: string[] = [];
+  for (const file of walk(SKILLS_DIR).filter((path) => path.endsWith(".md"))) {
+    const text = readFileSync(file, "utf8");
+    if (/t3_thread_configur(?!e\b)/.test(text)) offenders.push(`${relative(PACKAGE_ROOT, file)}: retired tool name`);
+    for (const call of text.match(/t3_thread_configure`? with [^.]*/g) ?? []) {
+      if (!call.includes("with no arguments")) offenders.push(`${relative(PACKAGE_ROOT, file)}: ${call}`);
     }
   }
   assert.deepEqual(offenders, []);

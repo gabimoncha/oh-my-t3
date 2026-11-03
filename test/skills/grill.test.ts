@@ -6,7 +6,7 @@ import { SKILLS_DIR, readSkill, section } from "./shared.ts";
 
 test("omt-grill reads the current thread mode and family", () => {
   const mode = section(readSkill("omt-grill"), "### 0. ");
-  assert.match(mode, /Call `t3_thread_configuration` with no `threadId`/);
+  assert.match(mode, /Call `t3_thread_configure` with no arguments/);
   assert.match(mode, /read your `interactionMode` and `modelSelection`/);
   assert.match(mode, /Keep the driver of `modelSelection`, such as `claudeAgent` or `codex`, as your family\./);
   assert.doesNotMatch(mode, /orchestrator_capabilities/);
