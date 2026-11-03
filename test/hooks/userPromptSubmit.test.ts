@@ -5,78 +5,82 @@ import { detectUltrawork, runUserPromptSubmitHook, ultraworkContext } from "../.
 import { fakeContext, omtExit, spawnOmt, tempDir } from "../helpers.ts";
 
 const MATCHES: string[] = [
-  "ulw add a flag",
-  "please ultrawork this",
-  "ULTRAWORK: fix the bug",
-  "Ulw.",
-  "do it (ulw)",
-  "fix it, ulw!",
-  "line one\nulw",
-  "`code` then ulw",
-  "\"quoted\" ulw",
-  "no ulw here, but ultrawork this",
-  "know ulw",
-  "cannot\nulw",
-  "not now. ulw",
-  "do not touch the build script, ulw",
-  "ulw, don't forget tests",
-  "no problem, ulw add a flag",
-  "not one two three ulw",
-  "no\u00a0ulw",
-  "no\nulw",
-  "ulw explain this <task-notification> tag",
+  "start ulw add rate limiting",
+  "Start ultrawork: fix the login",
+  "please start ulw on this",
+  "START ULTRAWORK",
+  "start\tulw add a flag",
+  "start  ulw add a flag",
+  "Start ulw.",
+  "do it (start ulw)",
+  "fix it, start ulw!",
+  "line one\nstart ulw",
+  "`code` then start ulw",
+  "\"quoted\" start ulw",
+  "no start ulw here, but start ultrawork this",
+  "know start ulw",
+  "cannot\nstart ulw",
+  "not now. start ulw",
+  "do not touch the build script, start ulw",
+  "start ulw, don't forget tests",
+  "no problem, start ulw add a flag",
+  "not one two three start ulw",
+  "no\u00a0start ulw",
+  "start ulw explain this <task-notification> tag",
 ];
 
 const MISSES: string[] = [
   "add a flag",
-  "```\nulw\n```",
-  "~~~sh\nultrawork\n~~~\nplain text",
-  "run `ulw` later",
-  "run ``ulw`` later",
-  "the word \"ulw\" means ultra",
-  "> ulw\nquoted line only",
-  "  > ultrawork",
-  "ulwx",
-  "xulw",
-  "$ulw",
-  "ulw$",
-  "/ulw",
-  "ulw/x",
-  "ulw-mode",
-  "pre-ulw",
-  "ulw_x",
-  "ulw2",
-  "ultraworking",
-  "<!-- omt-brief v1 role=execute round=1 depth=1/1 -->\nulw",
-  "text before <!-- omt-brief v1 --> ultrawork",
-  "Act as the implementation sub-agent. ulw",
+  "what does ulw do?",
+  "ulw add rate limiting",
+  "please ultrawork this",
+  "how does ultrawork pick its reviewers?",
+  "starting ulw",
+  "restart ulw",
+  "start\nulw",
+  "startulw",
+  "start ulwx",
+  "start ultraworking",
+  "start ulw-mode",
+  "start ulw/x",
+  "start $ulw",
+  "start /ulw",
+  "pre-start ulw",
+  "```\nstart ulw\n```",
+  "~~~sh\nstart ultrawork\n~~~\nplain text",
+  "run `start ulw` later",
+  "run ``start ulw`` later",
+  "the phrase \"start ulw\" starts a run",
+  "the phrase “start ulw” starts a run",
+  "> start ulw\nquoted line only",
+  "  > start ultrawork",
+  "<!-- omt-brief v1 role=execute round=1 depth=1/1 -->\nstart ulw",
+  "text before <!-- omt-brief v1 --> start ultrawork",
+  "Act as the implementation sub-agent. start ulw",
   "/omt-ulw add a flag",
-  "do not use ultrawork",
-  "don't ulw this",
-  "don’t ulw this",
-  "dont ulw",
-  "no ulw here",
-  "without ultrawork",
-  "never use ulw",
-  "Don't run the ulw loop",
-  "NOT ULTRAWORK",
-  "not one two ulw",
-  "no ulw ulw",
-  "<task-notification>\n<task-id>w43cdy93b</task-id>\n<status>completed</status>\n<summary>Workflow done</summary>\n<result>The hook armed on 'ulw add a flag'. Then ulw ran.</result>\n</task-notification>",
-  "  \n<task-notification>\n<status>completed</status>\n<result>Quoted 'ulw add a flag' and a bare ulw.</result>\n</task-notification>",
-  "\n<task-notification><result>ulw</result></task-notification>",
+  "$omt-ulw add a flag",
+  "do not start ultrawork",
+  "don't start ulw",
+  "don’t start ulw this",
+  "dont start ulw",
+  "never start ulw",
+  "NOT START ULTRAWORK",
+  "not one two start ulw",
+  "<task-notification>\n<task-id>w43cdy93b</task-id>\n<status>completed</status>\n<result>The hook armed on 'start ulw add a flag'. Then start ulw ran.</result>\n</task-notification>",
+  "\n<task-notification><result>start ulw</result></task-notification>",
+  "Delegated task node:delegated-task:abc (plan-review) [completed]:\nVERDICT: APPROVE\nThen start ulw step 7.",
 ];
 
-test("detectUltrawork matches the bare words", () => {
+test("detectUltrawork matches the phrase start ulw or start ultrawork", () => {
   for (const prompt of MATCHES) assert.equal(detectUltrawork(prompt), true, JSON.stringify(prompt));
 });
 
-test("detectUltrawork ignores code, quotes, blockquotes, word parts, negations, child briefs, and task notifications", () => {
+test("detectUltrawork ignores the bare words, code, quotes, blockquotes, word parts, negations, child briefs, task notifications, and delegated-task wakes", () => {
   for (const prompt of MISSES) assert.equal(detectUltrawork(prompt), false, JSON.stringify(prompt));
 });
 
 test("detectUltrawork checks a 200,000-character negated prompt in under 1,000 ms", () => {
-  const prompt = "no ulw ".repeat(Math.ceil(200_000 / 7));
+  const prompt = "no start ulw ".repeat(Math.ceil(200_000 / 13));
   assert.ok(prompt.length >= 200_000);
   const started = performance.now();
   assert.equal(detectUltrawork(prompt), false);
@@ -84,15 +88,16 @@ test("detectUltrawork checks a 200,000-character negated prompt in under 1,000 m
 });
 
 test("an unclosed fence hides the rest of the prompt", () => {
-  assert.equal(detectUltrawork("ok\n```\nulw"), false);
-  assert.equal(detectUltrawork("```\nx\n```\nulw"), true);
+  assert.equal(detectUltrawork("ok\n```\nstart ulw"), false);
+  assert.equal(detectUltrawork("```\nx\n```\nstart ulw"), true);
 });
 
-test("ultraworkContext gives the build contract: omt-ulw banner first, the main thread builds, one review and one QA child, done with evidence", () => {
+test("ultraworkContext gives the build contract: omt-ulw steps in order, the main thread builds, one review and one QA child, done with evidence", () => {
   const text = ultraworkContext();
   assert.ok(text.length <= 1000);
   assert.match(text, /ultrawork is on/);
-  assert.match(text, /Load the omt-ulw skill .* the banner first, then step 0 and step 1\./);
+  assert.match(text, /Load the omt-ulw skill before anything else and follow its steps in order, from step 0\./);
+  assert.doesNotMatch(text, /banner/);
   assert.match(text, /You explore, ask question batches, plan, and build in this thread\./);
   assert.match(text, /One review child and one QA child check the work\./);
   assert.match(text, /report done only after the checks ran and passed, and quote their output/);
@@ -100,7 +105,7 @@ test("ultraworkContext gives the build contract: omt-ulw banner first, the main 
 });
 
 test("the hook prints one JSON line on a match", async () => {
-  const ctx = fakeContext({ root: tempDir(), stdin: JSON.stringify({ prompt: "ulw add a flag", session_id: "s" }) });
+  const ctx = fakeContext({ root: tempDir(), stdin: JSON.stringify({ prompt: "start ulw add a flag", session_id: "s" }) });
   assert.equal(await runUserPromptSubmitHook(ctx), 0);
   const out = ctx.out();
   assert.ok(out.endsWith("\n"));
@@ -113,7 +118,7 @@ test("the hook prints one JSON line on a match", async () => {
 
 test("the hook prints nothing and exits 0 on no match, empty input, or bad input", async () => {
   const root = tempDir();
-  for (const stdin of ["", "  \n", "not json", "null", "[]", "42", "{}", '{"prompt":3}', '{"prompt":"add a flag"}']) {
+  for (const stdin of ["", "  \n", "not json", "null", "[]", "42", "{}", '{"prompt":3}', '{"prompt":"add a flag"}', '{"prompt":"ulw add a flag"}']) {
     const ctx = fakeContext({ root, stdin });
     assert.equal(await runUserPromptSubmitHook(ctx), 0, stdin);
     assert.equal(ctx.out(), "", stdin);
@@ -139,7 +144,7 @@ test("hook rejects a missing or unknown hook name with exit code 2", async () =>
 test("hook user-prompt-submit ignores extra arguments and exits 0", async () => {
   const root = tempDir();
   for (const argv of [["user-prompt-submit", "--bogus"], ["user-prompt-submit", "extra", "-x"]]) {
-    const ctx = fakeContext({ root, argv, stdin: JSON.stringify({ prompt: "ulw fix it" }) });
+    const ctx = fakeContext({ root, argv, stdin: JSON.stringify({ prompt: "start ulw fix it" }) });
     assert.equal(await run(ctx), 0, argv.join(" "));
     assert.match(ctx.out(), /omt-ulw/);
   }
@@ -148,7 +153,8 @@ test("hook user-prompt-submit ignores extra arguments and exits 0", async () => 
 test("omt hook user-prompt-submit works as a child process", () => {
   const root = tempDir();
   const spawn = (input: string) => spawnOmt(["hook", "user-prompt-submit"], { root, input });
-  const hit = spawn('{"prompt":"ulw add a flag"}');
+  const hit = spawn('{"prompt":"start ulw add a flag"}');
+  assert.equal(spawn('{"prompt":"what does ulw do?"}').stdout, "");
   assert.equal(hit.code, 0);
   assert.equal(JSON.parse(hit.stdout).hookSpecificOutput.hookEventName, "UserPromptSubmit");
   const miss = spawn("not json");

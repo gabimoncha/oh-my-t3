@@ -1,7 +1,7 @@
 import type { CliContext } from "../types.ts";
 
-const WORD_RE = /(?<![\p{L}\p{N}_\-/$])(?:ulw|ultrawork)(?![\p{L}\p{N}_\-/$])/iu;
-const KEYWORD_RE = new RegExp(WORD_RE.source, "giu");
+// The bare words also appear when the user only talks about ultrawork, so only the phrase starts a run.
+const PHRASE_RE = /(?<![\p{L}\p{N}_\-/$])start[ \t]+(?:ulw|ultrawork)(?![\p{L}\p{N}_\-/$])/giu;
 const NEGATOR_RE = /(?<![\p{L}\p{N}_])(?:no|not|never|without|dont|don['’]t)$/iu;
 const WINDOW_CHAR_RE = /^[\p{L}\p{N}'’]$/u;
 const FENCE_RE = /^ {0,3}(`{3,}|~{3,})/;
@@ -59,8 +59,9 @@ export function detectUltrawork(prompt: string): boolean {
   if (start.startsWith("Act as the ")) return false;
   if (start.startsWith("/omt-ulw")) return false;
   if (start.startsWith("<task-notification>")) return false;
+  if (start.startsWith("Delegated task ")) return false;
   const text = stripIgnored(prompt);
-  for (const match of text.matchAll(KEYWORD_RE)) {
+  for (const match of text.matchAll(PHRASE_RE)) {
     if (!isNegated(text, match.index)) return true;
   }
   return false;
@@ -69,7 +70,7 @@ export function detectUltrawork(prompt: string): boolean {
 export function ultraworkContext(): string {
   return [
     "omt ultrawork is on for this request.",
-    "Load the omt-ulw skill before anything else and follow it in order: the banner first, then step 0 and step 1.",
+    "Load the omt-ulw skill before anything else and follow its steps in order, from step 0.",
     "You explore, ask question batches, plan, and build in this thread.",
     "One review child and one QA child check the work.",
     "Done needs evidence: report done only after the checks ran and passed, and quote their output.",

@@ -147,7 +147,7 @@ Run `omt profile list` to see the presets and your custom profiles. Run `omt pro
 To use the prototype profile for one build, type this in a T3 thread:
 
 ```text
-ulw --profile prototype build a demo of the search screen
+start ulw --profile prototype build a demo of the search screen
 ```
 
 To switch the profile of a running plan, run `omt plan profile <slug> normal`. `omt plan profile <slug> none` removes the plan override. The change applies to the remaining work of the plan.

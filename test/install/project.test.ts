@@ -663,7 +663,7 @@ test("the project hook command calls the shim", async () => {
   const out = execFileSync("/bin/sh", ["-c", command], {
     cwd: f.project,
     env: childEnv(f.root),
-    input: JSON.stringify({ prompt: "ulw fix the bug", hook_event_name: "UserPromptSubmit" }),
+    input: JSON.stringify({ prompt: "start ulw fix the bug", hook_event_name: "UserPromptSubmit" }),
     encoding: "utf8",
   });
   assert.match(out, /omt-ulw/);
