@@ -1,6 +1,6 @@
 # Release oh-my-t3
 
-This page is for the owner. A release has the primary npm package `oh-my-t3`, the alias `omt3`, the deprecated alias `oh-my-t3code` ([Retire the oh-my-t3code package](#retire-the-oh-my-t3code-package)), and one GitHub release with the binary archives. When you push a `v<version>` tag, the workflow `.github/workflows/release.yml` builds the release, publishes all three npm packages, and creates the GitHub release. [Spec section 17](spec.md#17-packaging-and-release) describes the release script and the workflows.
+This page is for the owner. A release has the primary npm package `oh-my-t3`, the alias `omt3`, and one GitHub release with the binary archives. When you push a `v<version>` tag, the workflow `.github/workflows/release.yml` builds the release, publishes both npm packages, and creates the GitHub release. [Spec section 17](spec.md#17-packaging-and-release) describes the release script and the workflows.
 
 Before the first automated release, do the steps in [Set up once](#set-up-once).
 
@@ -32,7 +32,7 @@ Do these steps in order, in the repository root. Start on `main` with a clean wo
 5. Wait for the release workflow. To follow it, run `gh run watch` and select the `Release` run. The workflow does these jobs:
    - `verify` runs the CI workflow `.github/workflows/ci.yml` on the tagged commit.
    - `build` checks that the tag is `v` plus the `version` of `package.json`. Then it runs `bun scripts/release.ts`, checks the 6 archives against `SHA256SUMS`, and uploads `dist/release` as the artifact `release`.
-   - `npm` publishes `oh-my-t3`, `oh-my-t3code`, and `omt3` with `npm publish --access public --tag latest`. It uses npm trusted publishing, so no npm token is stored in GitHub.
+   - `npm` publishes `oh-my-t3` and `omt3` with `npm publish --access public --tag latest`. It uses npm trusted publishing, so no npm token is stored in GitHub.
    - `github` creates the GitHub release `v<version>` with the 6 archives and `SHA256SUMS`, and with notes that GitHub generates.
 6. Check each channel on a clean machine, or in a fresh user account. Each command must print the new version:
 
@@ -50,7 +50,7 @@ Do these steps in order, in the repository root. Start on `main` with a clean wo
 
 On npmjs.com:
 
-1. For each of `oh-my-t3`, `oh-my-t3code`, and `omt3`, open the package, then **Settings** > **Trusted publishing**. Add a trusted publisher of type **GitHub Actions** with these values:
+1. For each of `oh-my-t3` and `omt3`, open the package, then **Settings** > **Trusted publishing**. Add a trusted publisher of type **GitHub Actions** with these values:
    - Organization or user: `gabimoncha`
    - Repository: `oh-my-t3`
    - Workflow filename: `release.yml`
@@ -60,7 +60,6 @@ On npmjs.com:
    As an alternative, run this command once for each package. It needs npm 11.15 or later and your 2FA:
 
    ```sh
-   npm trust github oh-my-t3code --file release.yml --repo gabimoncha/oh-my-t3 --env npm --allow-publish
    npm trust github omt3 --file release.yml --repo gabimoncha/oh-my-t3 --env npm --allow-publish
    npm trust github oh-my-t3 --file release.yml --repo gabimoncha/oh-my-t3 --env npm --allow-publish
    ```
@@ -118,7 +117,7 @@ If the `build` job fails because the tag does not match `package.json`, delete t
 
 Use these steps when the workflow cannot publish, or when it stops partway. Do steps 1 to 4 of [Publish a release](#publish-a-release) first.
 
-1. Check which channels are done already. A workflow run that stops partway can leave a published package or a GitHub release. Run these commands for each of `oh-my-t3code`, `omt3`, and `oh-my-t3`:
+1. Check which channels are done already. A workflow run that stops partway can leave a published package or a GitHub release. Run these commands for each of `omt3` and `oh-my-t3`:
 
    ```sh
    npm view <pkg>@<version> version
@@ -154,13 +153,7 @@ Use these steps when the workflow cannot publish, or when it stops partway. Do s
 
    Use `npm publish`, not the `bun publish` command that the release script prints. `bun publish` uses a token. After you select "disallow tokens" in [Set up once](#set-up-once), a token publish fails. Before that setting, `bun publish --access public` also works.
 
-5. Publish the legacy `oh-my-t3code` alias. Skip this step if `oh-my-t3code@<version>` is published:
-
-   ```sh
-   (cd dist/release/npm/oh-my-t3code && npm publish --access public)
-   ```
-
-6. Create the GitHub release from the tag, with the archives and `SHA256SUMS`. Skip this step if the release `v<version>` exists:
+5. Create the GitHub release from the tag, with the archives and `SHA256SUMS`. Skip this step if the release `v<version>` exists:
 
    ```sh
    gh release create v<version> --verify-tag dist/release/github/*
@@ -168,13 +161,13 @@ Use these steps when the workflow cannot publish, or when it stops partway. Do s
 
    `--verify-tag` stops the command when the tag is not on GitHub. Without it, `gh` creates the tag from the last commit of the default branch, which can differ from the commit that you released. The release script prints this command without `--verify-tag`. Use the command of this step.
 
-7. Do step 6 of [Publish a release](#publish-a-release).
+6. Do step 6 of [Publish a release](#publish-a-release).
 
 ## The 0.5.0 package alias
 
 oh-my-t3 version `0.5.0` was published under the new npm name on 2026-10-30. The existing `oh-my-t3code@0.5.0` and `omt3@0.5.0` packages remain available. npm never accepts a second publish of the same package version. Repository and artwork changes reach npm with the next release.
 
-The GitHub repository is now `gabimoncha/oh-my-t3`. Trusted publishers for all three npm packages must name this repository, `release.yml`, and the `npm` environment. A publisher still configured for the old repository name cannot publish from the renamed workflow. Use the commands in [Set up once](#set-up-once) to configure the new repository.
+The GitHub repository is now `gabimoncha/oh-my-t3`. Trusted publishers for `oh-my-t3` and `omt3` must name this repository, `release.yml`, and the `npm` environment. A publisher still configured for the old repository name cannot publish from the renamed workflow. Use the commands in [Set up once](#set-up-once) to configure the new repository.
 
 ## Retire the oh-my-t3code package
 
@@ -188,7 +181,7 @@ npm deprecate oh-my-t3code "oh-my-t3code is now oh-my-t3. Run omt update to swit
 
 npm then shows the message each time someone installs `oh-my-t3code`. The published versions stay available, so old lockfiles still install.
 
-A later release removes `oh-my-t3code` from the two publish loops in `.github/workflows/release.yml`. Keep `omt3`, because project shims pin `omt3@<version>`.
+0.6.0 was the last release of `oh-my-t3code`. Later releases publish only `oh-my-t3` and `omt3`: the two publish loops in `.github/workflows/release.yml` no longer name `oh-my-t3code`. Keep `omt3`, because project shims pin `omt3@<version>`. The release script still builds `npm/oh-my-t3code/`, because the update tests install it as the old package.
 
 ## What happened in the first release
 

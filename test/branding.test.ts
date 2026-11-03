@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { PACKAGE_NAME, PACKAGE_NAMES, REPOSITORY, REPOSITORY_URL } from "../src/brand.ts";
 import { INSTALL_CHANNELS, INSTALL_URL } from "../src/install/project.ts";
+import { LEGACY_PACKAGE } from "../src/update/channel.ts";
 import { PACKAGE_ROOT } from "./helpers.ts";
 
 function read(path: string): string {
@@ -19,7 +20,8 @@ test("the primary package and all aliases publish the same CLI from the renamed 
   const workflow = read(".github/workflows/release.yml");
   const loops = [...workflow.matchAll(/for pkg in ([^;]+); do/g)];
   assert.equal(loops.length, 2);
-  for (const loop of loops) assert.deepEqual(loop[1]?.split(" "), PACKAGE_NAMES);
+  const published = PACKAGE_NAMES.filter((name) => name !== LEGACY_PACKAGE);
+  for (const loop of loops) assert.deepEqual(loop[1]?.split(" "), published);
   assert.equal(INSTALL_URL, `${REPOSITORY_URL}#install`);
   assert.ok(INSTALL_CHANNELS.includes(`npm i -g ${PACKAGE_NAME}`));
 });
