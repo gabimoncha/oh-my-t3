@@ -228,3 +228,16 @@ test("a root visuals key is dropped with a warning, whatever its value", () => {
     });
   }
 });
+
+test("the retired grill role is dropped with a warning, and the grill result kind is an error", () => {
+  const { layer, issues } = validateLayer({
+    version: 1,
+    roles: {
+      grill: { description: "Old.", access: "read-only", chain: [{ driver: "codex", model: "m" }] },
+      custom: { description: "New.", access: "read-only", result: "grill", chain: [{ driver: "codex", model: "m" }] },
+    },
+  }, "test");
+  assert.equal(layer.roles?.grill, undefined);
+  assert.ok(issues.some((issue) => issue.path === "roles.grill" && issue.severity === "warning"));
+  assert.ok(issues.some((issue) => issue.path === "roles.custom.result" && issue.severity === "error" && /no longer used; use "review"/.test(issue.message)));
+});

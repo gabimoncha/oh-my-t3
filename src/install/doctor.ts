@@ -191,7 +191,7 @@ async function checkHooks(ctx: CliContext, paths: ScopePaths, loaded: ScopeManif
   if (commands.length === 0) {
     return fromManifest
       ? check("hooks", "WARN", `the installed hook is missing from ${absent.join(", ")}; run ${hint}`)
-      : check("hooks", "INFO", `no hook installed; run ${hint} to arm ultrawork on the ulw keyword`);
+      : check("hooks", "INFO", `no hook installed; run ${hint} to start ultrawork on the phrase start ulw`);
   }
   const lost: string[] = [];
   for (const command of commands) {
@@ -280,7 +280,7 @@ async function checkPath(ctx: CliContext): Promise<DoctorCheck> {
   return check(
     "path",
     "WARN",
-    `omt is not on PATH; skills use .omt/bin/omt from a project install (omt install --project) and otherwise fall back to manual role resolution; install omt with one of: ${INSTALL_CHANNELS.join(", ")}`,
+    `omt is not on PATH; skills use .omt/bin/omt from a project install (omt install --project), and they need the CLI; install omt with one of: ${INSTALL_CHANNELS.join(", ")}`,
   );
 }
 

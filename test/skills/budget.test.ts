@@ -40,12 +40,8 @@ const BANNED: RegExp[] = [
   /t3_thread_wait/,
 ];
 
-// Files not rewritten yet. Each skill unit of the trim removes its files; the last one empties the set.
-const PENDING: ReadonlySet<string> = new Set([
-  "omt-plan/SKILL.md",
-  "omt/references/roles/*.md",
-  "omt/references/results/*.md",
-]);
+// Files not rewritten yet. The trim emptied this set; add a file here only while a rewrite is in progress.
+const PENDING: ReadonlySet<string> = new Set<string>();
 
 function walk(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

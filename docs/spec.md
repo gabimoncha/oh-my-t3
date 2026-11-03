@@ -116,8 +116,8 @@ export type Access = "read-only" | "edit";
 export type InteractionMode = "inherit" | "default" | "plan";
 export type RuntimeMode = "inherit" | "approval-required" | "auto-accept-edits" | "auto" | "full-access";
 export type T3Role = "implementation" | "research" | "review" | "design" | "test" | "general";
-export type ResultKind = "work" | "review" | "test" | "research" | "plan" | "guardrail" | "grill";
-export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan", "guardrail", "grill"];
+export type ResultKind = "work" | "review" | "test" | "research" | "plan" | "guardrail";
+export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan", "guardrail"];
 
 export interface Rung {
   provider?: string; // T3 provider instance id, for example "claudeAgent"
@@ -1283,7 +1283,7 @@ A missing file is not an error. Each file is JSONC (section 7). Profile selectio
 - Allowed role keys and values:
   - `description`: a non-empty string of at most 300 characters.
   - `access`: `read-only` or `edit`.
-  - `result`: `work`, `review`, `test`, `research`, `plan`, `guardrail`, or `grill`.
+  - `result`: `work`, `review`, `test`, `research`, `plan`, or `guardrail`. The retired kind `grill` is an error that says to use `review`.
   - `t3Role`: `implementation`, `research`, `review`, `design`, `test`, or `general`.
   - `interactionMode`: `inherit`, `default`, or `plan`.
   - `runtimeMode`: `inherit`, `approval-required`, `auto-accept-edits`, `auto`, or `full-access`.
@@ -1297,7 +1297,7 @@ A missing file is not an error. Each file is JSONC (section 7). Profile selectio
   - `fast`: a boolean.
   - `options`: an object whose values are strings or booleans.
 - Allowed limit keys and integer ranges: `maxParallel` 1 to 32, `maxDepth` 0 to 3, `maxReviewRounds` 1 to 10. An invalid limit is dropped with an error.
-- Retired keys and roles. omt ignores these keys: `workflow.build.verify`, `workflow.build.checkpoint`, and `workflow.build.stallMinutes` in any profile, `limits.maxTasksPerRun` at root or in a profile, and the roles `verify`, `quick`, `deep`, and `plan` at root or in a profile. A layer that sets one still loads. Validation drops the key, whatever its value, and adds one warning for each key: `<path> is no longer used; remove it`, for example `profiles.normal.workflow.build.checkpoint is no longer used; remove it`. A retired key or role therefore has no effect on the effective config. `RETIRED_BUILD_KEYS`, `RETIRED_LIMIT_KEYS`, and `RETIRED_ROLES` in `src/config/defaults.ts` hold the lists.
+- Retired keys and roles. omt ignores these keys: `workflow.build.verify`, `workflow.build.checkpoint`, and `workflow.build.stallMinutes` in any profile, `limits.maxTasksPerRun` at root or in a profile, and the roles `verify`, `quick`, `deep`, `plan`, and `grill` at root or in a profile. A layer that sets one still loads. Validation drops the key, whatever its value, and adds one warning for each key: `<path> is no longer used; remove it`, for example `profiles.normal.workflow.build.checkpoint is no longer used; remove it`. A retired key or role therefore has no effect on the effective config. `RETIRED_BUILD_KEYS`, `RETIRED_LIMIT_KEYS`, and `RETIRED_ROLES` in `src/config/defaults.ts` hold the lists.
 - Retired profiles. `RETIRED_PROFILES` in `src/config/defaults.ts` lists `pr-review`, because `normal` now runs all PR review steps. A layer that declares `profiles.pr-review`, with any value including `null`, gets the warning `profiles.pr-review is no longer used; remove it`, and validation drops the declaration. A root `profile` or a profile `extends` that names a retired profile gets the warning `profile "pr-review" is no longer used; normal runs the PR steps`, and validation replaces the name with `normal`.
 - `profile` and each profile name match the role-name pattern. A profile value is `null` or an object. Allowed fields are `description`, `extends`, `workflow`, `limits`, `roles`, and `models`. `visuals` is an unknown profile field, so it is an error.
 - Profile `description` is a non-empty string of at most 300 Unicode code points. An invalid description drops the whole profile override. Other invalid profile fields are dropped individually. `extends` matches the profile-name pattern.
@@ -1356,7 +1356,6 @@ For a role without `crossFamily`, rung 2 runs only when T3 refuses rung 1. For a
 | `explore` | read-only | research | research | plan | false | codex/gpt-6.1-terra low, claudeAgent/claude-haiku-5-5 medium |
 | `research` | read-only | research | research | plan | false | codex/gpt-6.1-sol low, claudeAgent/claude-sonnet-5-5 medium |
 | `plan-review` | read-only | review | review | plan | true | codex/gpt-6-astra medium, claudeAgent/claude-opus-5-5 medium |
-| `grill` | read-only | grill | review | plan | true | codex/gpt-6-astra medium, claudeAgent/claude-opus-5-5 medium |
 | `execute` | edit | work | implementation | default | false | claudeAgent/claude-opus-5-5 low, codex/gpt-6.1-sol high |
 | `review` | edit | review | review | default | true | codex/gpt-6-astra medium, claudeAgent/claude-opus-5-5 medium |
 | `oracle` | edit | review | review | default | true | codex/gpt-6-astra medium, claudeAgent/claude-opus-5-5 medium |
@@ -1377,7 +1376,6 @@ Role descriptions (shown to agents in `omt roles` and in skills):
 - `explore`: Search this repository and answer one narrow question with file and line citations.
 - `research`: Answer a question from docs, the web, and code, with cited sources.
 - `plan-review`: Check a plan for gaps, ambiguity, and steps that cannot be verified.
-- `grill`: Test a goal before it has a plan: find its edge cases, open questions, and options.
 - `execute`: Implement one planned unit inside its scope and run its verify commands.
 - `review`: Review a diff against its brief, fix local findings in the changed files, and report the rest by severity. Runs on the family that did not make the change.
 - `oracle`: Attack the finished change from the family other than the main implementer's, fix local findings, and report the rest before it counts as done.
@@ -1798,25 +1796,6 @@ NOTES:
 - <each finding with no proposal and why, or none>
 ```
 
-`grill.md`:
-
-```text
-VERDICT: OPEN | CLEAR
-SUMMARY: <one or two sentences>
-DIRECTIONS:
-- <direction>: <what the user gets>; cost: <what it costs>; or none
-DECISIONS:
-- <area>: <choice>. Why: <reason>; or none
-EDGE CASES:
-- [blocking|minor] <area>: when <trigger>, <effect>. Handle: <proposed handling>. Test: integration | unit | none; or none
-QUESTIONS:
-- [blocking|minor] <area>: <question>. Options: <2 to 4 options>. Recommend: <option>, because <reason>; or none
-NOTES:
-- <non-blocking note, or none>
-```
-
-A grill returns `OPEN` when at least one blocking edge case or question remains that `Prior rounds` does not hold, and `CLEAR` otherwise. An edge case is blocking when, without a decision on its handling, the build would do the wrong thing, lose data, or break a flow of the goal; a question is blocking when its answer changes what the user gets.
-
 A `qa` result lists each command under `CHECKS` with its exit code and key output line, and each log, screenshot, and recording under `EVIDENCE`; `qa` writes no tests, so the contract has no test list. A `review` or `oracle` result lists the fixes that the reviewer made under `FIXES`, with their paths, or `none` when its access is read-only; `FINDINGS` holds only the findings that it reports. Worker `NOTES` are optional. A review or oracle finding needs a concrete failure scenario. When CRAP is requested, a CRAP finding instead names the changed function and its complexity, coverage, and CRAP values. This exception applies in every round.
 
 Severity meanings for review findings: P0 breaks the build, loses data, or opens a security hole. P1 is a wrong result in a normal path. P2 is a wrong result in an edge case, a named missing test, or a requested CRAP finding above 30. P3 is style or clarity.
@@ -2098,7 +2077,7 @@ Then doctor runs these checks and prints one line per check, such as `PASS  conf
 | `skills` | every bundled skill is installed, managed, and current, and no retired skill is left | missing, outdated, or locally modified skills; a retired skill (section 14.2) that is still in place, as `no longer shipped: <names> in <agents root>; run omt install` | the CLI has no bundled skills (section 14.1) | |
 | `links` | every Claude link resolves to its canonical directory | a missing link | a broken or conflicting link | |
 | `hooks` | the manifest hook is present in the Claude settings, and the paths in its command exist | the manifest hook is missing from the settings | a path in the hook's command does not exist | no hook installed; suggest `omt install --hooks` |
-| `path` | an executable `omt` exists in a `PATH` directory | none found; skills fall back to manual role resolution, and the message names the install channels of section 14.2 | | |
+| `path` | an executable `omt` exists in a `PATH` directory | none found; the message says that skills need the CLI, and names the install channels of section 14.2 | | |
 | `t3` | `t3SettingsPath()` exists | it does not exist | | |
 | `homes` | every T3 `claudeAgent` instance that sets `config.homePath` has the skills linked in `<homePath>/skills` | an instance with a `homePath` that lacks the skills; a settings file that cannot be read or is not valid JSON | | no instance sets a `homePath` |
 | `roles` | every role resolves (only with `--capabilities`) | some roles are unavailable | the `execute` role is unavailable | |

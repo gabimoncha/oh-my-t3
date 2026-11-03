@@ -146,29 +146,6 @@
         }
       ]
     },
-    "grill": {
-      "description": "Test a goal before it has a plan: find its edge cases, open questions, and options.",
-      "access": "read-only",
-      "result": "grill",
-      "t3Role": "review",
-      "interactionMode": "plan",
-      "runtimeMode": "inherit",
-      "crossFamily": true,
-      "chain": [
-        {
-          "provider": "codex",
-          "driver": "codex",
-          "model": "gpt-6-astra",
-          "effort": "medium"
-        },
-        {
-          "provider": "claudeAgent",
-          "driver": "claudeAgent",
-          "model": "claude-opus-5-5",
-          "effort": "medium"
-        }
-      ]
-    },
     "execute": {
       "description": "Implement one planned unit inside its scope and run its verify commands.",
       "access": "edit",
