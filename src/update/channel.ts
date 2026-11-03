@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { MISE_GITHUB_TOOL, PACKAGE_NAME, PACKAGE_NAMES, REPOSITORY_URL } from "../brand.ts";
 import { findProjectRoot } from "../paths.ts";
 import type { Env } from "../paths.ts";
 import { oneShotRunner, runnerCommand } from "../install/project.ts";
@@ -17,7 +18,7 @@ export type ChannelKind =
 export interface Channel {
   kind: ChannelKind;
   label: string; // for people, such as "npm global" or "mise (release binary)"
-  packageName: "oh-my-t3code" | "omt3";
+  packageName: "oh-my-t3code" | "omt3" | "oh-my-t3";
   key: string; // the same key means the same install
   projectRoot?: string; // dev-dependency: the folder above the first node_modules; one-shot: the project of cwd
   packageManager?: "npm" | "pnpm" | "bun" | "yarn"; // dev-dependency: from the lockfile
@@ -39,8 +40,7 @@ export type RunCommand = (argv: string[], opts: { cwd?: string; inherit?: boolea
 
 export type UpdateAction = { kind: "run"; argv: string[]; display: string } | { kind: "hint"; text: string } | { kind: "repin" };
 
-const MISE_GITHUB_TOOL = "github:gabimoncha/oh-my-t3code";
-const RELEASES_URL = "https://github.com/gabimoncha/oh-my-t3code/releases";
+const RELEASES_URL = `${REPOSITORY_URL}/releases`;
 // Set by omt update for the new CLI of a global channel: the CLI file that the package manager reported.
 const CONFIRMED_GLOBAL_CLI = "OMT_UPDATE_GLOBAL_CLI";
 
@@ -68,7 +68,7 @@ interface GlobalCandidate {
 function pathCandidates(path: string): (GlobalCandidate | undefined)[] {
   const parts = path.split("/");
   const n = parts.length;
-  if (parts[n - 1] !== "cli.js" || parts[n - 2] !== "dist" || !["oh-my-t3code", "omt3"].includes(parts[n - 3] ?? "") || parts[n - 4] !== "node_modules") return [];
+  if (parts[n - 1] !== "cli.js" || parts[n - 2] !== "dist" || !PACKAGE_NAMES.includes(parts[n - 3] ?? "") || parts[n - 4] !== "node_modules") return [];
   const candidate = (kind: GlobalKind, end: number, shared = false): GlobalCandidate => ({ kind, root: parts.slice(0, end).join("/"), shared });
   const five = parts[n - 5] === "5" && parts[n - 6] === "global" ? n - 3
     : parts[n - 6] === ".pnpm" && parts[n - 7] === "node_modules" && parts[n - 8] === "5" && parts[n - 9] === "global" ? n - 6 : undefined;
@@ -98,8 +98,9 @@ function readPackageJson(path: string): Record<string, unknown> | undefined {
 }
 
 function packageNameOf(input: ChannelInput): Channel["packageName"] {
-  if (input.build !== "bundle") return "oh-my-t3code";
-  return readPackageJson(join(input.packageRoot, "package.json"))?.name === "omt3" ? "omt3" : "oh-my-t3code";
+  if (input.build !== "bundle") return PACKAGE_NAME;
+  const name = readPackageJson(join(input.packageRoot, "package.json"))?.name;
+  return name === "omt3" || name === "oh-my-t3code" ? name : PACKAGE_NAME;
 }
 
 function channel(kind: ChannelKind, packageName: Channel["packageName"], key: string, extra: Partial<Channel> = {}): Channel {
@@ -124,7 +125,7 @@ function globalCandidate(paths: string[], env: Env): GlobalCandidate | undefined
     if (priority !== 3) continue;
     for (const dir of bunGlobalDirs(env)) {
       for (const root of new Set([slashes(dir), slashes(realOrSelf(dir))])) {
-        if (normalized.some((path) => ["oh-my-t3code", "omt3"].some((name) => path === `${root}/node_modules/${name}/dist/cli.js`))) {
+        if (normalized.some((path) => PACKAGE_NAMES.some((name) => path === `${root}/node_modules/${name}/dist/cli.js`))) {
           return { kind: "bun-global", root, shared: false };
         }
       }
@@ -146,7 +147,7 @@ function listsOmt(root: string): boolean {
   const manifest = readPackageJson(join(root, "package.json"));
   if (manifest === undefined) return false;
   return [manifest.devDependencies, manifest.dependencies].some(
-    (deps) => isRecord(deps) && (Object.hasOwn(deps, "oh-my-t3code") || Object.hasOwn(deps, "omt3")),
+    (deps) => isRecord(deps) && PACKAGE_NAMES.some((name) => Object.hasOwn(deps, name)),
   );
 }
 
@@ -159,7 +160,7 @@ function lockfileManager(root: string): NonNullable<Channel["packageManager"]> {
 
 // The project's node_modules resolves its omt dependency to the CLI file `real`.
 function linksCli(root: string, real: string): boolean {
-  return ["oh-my-t3code", "omt3"].some((name) => realOrSelf(join(root, "node_modules", name, "dist", "cli.js")) === real);
+  return PACKAGE_NAMES.some((name) => realOrSelf(join(root, "node_modules", name, "dist", "cli.js")) === real);
 }
 
 // The project of a dev-dependency channel resolves its omt dependency to the CLI file `cliPath`, so that CLI is the
@@ -244,10 +245,10 @@ function detect(input: ChannelInput, sharedStore: SharedStore): Channel {
       projectRoot: findProjectRoot(input.cwd),
     });
   }
-  if (input.build === "binary" && paths.some((path) => /\/installs\/github-gabimoncha-oh-my-t3code\/[^/]+\//.test(path))) {
+  if (input.build === "binary" && paths.some((path) => /\/installs\/github-gabimoncha-oh-my-t3(?:code)?\/[^/]+\//.test(path))) {
     return channel("mise-github", packageName, "mise-github");
   }
-  if (paths.some((path) => /\/installs\/npm-(?:oh-my-t3code|omt3)\/[^/]+\//.test(path))) {
+  if (paths.some((path) => /\/installs\/npm-(?:oh-my-t3code|omt3|oh-my-t3)\/[^/]+\//.test(path))) {
     return channel("mise-npm", packageName, "mise-npm");
   }
   const global = globalCandidate(paths, input.env);
@@ -321,14 +322,14 @@ export async function confirmChannel(found: Channel, input: ChannelInput, run: R
 function installTable(version: string): string {
   return [
     `  mise, release binary: mise use -g ${MISE_GITHUB_TOOL}@${version}`,
-    `  mise, npm package: mise use -g npm:oh-my-t3code@${version}`,
-    `  npm, global: npm i -g oh-my-t3code@${version}`,
-    `  pnpm, global: pnpm add -g oh-my-t3code@${version}`,
-    `  Bun, global: bun add -g oh-my-t3code@${version}`,
-    `  npm, dev dependency: npm i -D oh-my-t3code@${version}`,
-    `  pnpm, dev dependency: pnpm add -D oh-my-t3code@${version}`,
-    `  Bun, dev dependency: bun add -D oh-my-t3code@${version}`,
-    `  one-shot: npx omt3@${version}, bunx omt3@${version}, or pnpm dlx omt3@${version}`,
+    `  mise, npm package: mise use -g npm:oh-my-t3@${version}`,
+    `  npm, global: npm i -g oh-my-t3@${version}`,
+    `  pnpm, global: pnpm add -g oh-my-t3@${version}`,
+    `  Bun, global: bun add -g oh-my-t3@${version}`,
+    `  npm, dev dependency: npm i -D oh-my-t3@${version}`,
+    `  pnpm, dev dependency: pnpm add -D oh-my-t3@${version}`,
+    `  Bun, dev dependency: bun add -D oh-my-t3@${version}`,
+    `  one-shot: npx oh-my-t3@${version}, bunx oh-my-t3@${version}, or pnpm dlx oh-my-t3@${version}`,
   ].join("\n");
 }
 

@@ -57,16 +57,18 @@ export async function run(command: string, args: string[], cwd: string, env: Nod
 
 type PackageManifest = { name: string; version: string; bin: Record<string, string> };
 
-// Builds the release of the checkout at `source` into `<root>/<outdir>`, packs both npm packages, and
+// Builds the release of the checkout at `source` into `<root>/<outdir>`, packs all npm packages, and
 // returns their manifests with the tarball bytes.
 async function packRelease(source: string, root: string, outdir: string, tool: ReturnType<typeof tools>, env: NodeJS.ProcessEnv) {
   const release = join(root, outdir);
   await run(tool.bun, [join(source, "scripts", "release.ts"), "--target", `${process.platform}-${process.arch}`, "--outdir", release], source, env);
   const packed: { manifest: PackageManifest; bytes: Buffer }[] = [];
-  for (const name of ["oh-my-t3code", "omt3"]) {
+  for (const name of ["oh-my-t3code", "omt3", "oh-my-t3"]) {
     const dir = join(release, "npm", name);
     const manifest = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as PackageManifest;
     assert.ok(existsSync(join(dir, "dist", "cli.js")), `Missing bundle for ${name}`);
+    assert.equal(manifest.name, name);
+    assert.equal(manifest.bin[name], "dist/cli.js");
     await run(tool.npm, ["pack", "--ignore-scripts", "--pack-destination", root], dir, env);
     packed.push({ manifest, bytes: readFileSync(join(root, `${name}-${manifest.version}.tgz`)) });
   }
@@ -105,6 +107,8 @@ export async function releaseRegistry(prefix: string, tool: ReturnType<typeof to
   mkdirSync(parent, { recursive: true });
   const root = mkdtempSync(join(parent, prefix));
   onTestFinished(() => rmSync(root, { recursive: true, force: true }));
+  // Stop package managers from walking up to the checkout's private package.
+  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "omt-release-test", private: true }));
   const home = tempDir("omt-registry-home-");
   const env = isolatedEnv(home);
   env.PATH = tool.bunPath;

@@ -2934,7 +2934,7 @@ function settingsScreen() {
     }) : null);
 }
 
-const DOCS = "https://github.com/gabimoncha/oh-my-t3code/blob/main/";
+const DOCS = "https://github.com/gabimoncha/oh-my-t3/blob/main/";
 // Every bundled skill. A flow skill has a workflow group, so its page also shows the flow. Keep in sync with
 // skills/*/SKILL.md and stageModel.
 const SKILLS = {

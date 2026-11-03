@@ -1,16 +1,17 @@
-<img src="assets/banner.png" width="1280" alt="omt3, oh-my-t3code. Give the agent a goal. Get back reviewed work. A metro line climbs through the stations Plan, Delegate, Review, Verify, and Done.">
+<img src="assets/banner.png" width="1280" alt="oh-my-t3. Give the agent a goal. Get back reviewed work. A metro line climbs through the stations Plan, Delegate, Review, Verify, and Done.">
 
-# oh-my-t3code
+# oh-my-t3
 
-[![npm](https://img.shields.io/npm/v/oh-my-t3code)](https://www.npmjs.com/package/oh-my-t3code) [![CI](https://github.com/gabimoncha/oh-my-t3code/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gabimoncha/oh-my-t3code/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/oh-my-t3)](https://www.npmjs.com/package/oh-my-t3) [![CI](https://github.com/gabimoncha/oh-my-t3/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gabimoncha/oh-my-t3/actions/workflows/ci.yml)
 
-oh-my-t3code adds plans, roles, task briefs, and review loops to the agents that you run in [T3 Code](https://t3.codes). You give the agent a goal, such as `ulw add OAuth to the API`. The agent reads the code, asks you its open questions, plans, and builds the change in its own thread. Then a child task from the other model family reviews the change, and another child task runs every check.
+oh-my-t3 adds plans, roles, task briefs, and review loops to the agents that you run in [T3 Code](https://t3.codes). You give the agent a goal, such as `ulw add OAuth to the API`. The agent reads the code, asks you its open questions, plans, and builds the change in its own thread. Then a child task from the other model family reviews the change, and another child task runs every check.
 
 ## Names
 
 | Name | What it is |
 | --- | --- |
-| `oh-my-t3code` | The project, the GitHub repository, and the npm package. |
+| `oh-my-t3` | The project, GitHub repository, and primary npm package. Install it with `npm i -g oh-my-t3` or run it with `npx oh-my-t3`. |
+| `oh-my-t3code` | The previous project name and a compatible npm package alias. |
 | `omt` | The command that every install gives you. |
 | `omt3` | The same npm package under a short name, for one-shot runs: `npx omt3` or `bunx omt3`. Another project owns the npm name `omt`, so `npx omt` runs that project. |
 | `omt-ulw`, `omt-plan`, and the other `omt-*` names | The skills that the agent runs. |
@@ -20,19 +21,19 @@ oh-my-t3code adds plans, roles, task briefs, and review loops to the agents that
 Install the `omt` command with one of these commands:
 
 ```sh
-npm i -g oh-my-t3code                        # needs Node 22 or later
-mise use -g github:gabimoncha/oh-my-t3code   # release binary, needs no Node
+npm i -g oh-my-t3                           # needs Node 22 or later
+mise use -g github:gabimoncha/oh-my-t3      # release binary, needs no Node
 ```
 
 To check the install, run `omt --version`. If your shell does not activate mise, run `mise exec -- omt --version`.
 
-By default, mise skips a release in its first 24 hours (the `minimum_release_age` setting). To install a new release at once, pin its version, such as `github:gabimoncha/oh-my-t3code@0.1.0`.
+By default, mise skips a release in its first 24 hours (the `minimum_release_age` setting). To install a new release at once, pin its version, such as `github:gabimoncha/oh-my-t3@0.1.0`.
 
-To run omt once with no install, use `npx omt3` or `bunx omt3`:
+To run omt once with no install, use `npx oh-my-t3` or `bunx oh-my-t3`. The alias `omt3` also works:
 
 ```sh
-npx omt3 --version
-bunx omt3 --version
+npx oh-my-t3 --version
+bunx oh-my-t3 --version
 ```
 
 Then install omt into your project:
@@ -52,8 +53,8 @@ The [install guide](docs/install.md) shows the other channels (pnpm, Bun, dev de
 To let your coding agent do the install, paste this prompt into Codex or Claude Code in your project:
 
 ```text
-Install oh-my-t3code (omt) for this project. Follow
-https://github.com/gabimoncha/oh-my-t3code/blob/main/docs/agents/quickstart.md
+Install oh-my-t3 (omt) for this project. Follow
+https://github.com/gabimoncha/oh-my-t3/blob/main/docs/agents/quickstart.md
 step by step, run the check at the end of each step, and tell me what to restart.
 ```
 
@@ -145,7 +146,7 @@ The [walkthrough](docs/walkthrough.md) follows two real runs on this repository,
 
 ## Limits
 
-- This is version 0.4. The config format and the CLI output can change.
+- The config format and the CLI output can change.
 - A run has no task budget. At most 6 child tasks run at the same time by default (`limits.maxParallel`).
 - The `ulw` keyword works only in Claude Code. In Codex, type `$omt-ulw`.
 - `omt-swarm` needs a thread in `full-access` runtime mode and `default` interaction mode.
@@ -163,7 +164,7 @@ The [walkthrough](docs/walkthrough.md) follows two real runs on this repository,
 
 ## Credits
 
-oh-my-t3code uses ideas from [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent) (fallback chains, the ultrawork loop, plan reviews), [oh-my-pi](https://github.com/can1357/oh-my-pi) (model roles and the review recipe), and [T3 Code](https://github.com/pingdotgg/t3code) (orchestrator v2, which runs the child tasks). The license of oh-my-openagent does not allow copies of its code or prompts, so oh-my-t3code copies neither.
+oh-my-t3 uses ideas from [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent) (fallback chains, the ultrawork loop, plan reviews), [oh-my-pi](https://github.com/can1357/oh-my-pi) (model roles and the review recipe), and [T3 Code](https://github.com/pingdotgg/t3code) (orchestrator v2, which runs the child tasks). The license of oh-my-openagent does not allow copies of its code or prompts, so oh-my-t3 copies neither.
 
 ## License
 

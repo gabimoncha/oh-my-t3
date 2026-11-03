@@ -96,7 +96,7 @@ jobs:
       - name: Check the npm packages
         run: |
           set -euo pipefail
-          for pkg in oh-my-t3code omt3; do
+          for pkg in oh-my-t3 oh-my-t3code omt3; do
             if [ ! -f "dist/release/npm/$pkg/package.json" ]; then
               echo "::error::dist/release/npm/$pkg/package.json is missing."
               exit 1
@@ -120,7 +120,7 @@ jobs:
           root="$PWD"
           failed=()
           published=()
-          for pkg in oh-my-t3code omt3; do
+          for pkg in oh-my-t3 oh-my-t3code omt3; do
             dir="$root/dist/release/npm/$pkg"
             if ! version="$(node -p 'require(process.argv[1]).version' "$dir/package.json")"; then
               echo "::error::Cannot read the version of $pkg."

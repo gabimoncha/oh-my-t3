@@ -5,21 +5,21 @@ type Channel = "bun" | "pnpm" | "mise" | "once";
 type Scope = "user" | "project";
 
 const CHANNELS: { id: Channel; label: string; command: string; note: ReactNode }[] = [
-  { id: "bun", label: "Bun", command: "bun add -g oh-my-t3code", note: "Also needs Node 22 or later." },
-  { id: "pnpm", label: "pnpm", command: "pnpm add -g oh-my-t3code", note: "Needs Node 22 or later." },
+  { id: "bun", label: "Bun", command: "bun add -g oh-my-t3", note: "Also needs Node 22 or later." },
+  { id: "pnpm", label: "pnpm", command: "pnpm add -g oh-my-t3", note: "Needs Node 22 or later." },
   {
     id: "mise",
     label: "mise",
-    command: "mise use -g github:gabimoncha/oh-my-t3code",
+    command: "mise use -g github:gabimoncha/oh-my-t3",
     note: "Installs the release binary. Needs no Node.",
   },
   {
     id: "once",
     label: "Run once",
-    command: "npx omt3 --version",
+    command: "npx oh-my-t3 --version",
     note: (
       <>
-        Installs nothing. <code>bunx omt3</code> also works.
+        Installs nothing. <code>bunx oh-my-t3</code> also works.
       </>
     ),
   },
@@ -31,7 +31,7 @@ const SCOPES: { id: Scope; label: string }[] = [
 ];
 
 function skillCommands(channel: Channel, scope: Scope): { comment?: string; lines: string[]; note: string } {
-  const omt = channel === "once" ? "npx omt3" : "omt";
+  const omt = channel === "once" ? "npx oh-my-t3" : "omt";
   if (scope === "user") {
     return {
       lines: [`${omt} install --hooks`, `${omt} doctor`],

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>oh-my-t3code architecture</title>
+<title>oh-my-t3 architecture</title>
 <style>
 :root {
   --bg: #ffffff;
@@ -244,8 +244,8 @@ footer.page-footer ul { columns: 2 300px; }
 
 <header class="page-header">
   <div class="inner">
-    <h1>oh-my-t3code architecture</h1>
-    <p class="lede">oh-my-t3code (<code>omt</code>) is a zero-dependency TypeScript CLI plus a set of skills. It adds role-routed multi-agent orchestration on top of the T3 Code orchestrator v2 MCP tools.</p>
+    <h1>oh-my-t3 architecture</h1>
+    <p class="lede">oh-my-t3 (<code>omt</code>) is a zero-dependency TypeScript CLI plus a set of skills. It adds role-routed multi-agent orchestration on top of the T3 Code orchestrator v2 MCP tools.</p>
     <ul class="meta">
       <li>Commit <code>908e098</code></li>
       <li>Package version <code>0.1.0</code></li>
@@ -319,9 +319,9 @@ footer.page-footer ul { columns: 2 300px; }
   <h2 id="big-h">2. The big picture</h2>
   <p>omt has two parts. The skills hold the judgment. The CLI does the deterministic work. Both run inside the parent agent's session. Only the skills call T3.</p>
   <figure>
-    <div class="fig-scroll" tabindex="0" role="region" aria-label="Layer diagram of oh-my-t3code">
+    <div class="fig-scroll" tabindex="0" role="region" aria-label="Layer diagram of oh-my-t3">
 <svg class="diagram" role="img" aria-labelledby="fig1-t fig1-d" width="860" height="650" viewBox="0 0 860 650">
-  <title id="fig1-t">Layer diagram of oh-my-t3code</title>
+  <title id="fig1-t">Layer diagram of oh-my-t3</title>
   <desc id="fig1-d">The user types a prompt in a T3 thread. On Claude Code, the optional ulw hook adds a pointer. On every driver, the parent can also load omt-ulw from its skill description or from a $omt-ulw mention. The parent agent holds the skills and calls the omt CLI. The skills call T3 orchestrator v2 MCP tools such as delegate_task, task_status, and t3_thread_wait. T3 starts child threads routed by role to Claude or Codex models. Explore runs on codex gpt-6-luna, oracle on codex gpt-6-astra, and qa on claudeAgent claude-haiku-5-5. The parent waits for each child inside its turn, and T3 returns the result to the waiting call. The CLI reads and writes .omt in the repository and has no path to T3. Children work in the shared checkout.</desc>
   <!-- user -->
   <rect class="box-a" x="310" y="14" width="240" height="50" rx="8"/>
@@ -984,11 +984,11 @@ OPEN:
     <li><code>src/config/schema.ts</code> builds the JSON Schema from the constants in <code>validate.ts</code>. <code>bun run schema</code> writes it to <code>schema/omt.schema.json</code>, and a test checks that the committed file matches.</li>
   </ul>
   <p>The project starter config holds empty objects and commented examples.</p>
-<pre><code>// oh-my-t3code project config. It overrides the user config for this project.
+<pre><code>// oh-my-t3 project config. It overrides the user config for this project.
 // Run `omt config show --defaults` to see the built-in roles and limits,
 // and `omt profile show` to see the effective config.
 {
-  "$schema": "https://raw.githubusercontent.com/gabimoncha/oh-my-t3code/main/schema/omt.schema.json",
+  "$schema": "https://raw.githubusercontent.com/gabimoncha/oh-my-t3/main/schema/omt.schema.json",
   "version": 1,
   // "profile": "prototype",
   "roles": {

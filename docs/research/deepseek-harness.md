@@ -7,7 +7,7 @@ Snapshot: deepseek-harness clone at commit `5badb15` (`git -C deepseek-harness l
 ## Path conventions
 
 - `dsh:` is the root of a clone of https://github.com/deepseek-ai/deepseek-harness at commit `5badb15`.
-- `omt:` is the root of this repository, https://github.com/gabimoncha/oh-my-t3code.
+- `omt:` is the root of this repository, https://github.com/gabimoncha/oh-my-t3.
 - Facts about T3 tools come from the T3 MCP tool list in this session, not from a clone. They are labeled "T3 session".
 - I read files only. I ran no script, build, or installer from the clone. I skipped `*.zh.md`, `*.i18n.yaml`, `vendor/`, and `website/`. I read `snapshots/` only for one sample case.
 - The clone is shallow. It has one commit (`git rev-list --count HEAD` returns 1). So I could not check the star, fork, contributor, or 30-day commit counts in the catalog note.

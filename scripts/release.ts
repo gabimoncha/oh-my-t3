@@ -1,5 +1,5 @@
 // Writes the release artifacts under <outdir>:
-// - npm/oh-my-t3code/ and npm/omt3/: the two npm packages, identical except the name.
+// - npm/<package>/: identical npm packages under each supported name.
 // - github/oh-my-t3code-v<version>-<platform>.tar.gz: one archive per platform, with omt at the root.
 // - github/SHA256SUMS: one checksum line per archive.
 // It builds into <outdir>/build, so each outdir has its own build. It publishes nothing: the release workflow (.github/workflows/release.yml) or the owner publishes.
@@ -9,6 +9,7 @@ import { chmod, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "nod
 import { homedir } from "node:os";
 import { dirname, join, parse as parsePath, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { PACKAGE_NAMES } from "../src/brand.ts";
 import { isWithin } from "../src/paths.ts";
 
 const USAGE = "Usage: bun scripts/release.ts [--target <platform>]... [--outdir <dir>]";
@@ -21,7 +22,6 @@ const PLATFORMS: Record<string, string> = {
   "linux-arm64-musl": "bun-linux-arm64-musl",
   "linux-x64-musl": "bun-linux-x64-musl",
 };
-const PACKAGES = ["oh-my-t3code", "omt3"];
 // The icon and the README banner. The README points at the banner, so it renders from the package too.
 const ASSETS = ["icon.svg", "banner.png"];
 // The script deletes build/, npm/, and github/ only in an outdir that holds this marker.
@@ -121,7 +121,7 @@ for (const dir of [buildDir, join(outdir, "npm"), githubDir]) await rm(dir, { re
 const buildArgs = platforms.flatMap((platform) => ["--target", PLATFORMS[platform] as string]);
 await run([process.execPath, join(ROOT, "scripts", "build.ts"), "--outdir", buildDir, ...buildArgs], ROOT);
 
-for (const name of PACKAGES) {
+for (const name of PACKAGE_NAMES) {
   const dir = join(outdir, "npm", name);
   const manifest = {
     name,
@@ -131,7 +131,7 @@ for (const name of PACKAGES) {
     license: root.license,
     repository: root.repository,
     homepage: root.homepage,
-    bin: { omt: "dist/cli.js", omt3: "dist/cli.js", "oh-my-t3code": "dist/cli.js" },
+    bin: { omt: "dist/cli.js", omt3: "dist/cli.js", "oh-my-t3code": "dist/cli.js", "oh-my-t3": "dist/cli.js" },
     files: ["dist", "skills", "assets", "README.md", "LICENSE"],
     engines: { node: ">=22" },
   };
@@ -171,5 +171,5 @@ console.log(`wrote ${relative(process.cwd(), join(githubDir, "SHA256SUMS"))}`);
 const rel = (path: string) => relative(process.cwd(), path) || ".";
 const quote = (text: string) => (/^[\w./-]+$/.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`);
 console.log(`\nPublish v${version} with these commands, in this order:`);
-for (const name of PACKAGES) console.log(`  (cd ${quote(rel(join(outdir, "npm", name)))} && bun publish --access public)`);
+for (const name of PACKAGE_NAMES) console.log(`  (cd ${quote(rel(join(outdir, "npm", name)))} && bun publish --access public)`);
 console.log(`  gh release create v${version} ${quote(rel(githubDir))}/*`);

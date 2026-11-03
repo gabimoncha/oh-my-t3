@@ -20,22 +20,22 @@ async function installAll(omt: string, env: NodeJS.ProcessEnv, root: string, pro
   await run(omt, ["install", "--project", "--yes"], project, env);
 }
 
-async function globalInstall(tool: ReturnType<typeof tools>, env: NodeJS.ProcessEnv, root: string, version: string): Promise<string> {
+async function globalInstall(tool: ReturnType<typeof tools>, env: NodeJS.ProcessEnv, root: string, version: string, packageName = "oh-my-t3code"): Promise<string> {
   const prefix = join(root, "global-prefix");
   env.npm_config_prefix = prefix;
   env.NPM_CONFIG_PREFIX = prefix;
-  await run(tool.npm, ["install", "-g", `oh-my-t3code@${version}`], root, env);
+  await run(tool.npm, ["install", "-g", `${packageName}@${version}`], root, env);
   return join(prefix, "bin", "omt");
 }
 
-test("global npm install of A updates to B with --yes: CLI, user skills, project skills, manifests, defaults", async () => {
+test("global npm oh-my-t3 install of A updates to B with --yes: CLI, user skills, project skills, manifests, defaults", async () => {
   const tool = tools();
   const reg = await releaseRegistry("u6-global-", tool, { next: true });
   const A = reg.version;
   const B = reg.nextVersion!;
   const env = reg.env("global", tool.nodePath);
   const project = join(reg.root, "project");
-  const omt = await globalInstall(tool, env, reg.root, A);
+  const omt = await globalInstall(tool, env, reg.root, A, "oh-my-t3");
   assert.ok(existsSync(omt), "global bin omt must exist");
   const versionA = lastLine((await run(omt, ["--version"], reg.root, env)));
   assert.equal(versionA, A, "omt --version before the update");

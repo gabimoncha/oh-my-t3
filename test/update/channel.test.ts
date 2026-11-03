@@ -2,7 +2,7 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { mkdirSync, symlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { confirmChannel, detectChannel, newCliCommand } from "../../src/update/channel.ts";
+import { confirmChannel, detectChannel, linksProjectCli, newCliCommand, updateAction } from "../../src/update/channel.ts";
 import type { ChannelInput, ChannelKind, RunCommand } from "../../src/update/channel.ts";
 import { fakeContext, tempDir, writeFile } from "../helpers.ts";
 
@@ -21,6 +21,7 @@ const shapes: { name: string; path: string; kind: ChannelKind; build?: ChannelIn
   { name: "pnpm 11 global folder", path: "home/Library/pnpm/global/v11/omt3/node_modules/omt3/dist/cli.js", kind: "pnpm-global" },
   { name: "Bun global", path: "home/.bun/install/global/node_modules/omt3/dist/cli.js", kind: "bun-global" },
   { name: "mise release", path: "home/.local/share/mise/installs/github-gabimoncha-oh-my-t3code/0.2.0/omt", kind: "mise-github", build: "binary" },
+  { name: "renamed mise release", path: "home/.local/share/mise/installs/github-gabimoncha-oh-my-t3/0.2.0/omt", kind: "mise-github", build: "binary" },
   { name: "mise npm before npm global", path: "home/.local/share/mise/installs/npm-omt3/0.2.0/lib/node_modules/omt3/dist/cli.js", kind: "mise-npm" },
   { name: "source before npm global", path: "clone/lib/node_modules/omt3/dist/cli.js", kind: "source", build: "source" },
   { name: "release binary", path: "home/bin/omt", kind: "binary", build: "binary" },
@@ -30,21 +31,34 @@ const shapes: { name: string; path: string; kind: ChannelKind; build?: ChannelIn
   { name: "Bun 1.4.4 bunx cache", path: "cache/.bunx-501/omt3@0.2.0/node_modules/omt3/dist/cli.js", kind: "one-shot", runner: "bunx" },
 ];
 
-for (const shape of shapes) {
-  test(`detectChannel: ${shape.name}`, async () => {
-    const root = tempDir();
-    const input = inputAt(root, shape.path, shape.build === undefined ? {} : { build: shape.build });
-    const found = detectChannel(input);
-    assert.equal(found.kind, shape.kind);
-    assert.equal(found.packageName, shape.build === "bundle" || shape.build === undefined ? "omt3" : "oh-my-t3code");
-    if (shape.runner !== undefined) {
-      assert.equal(found.runner, shape.runner);
-      assert.equal(found.key, `one-shot:${shape.runner}:0.2.0`);
-    }
-    if (!["npm-global", "pnpm-global", "bun-global"].includes(found.kind)) {
-      assert.equal(await confirmChannel(found, input, async () => { throw new Error("unexpected manager command"); }), found);
-    }
-  });
+for (const packageName of ["omt3", "oh-my-t3code", "oh-my-t3"]) {
+  for (const shape of shapes) {
+    test(`detectChannel: ${packageName}, ${shape.name}`, async () => {
+      const root = tempDir();
+      const input = inputAt(root, shape.path.replaceAll("omt3", packageName), shape.build === undefined ? {} : { build: shape.build });
+      writeFile(join(input.packageRoot, "package.json"), JSON.stringify({ name: packageName, version: "0.2.0" }));
+      const found = detectChannel(input);
+      assert.equal(found.kind, shape.kind);
+      assert.equal(found.packageName, shape.build === "bundle" || shape.build === undefined ? packageName : "oh-my-t3");
+      if (found.kind === "mise-github") {
+        const action = updateAction(found, "0.3.0");
+        assert.equal(action.kind, "run");
+        if (action.kind === "run") assert.deepEqual(action.argv, ["mise", "use", "-g", "github:gabimoncha/oh-my-t3@0.3.0"]);
+      }
+      if (["npm-global", "pnpm-global", "bun-global", "mise-npm"].includes(found.kind)) {
+        const action = updateAction(found, "0.3.0");
+        assert.equal(action.kind, "run");
+        if (action.kind === "run") assert.ok(action.argv.some((arg) => arg === `${packageName}@0.3.0` || arg === `npm:${packageName}@0.3.0`));
+      }
+      if (shape.runner !== undefined) {
+        assert.equal(found.runner, shape.runner);
+        assert.equal(found.key, `one-shot:${shape.runner}:0.2.0`);
+      }
+      if (!["npm-global", "pnpm-global", "bun-global"].includes(found.kind)) {
+        assert.equal(await confirmChannel(found, input, async () => { throw new Error("unexpected manager command"); }), found);
+      }
+    });
+  }
 }
 
 for (const manager of ["npm", "pnpm10", "pnpm11", "bun"] as const) {
@@ -94,13 +108,19 @@ test("confirmChannel: pnpm 11 shared store uses argv1 for the project", async ()
 
 test("detectChannel: direct project dependency", () => {
   const root = tempDir();
-  const input = inputAt(root, "app/node_modules/omt3/dist/cli.js");
-  writeFile(join(root, "app/package.json"), '{"dependencies":{"omt3":"0.2.0"}}');
+  const input = inputAt(root, "app/node_modules/oh-my-t3/dist/cli.js");
+  writeFile(join(input.packageRoot, "package.json"), '{"name":"oh-my-t3","version":"0.2.0"}');
+  writeFile(join(root, "app/package.json"), '{"dependencies":{"oh-my-t3":"0.2.0"}}');
   writeFile(join(root, "app/bun.lock"), "");
   const found = detectChannel(input);
   assert.equal(found.kind, "dev-dependency");
   assert.equal(found.projectRoot, join(root, "app"));
   assert.equal(found.packageManager, "bun");
+  assert.equal(found.packageName, "oh-my-t3");
+  assert.equal(linksProjectCli(found, input.cliPath), true);
+  const action = updateAction(found, "0.3.0");
+  assert.equal(action.kind, "hint");
+  if (action.kind === "hint") assert.match(action.text, /bun add -D oh-my-t3@0\.3\.0/);
 });
 
 test("newCliCommand: Bun uses the current runtime and bundle", async () => {

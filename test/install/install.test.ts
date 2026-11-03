@@ -360,7 +360,7 @@ test("--hooks is refused for a temp or npx cliPath", async () => {
     assert.match(ctx.err(), /refusing the user install: the omt CLI runs from (a temporary path|a one-shot npx cache)/);
     assert.match(
       ctx.err(),
-      /hint: install omt with one of: npm i -g oh-my-t3code, pnpm add -g oh-my-t3code, bun add -g oh-my-t3code, mise use -g github:gabimoncha\/oh-my-t3code; .*npx omt3 install --project/,
+      /hint: install omt with one of: npm i -g oh-my-t3, pnpm add -g oh-my-t3, bun add -g oh-my-t3, mise use -g github:gabimoncha\/oh-my-t3; .*npx oh-my-t3 install --project/,
     );
   }
   assert.deepEqual(snapshot(f.home), before);

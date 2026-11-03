@@ -46,7 +46,7 @@ function workflowGroup(rules: (typeof WORKFLOW_RULES)[keyof typeof WORKFLOW_RULE
 export const CONFIG_SCHEMA = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: SCHEMA_URL,
-  title: "oh-my-t3code config",
+  title: "oh-my-t3 config",
   description: "A user (~/.config/oh-my-t3code/config.jsonc) or project (.omt/config.jsonc) config layer.",
   type: "object",
   additionalProperties: false,

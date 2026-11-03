@@ -1,3 +1,4 @@
+import { PACKAGE_NAME } from "../brand.ts";
 import { updateStatePath } from "../paths.ts";
 import type { Env } from "../paths.ts";
 import type { CliContext, UpdateMode } from "../types.ts";
@@ -38,7 +39,7 @@ function registryOf(env: Env): string {
 // Sends no cookie, token, or id, and reads no .npmrc.
 export async function fetchLatest(opts: { env: Env; fetch?: typeof fetch; timeoutMs: number }): Promise<LatestResult> {
   const request = opts.fetch ?? fetch;
-  const url = `${registryOf(opts.env)}/-/package/oh-my-t3code/dist-tags`;
+  const url = `${registryOf(opts.env)}/-/package/${PACKAGE_NAME}/dist-tags`;
   try {
     const response = await request(url, {
       headers: { accept: "application/json" },

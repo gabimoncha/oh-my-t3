@@ -2,18 +2,19 @@ import { lstatSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
+import { MISE_GITHUB_TOOL, PACKAGE_NAME, REPOSITORY_URL } from "../brand.ts";
 import { isWithin } from "../paths.ts";
 import type { CliContext } from "../types.ts";
 import { OmtError } from "../util/errors.ts";
 import { errorCode, readFileIfExists, realOrSelf } from "../util/fs.ts";
 
 export const SHIM_SIGNATURE = "# oh-my-t3code project shim";
-export const INSTALL_URL = "https://github.com/gabimoncha/oh-my-t3code#install";
+export const INSTALL_URL = `${REPOSITORY_URL}#install`;
 export const INSTALL_CHANNELS: readonly string[] = [
-  "npm i -g oh-my-t3code",
-  "pnpm add -g oh-my-t3code",
-  "bun add -g oh-my-t3code",
-  "mise use -g github:gabimoncha/oh-my-t3code",
+  `npm i -g ${PACKAGE_NAME}`,
+  `pnpm add -g ${PACKAGE_NAME}`,
+  `bun add -g ${PACKAGE_NAME}`,
+  `mise use -g ${MISE_GITHUB_TOOL}`,
 ];
 export const OMT_GITIGNORE_LINES: readonly string[] = ["ledger.jsonl", "evidence/", "bin/", "install.json", "backups/", "plans/", "locks/", "guardrails.md", "grills/"];
 export const BACKUPS_GITIGNORE = "*\n";
@@ -58,7 +59,7 @@ function cacheRunner(path: string, temps: string[], agent: Runner | undefined): 
   if (/\/_npx\/[0-9a-f]+\/node_modules\//i.test(normalized)) return "npx";
   if (/\/pnpm(?:-cache)?\/dlx\/[^/]+\/(?:[^/]+\/)?node_modules\//i.test(normalized)) return "pnpm";
   if (agent === "pnpm" && isPnpmDlxEntry(normalized)) return "pnpm";
-  if (/\/\.bunx-\d+\/omt3@[^/]+\/node_modules\//.test(normalized)) return "bunx";
+  if (/\/\.bunx-\d+\/(?:omt3|oh-my-t3code|oh-my-t3)@[^/]+\/node_modules\//.test(normalized)) return "bunx";
   for (const temp of temps) {
     if (!isWithin(temp, path)) continue;
     const rel = relative(temp, path).replaceAll("\\", "/");
@@ -111,7 +112,7 @@ export function assertInstallSource(
   const what = scope === "project" ? "--project" : "the user install";
   const where = runner === undefined ? "a temporary path" : `a one-shot ${runner} cache`;
   throw new OmtError("cli_path", `refusing ${what}: the omt CLI runs from ${where} (${cliPath})`, {
-    hint: `install omt with one of: ${INSTALL_CHANNELS.join(", ")}; then run omt install${scope === "project" ? " --project" : ""} again. Or run npx omt3 install --project in the project`,
+    hint: `install omt with one of: ${INSTALL_CHANNELS.join(", ")}; then run omt install${scope === "project" ? " --project" : ""} again. Or run npx ${PACKAGE_NAME} install --project in the project`,
   });
 }
 

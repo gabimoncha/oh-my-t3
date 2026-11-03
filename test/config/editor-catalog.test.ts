@@ -89,7 +89,7 @@ test("the skill markdown renders headings, lists, tables, code, and safe links w
   ].join("\n"))}, "omt-ulw")`, context) as FakeNode[];
   assert.deepEqual(Array.from(blocks, (block) => block.tagName), ["H2", "P", "UL", "DIV", "PRE", "P"]);
   const link = blocks[1]!.children.find((kid) => kid.tagName === "A");
-  assert.equal(link?.attrs.href, "https://github.com/gabimoncha/oh-my-t3code/blob/main/skills/omt/references/roles.md");
+  assert.equal(link?.attrs.href, "https://github.com/gabimoncha/oh-my-t3/blob/main/skills/omt/references/roles.md");
   assert.match(blocks[1]!.textContent, /<b>raw<\/b>/);
   assert.equal(blocks[2]!.children[0]!.children.at(-1)?.tagName, "UL");
   assert.equal(blocks[4]!.textContent, "<script>x</script>");

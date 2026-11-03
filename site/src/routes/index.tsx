@@ -17,6 +17,7 @@ import {
   REPO,
   T3_CODE,
   T3_CODE_REPO,
+  VERSION,
   WALKTHROUGH,
 } from "../site";
 
@@ -101,9 +102,9 @@ function Header() {
   const [open, setOpen] = useState(false);
   return (
     <header className="header wrap">
-      <a className="brand" href="/" aria-label="omt3, home">
+      <a className="brand" href="/" aria-label="oh-my-t3, home">
         <img src="/icon-32.svg" width={32} height={32} alt="" />
-        <span>omt3</span>
+        <span>oh-my-t3</span>
       </a>
       <nav aria-label="Main">
         <button
@@ -137,12 +138,12 @@ function Hero() {
         <br /> Get back reviewed work.
       </h1>
       <p className="lead">
-        oh-my-t3code adds plans, roles, task briefs, and reviews to the agents that you run in T3 Code. The agent plans
+        oh-my-t3 adds plans, roles, task briefs, and reviews to the agents that you run in T3 Code. The agent plans
         and builds the change in its own thread. Then two T3 child tasks check it: a model of the other family reviews
         it, and a QA task runs the checks.
       </p>
       <div className="hero-actions">
-        <CommandPlate command="npx omt3" />
+        <CommandPlate command="npx oh-my-t3" />
         <a className="quiet-link" href="#install">
           Other ways to install
         </a>
@@ -336,7 +337,7 @@ function States() {
         <h3>Two parts</h3>
         <p>The skills tell the agent how to plan, build, review, and test.</p>
         <p>The omt CLI does the fixed steps: the config, the model for each role, the task briefs, and the ledger.</p>
-        <p className="muted">No runtime dependencies, no telemetry, and network calls only when you update.</p>
+        <p className="muted">No runtime dependencies or telemetry. Update checks are opt-in.</p>
       </div>
     </section>
   );
@@ -434,8 +435,7 @@ function WhoItIsFor() {
           <h3>Do not use omt if</h3>
           <ul className="plain muted body-large">
             <li>
-              You do not use T3 Code. The skills start child tasks with the T3 delegate_task tool, and only a T3 thread
-              has that tool.
+              You do not use T3 Code. The workflows need a T3 Code thread to start child tasks.
             </li>
             <li>
               You want a quick edit with no plan and no review. omt plans, reviews, and tests even a small task, with
@@ -458,16 +458,16 @@ function Details() {
           <li>
             The latest <a href={T3_CODE}>T3 Code</a> release.
           </li>
-          <li>Claude Code, Codex, or both, enabled in T3. Design and UI tasks run with either one.</li>
+          <li>Claude Code, Codex, or both, enabled in T3. Design and UI tasks can run with either provider.</li>
           <li>git.</li>
           <li>Node 22 or later, except for the release binary.</li>
         </ul>
-        <p className="meta small">This is version 0.3. The config format and the CLI output can change.</p>
+        <p className="meta small">This is version {VERSION}. The config format and the CLI output can change.</p>
       </div>
       <div className="col-even">
         <h3>Credits</h3>
         <p className="muted">
-          oh-my-t3code uses ideas from oh-my-openagent (fallback chains, the ultrawork loop, plan reviews), oh-my-pi
+          oh-my-t3 uses ideas from oh-my-openagent (fallback chains, the ultrawork loop, plan reviews), oh-my-pi
           (model roles and the review recipe), and T3 Code (orchestrator v2, which runs the child tasks). It copies no
           code or prompts from oh-my-openagent.
         </p>
@@ -491,7 +491,7 @@ function Closing() {
   return (
     <section className="closing wrap" aria-labelledby="closing-title">
       <h2 id="closing-title">Run omt once, with no install.</h2>
-      <CommandPlate command="npx omt3" />
+      <CommandPlate command="npx oh-my-t3" />
     </section>
   );
 }
@@ -502,17 +502,17 @@ function Footer() {
       <hr />
       <div className="footer-row">
         <p>
-          <span>oh-my-t3code</span> <span className="meta">MIT license</span>
+          <span>oh-my-t3</span> <span className="meta">MIT license</span>
         </p>
         <ul>
           <li>
             <a href={REPO}>GitHub</a>
           </li>
           <li>
-            <a href={NPM}>oh-my-t3code on npm</a>
+            <a href={NPM}>oh-my-t3 on npm</a>
           </li>
           <li>
-            <a href={NPM_OMT3}>omt3 on npm</a>
+            <a href={NPM_OMT3}>Aliases on npm</a>
           </li>
           <li>
             <a href={T3_CODE}>T3 Code</a>

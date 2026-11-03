@@ -62,7 +62,7 @@ interface Resolved {
 type Say = (text: string) => void;
 
 const REGISTRY_TIMEOUT_MS = 10_000;
-const NPM_LAG = "npm publishes oh-my-t3code and omt3 one after the other; try again in a minute";
+const NPM_LAG = "npm publishes oh-my-t3code, omt3, and oh-my-t3 one after the other; try again in a minute";
 
 // Like spawnCommand, with ctx.env, and with the child's stderr passed on, so its messages stay visible.
 function spawnFor(ctx: CliContext): RunCommand {

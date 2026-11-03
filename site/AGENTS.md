@@ -1,6 +1,12 @@
 # Landing page contributor guide
 
-`site/` is the landing page at https://oh-my-t3code.pages.dev. It is a separate Bun package: a TanStack Start app that prerenders one static page to `dist/client`. Its contract is `docs/spec.md` section 17.2. When the page and the spec disagree, fix one of them in the same change.
+`site/` is the landing page at https://oh-my-t3.pages.dev. It is a separate Bun package: a TanStack Start app that prerenders one static page to `dist/client`. Its contract is `docs/spec.md` section 17.2. When the page and the spec disagree, fix one of them in the same change.
+
+## Copy and design
+
+Final copy belongs to the website source. Paper defines layout, typography, color, and spacing. Its description slots state the content's purpose and length; write final words from the task and source rather than copying those slot instructions. A copy-only change needs no Paper update. Keep brand names, commands, and functional identifiers real in Paper. Read `docs/design/paper-drift.md` when you change the Paper design or embedded banner previews.
+
+Read the release version from the root `package.json` through `src/site.ts`. Do not hardcode a version in page text.
 
 ## Commands
 

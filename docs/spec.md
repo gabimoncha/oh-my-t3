@@ -1,4 +1,4 @@
-# oh-my-t3code specification
+# oh-my-t3 specification
 
 This page is the reference for the code, the skills, and the tests. [`design.md`](design.md) explains why each part exists. When this page and the code disagree, fix one of them in the same change.
 
@@ -32,14 +32,14 @@ This page is the reference for the code, the skills, and the tests. [`design.md`
 | `release` | `bun scripts/release.ts` (section 17) |
 | `verify` | `bun run typecheck && bun test` |
 
-The package is named `oh-my-t3code` and is `private`, so nobody publishes the repository root. Its two bin names, `omt` and `oh-my-t3code`, point at `dist/cli.js`, the default bundle output, for a link from a clone. The published packages come from `scripts/release.ts` (section 17).
+The package is named `oh-my-t3` and is `private`, so nobody publishes the repository root. Its four bin names, `omt`, `omt3`, `oh-my-t3code`, and `oh-my-t3`, point at `dist/cli.js`, the default bundle output, for a link from a clone. The published packages come from `scripts/release.ts` (section 17).
 
 ## 2. Repository layout
 
 ```text
 .github/
   workflows/             ci.yml (CI), release.yml (release on a v* tag), and site.yml (checks and deploys site/) (section 17.1)
-assets/                  icon.svg (the omt3 icon) and banner.png (the README banner); both ship in the npm packages
+assets/                  icon.svg (the omt icon) and banner.png (the README banner); both ship in the npm packages
 mise.toml                pins Bun 1.4.4, Node 24.22.1, and npm 11.21.1
 package.json             scripts (section 1), packageManager bun@1.4.4, dev dependencies @types/bun and tsrs
 bun.lock                 Bun lockfile
@@ -1058,7 +1058,7 @@ export type ChannelKind =
 export interface Channel {
   kind: ChannelKind;
   label: string;              // for people, such as "npm global" or "mise (release binary)"
-  packageName: "oh-my-t3code" | "omt3";
+  packageName: "oh-my-t3code" | "omt3" | "oh-my-t3";
   key: string;                // the same key means the same install
   projectRoot?: string;       // dev-dependency: the folder above the first node_modules
   packageManager?: "npm" | "pnpm" | "bun" | "yarn"; // dev-dependency: from the lockfile
@@ -1077,22 +1077,22 @@ export type RunCommand = (argv: string[], opts: { cwd?: string; inherit?: boolea
 
 `RunCommand` wraps `node:child_process` `spawn` without a shell. Tests pass a fake. `env` adds variables to the environment of omt for that one command. `argv1` is `process.argv[1]`, the path as invoked, such as `<project>/node_modules/.bin/omt`. It keeps the project folder that a real path into a shared store loses. `detectChannel` reads only paths and `package.json` files. `confirmChannel` runs only in `omt update`, never in `install`, `doctor`, or the daily check.
 
-`packageName` is the `name` in `<packageRoot>/package.json` in bundle mode when that name is `omt3`, else `oh-my-t3code`. Below, `<package>` is `packageName`, and `<v>` is the version that the registry check returned. Every update command pins that version.
+`packageName` is the `name` in `<packageRoot>/package.json` in bundle mode when that name is `omt3` or `oh-my-t3code`, else `oh-my-t3`. Below, `<package>` is `packageName`, and `<v>` is the version that the registry check returned. Every update command pins that version.
 
 `detectChannel` tests `cliPath` and its real path with these rules, in order:
 
 1. Source: `build` is `source`. Kind `source`, key `source:<packageRoot>`. Hint: `update the clone with git pull and bun install, then run omt update --skills-only`.
-2. One-shot: a one-shot runner cache (`oneShotRunner`, section 14.2). `oneShotRunner` also matches the Bun 1.4.4 layout `<bun install cache>/.bunx-<uid>/omt3@<version>/node_modules/`, so `install --project` from a current `bunx` writes a runner shim too. Kind `one-shot`, key `one-shot:<runner>:<version>`. Action: `repin`.
-3. mise, release binary: binary mode and a path segment `installs/github-gabimoncha-oh-my-t3code/<version>/`. Kind `mise-github`, key `mise-github`. Command: `mise use -g github:gabimoncha/oh-my-t3code@<v>`.
-4. mise, npm package: a path segment `installs/npm-oh-my-t3code/<version>/` or `installs/npm-omt3/<version>/`. Kind `mise-npm`, key `mise-npm`. Command: `mise use -g npm:<package>@<v>`. This rule comes before rule 5, because the mise npm path also holds `lib/node_modules`.
+2. One-shot: a one-shot runner cache (`oneShotRunner`, section 14.2). `oneShotRunner` also matches the Bun 1.4.4 layout `<bun install cache>/.bunx-<uid>/<package>@<version>/node_modules/`, where `<package>` is `omt3`, `oh-my-t3code`, or `oh-my-t3`, so `install --project` from a current `bunx` writes a runner shim too. Kind `one-shot`, key `one-shot:<runner>:<version>`. Action: `repin`.
+3. mise, release binary: binary mode and a path segment `installs/github-gabimoncha-oh-my-t3/<version>/` or the legacy `installs/github-gabimoncha-oh-my-t3code/<version>/`. Kind `mise-github`, key `mise-github`. Command: `mise use -g github:gabimoncha/oh-my-t3@<v>`.
+4. mise, npm package: a path segment `installs/npm-oh-my-t3code/<version>/`, `installs/npm-omt3/<version>/`, or `installs/npm-oh-my-t3/<version>/`. Kind `mise-npm`, key `mise-npm`. Command: `mise use -g npm:<package>@<v>`. This rule comes before rule 5, because the mise npm path also holds `lib/node_modules`.
 5. Global package: the path, with `/` separators, matches one of these patterns, tested in this order:
-   - pnpm: `/global/5/node_modules/(?:\.pnpm/[^/]+/node_modules/)?(oh-my-t3code|omt3)/dist/cli\.js$` (pnpm 9 and 10), `/global/v\d+/[^/]+/node_modules/(oh-my-t3code|omt3)/dist/cli\.js$` (pnpm 11 and later), or a real path under a pnpm store, `/links/(?:[^/]+/)*node_modules/(oh-my-t3code|omt3)/dist/cli\.js$` (the pnpm 11 global virtual store, which projects share).
-   - Bun: `/\.bun/install/global/node_modules/(oh-my-t3code|omt3)/dist/cli\.js$`, or the folder in `BUN_INSTALL_GLOBAL_DIR` or `<BUN_INSTALL>/install/global`.
-   - npm: `/lib/node_modules/(oh-my-t3code|omt3)/dist/cli\.js$`.
+   - pnpm: `/global/5/node_modules/(?:\.pnpm/[^/]+/node_modules/)?(oh-my-t3code|omt3|oh-my-t3)/dist/cli\.js$` (pnpm 9 and 10), `/global/v\d+/[^/]+/node_modules/(oh-my-t3code|omt3|oh-my-t3)/dist/cli\.js$` (pnpm 11 and later), or a real path under a pnpm store, `/links/(?:[^/]+/)*node_modules/(oh-my-t3code|omt3|oh-my-t3)/dist/cli\.js$` (the pnpm 11 global virtual store, which projects share).
+   - Bun: `/\.bun/install/global/node_modules/(oh-my-t3code|omt3|oh-my-t3)/dist/cli\.js$`, or the folder in `BUN_INSTALL_GLOBAL_DIR` or `<BUN_INSTALL>/install/global`.
+   - npm: `/lib/node_modules/(oh-my-t3code|omt3|oh-my-t3)/dist/cli\.js$`.
 
    The kind is `pnpm-global`, `bun-global`, or `npm-global`, and the key is `<kind>:<global root>`. Commands: `pnpm add -g <package>@<v>`, `bun add -g <package>@<v>`, and `npm install -g <package>@<v>`. A match gives only a candidate, which `confirmChannel` confirms.
-6. Dev dependency: not binary mode, and `cliPath` or its real path has a `node_modules` segment. A pnpm store path reaches this rule only after a failed `confirmChannel`, or through `offlineChannel` or `pathShimChannel` (below). The project root is the folder above the first `node_modules` in `cliPath`, else in `argv1`, else `findProjectRoot(cwd)`. The first of these roots whose `package.json` lists `oh-my-t3code` or `omt3` in `devDependencies` or `dependencies` gives kind `dev-dependency` and key `dev:<project root>`. When no root qualifies, the kind is `unknown` (rule 8). The lockfile in the project root names the package manager: `pnpm-lock.yaml` gives pnpm, `bun.lock` or `bun.lockb` gives bun, `yarn.lock` gives yarn, else npm. Hint: `run <npm i -D | pnpm add -D | bun add -D | yarn add -D> <package>@<v> in <root>, then run <npx omt | pnpm exec omt | bunx omt | yarn omt> update --skills-only --project there`, with the package manager of the lockfile in both commands. The second command starts the new CLI through the package manager, because the shim can still record the old CLI file, such as an old folder of the shared pnpm store. omt runs nothing in that project.
-7. Release binary elsewhere: binary mode, which skips rule 6. Kind `binary`, key `binary:<real path>`. Hint: `download the release binary from https://github.com/gabimoncha/oh-my-t3code/releases, or install with mise use -g github:gabimoncha/oh-my-t3code@<v>`.
+6. Dev dependency: not binary mode, and `cliPath` or its real path has a `node_modules` segment. A pnpm store path reaches this rule only after a failed `confirmChannel`, or through `offlineChannel` or `pathShimChannel` (below). The project root is the folder above the first `node_modules` in `cliPath`, else in `argv1`, else `findProjectRoot(cwd)`. The first of these roots whose `package.json` lists `oh-my-t3code`, `omt3`, or `oh-my-t3` in `devDependencies` or `dependencies` gives kind `dev-dependency` and key `dev:<project root>`. When no root qualifies, the kind is `unknown` (rule 8). The lockfile in the project root names the package manager: `pnpm-lock.yaml` gives pnpm, `bun.lock` or `bun.lockb` gives bun, `yarn.lock` gives yarn, else npm. Hint: `run <npm i -D | pnpm add -D | bun add -D | yarn add -D> <package>@<v> in <root>, then run <npx omt | pnpm exec omt | bunx omt | yarn omt> update --skills-only --project there`, with the package manager of the lockfile in both commands. The second command starts the new CLI through the package manager, because the shim can still record the old CLI file, such as an old folder of the shared pnpm store. omt runs nothing in that project.
+7. Release binary elsewhere: binary mode, which skips rule 6. Kind `binary`, key `binary:<real path>`. Hint: `download the release binary from https://github.com/gabimoncha/oh-my-t3/releases, or install with mise use -g github:gabimoncha/oh-my-t3@<v>`.
 8. Unknown: any other path. Kind `unknown`, key `unknown:<real path>`. Hint: `omt cannot tell how it was installed (<cliPath>); update it with the command of your channel:`, followed by the channel table of `docs/install.md`.
 
 `updateAction` returns `run` for rules 3 to 5, `repin` for rule 2, and `hint` for the other rules. On Windows (`process.platform === "win32"`), every channel gives the hint action. The `run:` line of a `mise use -g` command adds `(writes <tool>@<v> into your global mise config)`, because the command writes that exact pin there.
@@ -1109,7 +1109,7 @@ Offline channel. `--skills-only` starts no package manager, so it takes the chan
 
 - When `argv1` matches another pattern of rule 5, the candidate stays. The pnpm global bin starts the CLI by its path in the pnpm global folder, and so does `newCliCommand`.
 - When the environment variable `OMT_UPDATE_GLOBAL_CLI` names a file whose real path is the real path of `cliPath`, the candidate stays. `omt update` sets this variable only for the new CLI that it starts after a global update (step 5 below), to the CLI file that the package manager reported. A custom pnpm `global-dir` matches no pattern of rule 5, so `argv1` cannot show that folder. A store path that the variable does not name stays unconfirmed.
-- Else, when a root of rule 6 lists `oh-my-t3code` or `omt3`, and its `node_modules/oh-my-t3code/dist/cli.js` or `node_modules/omt3/dist/cli.js` resolves to the real path of `cliPath`, the kind is `dev-dependency`, with key `dev:<root>`. A project that only lists omt is not enough, because a store path of another version can run in that project.
+- Else, when a root of rule 6 lists `oh-my-t3code`, `omt3`, or `oh-my-t3`, and its `node_modules/oh-my-t3code/dist/cli.js`, `node_modules/omt3/dist/cli.js`, or `node_modules/oh-my-t3/dist/cli.js` resolves to the real path of `cliPath`, the kind is `dev-dependency`, with key `dev:<root>`. A project that only lists omt is not enough, because a store path of another version can run in that project.
 - Else the kind is `unknown`, so the sync leaves the user scope alone.
 
 With these rules, a project dependency in the shared store never syncs the user scope. The second command of the rule 6 hint starts the project's own CLI, which gets the key `dev:<root>`. `pathShimChannel` gives the project's shim the same key, so the command syncs the project and rewrites a shim that still records an older CLI file.
@@ -1119,7 +1119,7 @@ New CLI. `newCliCommand` returns the argv prefix that runs the CLI after the upd
 | Channel | New CLI |
 | --- | --- |
 | `npm-global`, `pnpm-global`, `bun-global` | `<runtimePath> <package folder>/dist/cli.js`. `runtimePath` is the runtime that runs omt now, so a machine with only Bun runs the bundle with Bun, not through the `#!/usr/bin/env node` bin. The package folder comes from the `confirmChannel` rule, run again after the update. |
-| `mise-github` | `mise exec github:gabimoncha/oh-my-t3code@<v> -- omt` |
+| `mise-github` | `mise exec github:gabimoncha/oh-my-t3@<v> -- omt` |
 | `mise-npm` | `mise exec npm:<package>@<v> -- omt` |
 | `one-shot` | `<project root>/.omt/bin/omt` |
 | the hint kinds | the running CLI |
@@ -1136,7 +1136,7 @@ export async function dailyCheck(ctx: CliContext, opts: { mode: UpdateMode | und
 export async function recordApplyAttempt(ctx: CliContext, latest: string): Promise<void>;
 ```
 
-- `fetchLatest` sends `GET <registry>/-/package/oh-my-t3code/dist-tags` with the header `accept: application/json`. `<registry>` is `npm_config_registry`, else `NPM_CONFIG_REGISTRY`, else `https://registry.npmjs.org`, without a trailing slash. omt reads no `.npmrc`. The request sends no cookie, token, or id. The response field `latest` must match `^\d+\.\d+\.\d+$`. Any other response is an error. `fetch` is the Node 22 global, and tests pass their own.
+- `fetchLatest` sends `GET <registry>/-/package/oh-my-t3/dist-tags` with the header `accept: application/json`. `<registry>` is `npm_config_registry`, else `NPM_CONFIG_REGISTRY`, else `https://registry.npmjs.org`, without a trailing slash. omt reads no `.npmrc`. The request sends no cookie, token, or id. The response field `latest` must match `^\d+\.\d+\.\d+$`. Any other response is an error. `fetch` is the Node 22 global, and tests pass their own.
 - The timeout is 3000 ms in `dailyCheck` and 10000 ms in `omt update`, through `AbortSignal.timeout`.
 - `dailyCheck` returns `undefined`, and reads no file and sends no request, when `opts.mode` is absent or `off`. Each caller passes the `config.update` of the loaded config. Otherwise it reads `updateStatePath()` (section 4). When `checkedAt` is less than 24 hours before `ctx.now()` and not in the future, it returns the cached result. Else it fetches, writes the state atomically, and returns the result. It writes the state also after a failure, so an offline machine tries once a day. A state file that cannot be read or parsed, or that has no valid `checkedAt`, counts as absent. A failed state write does not throw, and the next run fetches again.
 - `omt update` without `--skills-only` always fetches, because the user asked for it, unless the caller passes a `latest`, as auto-apply does. It writes the state file only on its apply path.
@@ -1169,7 +1169,7 @@ The sync checks each project with these rules, in order:
 6. Any other runner shim, with `runners: "delegate"`: when the target version is not newer than the pin, the result is `skip` with the note of rule 5, and nothing runs. When it is newer, first run `<runner command at the target version> --version`, such as `npx --yes omt3@<v> --version`, with cwd `<root>`. When it fails or prints another version, the result is `fail`, with the note `<runner command> did not start; the shim keeps <old pin>`, and nothing changes. Only then write the new pin, run `<root>/.omt/bin/omt update --skills-only --project --yes --json` with cwd `<root>`, and report its exit code. The child runs as the runner at the new pin, so rule 3 applies to it, and it starts no further child. The result has the changed and kept skills of the child's project scope. When the child's stdout is not JSON or holds no project scope for `<root>`, the scope fails with the note `<child command> exited <code>; invalid JSON output` or `<child command> exited <code>; no valid project scope in JSON output`. A non-zero exit fails the scope with the note `<child command> exited <code>`.
 7. A path shim of another channel: `skip`, with the note `runs another omt (<cli>); run <root>/.omt/bin/omt update --project there`.
 
-`pathShimChannel` gives the channel of a path shim, for the sync and for `--project`. It applies the `detectChannel` rules to the recorded CLI path, with `cwd` set to the project root. It never runs `confirmChannel`, so it starts no package manager, also with `--skills-only`. A real path under the shared pnpm store, the `/links/` pattern of `detectChannel` rule 5, can belong to the global install or to a project dependency. So when the project's `package.json` lists `oh-my-t3code` or `omt3` in `dependencies` or `devDependencies`, that path gets `detectChannel` rule 6: kind `dev-dependency` and key `dev:<root>`. This key never equals the key of a global install, so rule 7 skips the project when a global omt runs the sync. Rule 4 still syncs a project whose shim records the running CLI file itself.
+`pathShimChannel` gives the channel of a path shim, for the sync and for `--project`. It applies the `detectChannel` rules to the recorded CLI path, with `cwd` set to the project root. It never runs `confirmChannel`, so it starts no package manager, also with `--skills-only`. A real path under the shared pnpm store, the `/links/` pattern of `detectChannel` rule 5, can belong to the global install or to a project dependency. So when the project's `package.json` lists `oh-my-t3code`, `omt3`, or `oh-my-t3` in `dependencies` or `devDependencies`, that path gets `detectChannel` rule 6: kind `dev-dependency` and key `dev:<root>`. This key never equals the key of a global install, so rule 7 skips the project when a global omt runs the sync. Rule 4 still syncs a project whose shim records the running CLI file itself.
 
 The plan of a rule 6 project shows two lines, `pin      <shim> -> <runner command>` and `run      <shim> update --skills-only --project --yes --json`. A skipped or failed scope shows one line, `skip     (<note>)` or `fail     (<note>)`.
 
@@ -1183,14 +1183,14 @@ Each scope gives one result: `{ scope: "user" | "project"; root?: string; status
 
 Project channel. With `--project`, the shim of the current project gives the channel. A runner shim gives `one-shot` with its runner and pin. A path shim gives `pathShimChannel` of its recorded CLI path. No managed shim exits 1 with `no managed shim in <root>` and the hint `run omt install --project`. When the path shim's channel key differs from the key of the running CLI, the command prints `this project runs <cli>; run <root>/.omt/bin/omt update --project` and exits 0 with no change. When the shim is a runner shim and the running CLI is not that runner at that pin, the project channel is that runner, and the flow uses the `repin` action with the shim as the new CLI.
 
-A path shim whose channel is `dev-dependency` gives the project channel before any global confirmation, so `--project` runs no `confirmChannel` for that project. A global install can share its CLI file with the project's dependency, as in the shared pnpm store, and the project still gets the rule 6 hint (decision Q4). The running CLI is the project's own omt when the shim records the running CLI file, or when `linksProjectCli` is true: the project's `node_modules/oh-my-t3code/dist/cli.js` or `node_modules/omt3/dist/cli.js` resolves to the real path of `cliPath`. The second case covers a shim that still records an older file after `pnpm add -D`. Then the dev dependency is the channel for the action and for the sync, and the sync applies rule 4 to the project. Else the command prints the `this project runs` line above.
+A path shim whose channel is `dev-dependency` gives the project channel before any global confirmation, so `--project` runs no `confirmChannel` for that project. A global install can share its CLI file with the project's dependency, as in the shared pnpm store, and the project still gets the rule 6 hint (decision Q4). The running CLI is the project's own omt when the shim records the running CLI file, or when `linksProjectCli` is true: the project's `node_modules/oh-my-t3code/dist/cli.js`, `node_modules/omt3/dist/cli.js`, or `node_modules/oh-my-t3/dist/cli.js` resolves to the real path of `cliPath`. The second case covers a shim that still records an older file after `pnpm add -D`. Then the dev dependency is the channel for the action and for the sync, and the sync applies rule 4 to the project. Else the command prints the `this project runs` line above.
 
 Without `--check` and `--skills-only`, `omt update` runs these steps:
 
 1. Detect the channel (with `--project`, as above), then run `confirmChannel`. Fetch the latest version, with the 10-second timeout, unless the caller passed one. A failure exits 1 with `cannot reach the npm registry: <reason>` and the hint `run omt update --skills-only to sync the skills without the network`.
 2. Print `omt <current> (<label>); latest <latest>`.
 3. When the latest version is newer and the action is `run` or `repin`: print `run: <display>` (or `pin: <root>/.omt/bin/omt -> <runner command>`) and one `sync:` line per target. With `--dry-run`, show pending defaults changes for the installed CLI, print `Dry run: nothing was written.`, and exit 0. The new release's defaults are available after its CLI update. Confirm unless `--yes`. Write the state file.
-4. Run the command with inherited stdio. For `repin`, run `<runner command at latest> --version`, and write the new pin only when it prints `<latest>`; else exit 1 and keep the old pin. With `--json`, the command's stdout goes to stderr. A non-zero exit stops the run with exit 1, the command, and its exit code. For `mise-github`, the hint adds `the GitHub release can lag npm by a few minutes; try again later`. For npm, pnpm, and Bun, it adds `npm publishes oh-my-t3code and omt3 one after the other; try again in a minute`.
+4. Run the command with inherited stdio. For `repin`, run `<runner command at latest> --version`, and write the new pin only when it prints `<latest>`; else exit 1 and keep the old pin. With `--json`, the command's stdout goes to stderr. A non-zero exit stops the run with exit 1, the command, and its exit code. For `mise-github`, the hint adds `the GitHub release can lag npm by a few minutes; try again later`. For npm, pnpm, and Bun, it adds `npm publishes oh-my-t3code, omt3, and oh-my-t3 one after the other; try again in a minute`.
 5. Run the new CLI (`newCliCommand`). First, `<new cli> --version` must print `<latest>`. Otherwise exit 1 with `the update finished, but the new omt prints <x>`. Then run `<new cli> update --skills-only --yes [--project]`. For a global channel, that command gets `OMT_UPDATE_GLOBAL_CLI` (from `confirmedGlobalEnv`), set to the CLI file of `<new cli>`, so its `offlineChannel` keeps the confirmed global channel and syncs the user scope. With `--json`, add `--json`, capture its stdout, and merge its `scopes` into the JSON of this process. The child skips runner projects (rule 5 of the sync).
 6. Runner projects: this process, which ran the registry check, runs rule 6 of the sync for each runner project that the child skipped, with the target version `<latest>`.
 7. Review defaults for the user installation and each successfully synced project. Read the new CLI's current configuration with `<new cli> config show --defaults`. Compare it with each scope's accepted snapshot, show the diff, and ask as in section 5.12. `--yes` accepts the defaults too. A refusal preserves that scope's snapshot. A failed read warns the user to run `omt doctor` and makes the update exit 1.
@@ -1369,7 +1369,7 @@ Default profile: `normal`. Default models: `{ "gpt-6.1-sol": { "fast": true } }`
 
 ### 6.5 Starter files
 
-`src/config/starter.ts` exports two strings. `omt config init` and `omt install` write the user starter. `omt init` writes the project starter. Both are sparse. They hold `$schema`, `version`, empty `roles` and `limits` objects, and comments with one example override, a commented `"profile": "prototype"` line, and a pointer to `omt config show --defaults`. After the `"profile"` line, each starter has a commented `"profiles"` example: a profile `fast-proto` with `description`, `"extends": "prototype"`, `"workflow": { "build": { "failureProofs": "on" } }`, and `"roles": { "execute": { "fast": true } }`, and a comment that points to `omt profile show <name>`. The `$schema` URL is `https://raw.githubusercontent.com/gabimoncha/oh-my-t3code/main/schema/omt.schema.json`.
+`src/config/starter.ts` exports two strings. `omt config init` and `omt install` write the user starter. `omt init` writes the project starter. Both are sparse. They hold `$schema`, `version`, empty `roles` and `limits` objects, and comments with one example override, a commented `"profile": "prototype"` line, and a pointer to `omt config show --defaults`. After the `"profile"` line, each starter has a commented `"profiles"` example: a profile `fast-proto` with `description`, `"extends": "prototype"`, `"workflow": { "build": { "failureProofs": "on" } }`, and `"roles": { "execute": { "fast": true } }`, and a comment that points to `omt profile show <name>`. The `$schema` URL is `https://raw.githubusercontent.com/gabimoncha/oh-my-t3/main/schema/omt.schema.json`.
 
 Only the user starter has a commented `// "update": "check",` line after the `limits` object, with the comment `// Check for a new omt once a day in omt install and omt doctor (asks the npm registry).`
 
@@ -1940,10 +1940,10 @@ The bundled skills are the directories in `<packageRoot>/skills/` that contain `
 
 The plan first checks where the CLI runs from, because the install records that path. It reads `cliPath` and its real path:
 
-- A one-shot runner cache, matched from the cache root: an npx cache (`<npm cache>/_npx/<hash>/node_modules/`), a pnpm dlx cache (`<pnpm cache>/dlx/<hash>/<id>/node_modules/`, where the cache folder is named `pnpm`, or `pnpm-cache` on Windows, and pnpm 8 has no `<id>`; with a custom `cache-dir` of any name, a `dlx/<hash>/<id>/node_modules/` path counts only when `npm_config_user_agent` starts with `pnpm/`, which pnpm dlx sets, and `dlx/<hash>/pkg` is a symlink that resolves to `dlx/<hash>/<id>`, which pnpm dlx writes for each cache entry; `pnpm exec` sets the same user agent, so the user agent alone does not show a dlx cache), or a bunx cache (`<temp>/bunx-<uid>-<package>/node_modules/`, or `<bun install cache>/.bunx-<uid>/omt3@<version>/node_modules/` from Bun 1.4.4). An older pnpm runs dlx from `<temp>/dlx-<pid>/node_modules/`, which counts as a one-shot cache too. A `_npx`, `dlx`, or `bunx-` directory at another place, such as `<temp>/project/fixtures/dlx-123/`, or `<temp>/project/dlx/x/node_modules/` without the pnpm user agent or without the `pkg` symlink, is no cache. A project install from a one-shot cache writes the runner shim of section 14.8. A user install from it is refused, because it would leave no `omt` command for the skills and the hook.
+- A one-shot runner cache, matched from the cache root: an npx cache (`<npm cache>/_npx/<hash>/node_modules/`), a pnpm dlx cache (`<pnpm cache>/dlx/<hash>/<id>/node_modules/`, where the cache folder is named `pnpm`, or `pnpm-cache` on Windows, and pnpm 8 has no `<id>`; with a custom `cache-dir` of any name, a `dlx/<hash>/<id>/node_modules/` path counts only when `npm_config_user_agent` starts with `pnpm/`, which pnpm dlx sets, and `dlx/<hash>/pkg` is a symlink that resolves to `dlx/<hash>/<id>`, which pnpm dlx writes for each cache entry; `pnpm exec` sets the same user agent, so the user agent alone does not show a dlx cache), or a bunx cache (`<temp>/bunx-<uid>-<package>/node_modules/`, or `<bun install cache>/.bunx-<uid>/<package>@<version>/node_modules/` from Bun 1.4.4). An older pnpm runs dlx from `<temp>/dlx-<pid>/node_modules/`, which counts as a one-shot cache too. A `_npx`, `dlx`, or `bunx-` directory at another place, such as `<temp>/project/fixtures/dlx-123/`, or `<temp>/project/dlx/x/node_modules/` without the pnpm user agent or without the `pkg` symlink, is no cache. A project install from a one-shot cache writes the runner shim of section 14.8. A user install from it is refused, because it would leave no `omt` command for the skills and the hook.
 - Any other path inside the temp directory (`os.tmpdir()` or its real path): every install is refused, because such a path can disappear.
 
-The one-shot check runs first, because the bunx cache is inside the temp directory. A refusal exits 1. It prints `refusing the user install: the omt CLI runs from ...` or `refusing --project: the omt CLI runs from ...` with the path, and a hint that names `npm i -g oh-my-t3code`, `pnpm add -g oh-my-t3code`, `bun add -g oh-my-t3code`, `mise use -g github:gabimoncha/oh-my-t3code`, and `npx omt3 install --project`.
+The one-shot check runs first, because the bunx cache is inside the temp directory. A refusal exits 1. It prints `refusing the user install: the omt CLI runs from ...` or `refusing --project: the omt CLI runs from ...` with the path, and a hint that names `npm i -g oh-my-t3`, `pnpm add -g oh-my-t3`, `bun add -g oh-my-t3`, `mise use -g github:gabimoncha/oh-my-t3`, and `npx oh-my-t3 install --project`.
 
 Skill copies go to `skillRoots().agents/<name>`. Each target is one of:
 
@@ -2092,7 +2092,7 @@ The `hooks` check reads the settings paths from the manifest. With no manifest h
 
 ### 14.8 Project scope
 
-`--project` installs into one repository, so the owner can try oh-my-t3code there without touching the global skill roots, the global Claude settings, or `PATH`. The project root is `findProjectRoot(cwd)`. `install`, `uninstall`, and `doctor` with `--project` refuse, with exit 2 and a hint, a root that is the home directory, or whose skill roots, `settings.local.json`, or `.omt` are the user-scope agents root, Claude skills root, `claudeSettingsPath()`, or `configDir()`. That happens in the home directory, or below it when the home directory holds `.git` or `.omt`. Project scope reuses the planning, apply, backup, marker, hash, hook, and manifest rules of sections 14.2 to 14.6, with these paths:
+`--project` installs into one repository, so the owner can try oh-my-t3 there without touching the global skill roots, the global Claude settings, or `PATH`. The project root is `findProjectRoot(cwd)`. `install`, `uninstall`, and `doctor` with `--project` refuse, with exit 2 and a hint, a root that is the home directory, or whose skill roots, `settings.local.json`, or `.omt` are the user-scope agents root, Claude skills root, `claudeSettingsPath()`, or `configDir()`. That happens in the home directory, or below it when the home directory holds `.git` or `.omt`. Project scope reuses the planning, apply, backup, marker, hash, hook, and manifest rules of sections 14.2 to 14.6, with these paths:
 
 | Item | User scope | Project scope |
 | --- | --- | --- |
@@ -2149,7 +2149,7 @@ fi
 <fallback lines>
 ```
 
-The fallback lines run `<root>/node_modules/.bin/omt`, where `<root>` is two directories above the shim. Without it, they run the first `omt` on `PATH` that is an executable file and not the shim itself (`-ef "$0"`), so `.omt/bin` on `PATH` cannot make the shim call itself. An empty `PATH` entry, also the last one (`PATH=/usr/bin:`), means the current directory. The loop splits `$PATH:`, because field splitting drops a trailing empty field. When neither exists, the shim prints `omt: the omt CLI is not installed; see https://github.com/gabimoncha/oh-my-t3code#install` to stderr and exits 127:
+The fallback lines run `<root>/node_modules/.bin/omt`, where `<root>` is two directories above the shim. Without it, they run the first `omt` on `PATH` that is an executable file and not the shim itself (`-ef "$0"`), so `.omt/bin` on `PATH` cannot make the shim call itself. An empty `PATH` entry, also the last one (`PATH=/usr/bin:`), means the current directory. The loop splits `$PATH:`, because field splitting drops a trailing empty field. When neither exists, the shim prints `omt: the omt CLI is not installed; see https://github.com/gabimoncha/oh-my-t3#install` to stderr and exits 127:
 
 ```sh
 case $0 in */*) root=${0%/*}/../.. ;; *) root=../.. ;; esac
@@ -2164,7 +2164,7 @@ for dir in $dirs; do
     exec "${dir:-.}/omt" "$@"
   fi
 done
-echo "omt: the omt CLI is not installed; see https://github.com/gabimoncha/oh-my-t3code#install" >&2
+echo "omt: the omt CLI is not installed; see https://github.com/gabimoncha/oh-my-t3#install" >&2
 exit 127
 ```
 
@@ -2302,7 +2302,7 @@ User scope and project scope never read or write each other's files, except the 
     allow_implicit_invocation: false
   ```
 
-- Skills call the CLI as `omt` on `PATH`. A global install puts it there: `npm i -g oh-my-t3code`, `pnpm add -g oh-my-t3code`, `bun add -g oh-my-t3code`, or `mise use -g github:gabimoncha/oh-my-t3code`. When `command -v omt` finds nothing, a skill uses `.omt/bin/omt` from the project root, which `omt install --project` creates, also from a dev dependency or from a one-shot run such as `npx omt3 install --project`. When that file is missing, as in a linked worktree, a skill uses the shim of the main checkout, `"$(git rev-parse --path-format=absolute --git-common-dir)/../.omt/bin/omt"`. Without any of them, a skill falls back to the manual steps in `roles.md` and `brief.md`. The rule lives in the section "The CLI" of `skills/omt/references/delegation.md`. A shim from a one-shot run calls its runner (`npx`, `pnpm dlx`, or `bunx`) with the pinned version, and the runner needs the network again after its cache is cleared. Skills never call a runner themselves.
+- Skills call the CLI as `omt` on `PATH`. A global install puts it there: `npm i -g oh-my-t3`, `pnpm add -g oh-my-t3`, `bun add -g oh-my-t3`, or `mise use -g github:gabimoncha/oh-my-t3`. When `command -v omt` finds nothing, a skill uses `.omt/bin/omt` from the project root, which `omt install --project` creates, also from a dev dependency or from a one-shot run such as `npx omt3 install --project`. When that file is missing, as in a linked worktree, a skill uses the shim of the main checkout, `"$(git rev-parse --path-format=absolute --git-common-dir)/../.omt/bin/omt"`. Without any of them, a skill falls back to the manual steps in `roles.md` and `brief.md`. The rule lives in the section "The CLI" of `skills/omt/references/delegation.md`. A shim from a one-shot run calls its runner (`npx`, `pnpm dlx`, or `bunx`) with the pinned version, and the runner needs the network again after its cache is cleared. Skills never call a runner themselves.
 - Skills name T3 tools by their base names (`delegate_task`, `task_status`). The first skill text that names a tool says that harnesses may add a prefix, such as `mcp__t3-code__delegate_task`.
 - Shared reference lives in `skills/omt/references/`. Other skills link to it with relative paths such as `../omt/references/delegation.md`.
 - Every relative link in a skill must resolve to a file in the repository. A test checks this.
@@ -2460,6 +2460,8 @@ Required coverage:
 
 ## 17. Packaging and release
 
+The public brand, primary npm package, and repository name are `oh-my-t3`. `src/brand.ts` defines the CLI package names and repository identity. `docs/branding.md` records the public commands and compatibility identities. `test/branding.test.ts` checks links and install examples against this contract. Existing config directories, managed-file markers, pinned `omt3` runner shims, and archive names retain their original identities.
+
 `bun run release` runs `bun scripts/release.ts [--target <platform>]... [--outdir <dir>]`. Without `--target`, it covers every platform in the table. The default output directory is `dist/release`. The script reads the version from `package.json` and runs `scripts/build.ts --outdir <outdir>/build` with one `--target` per platform, so each output directory has its own build. An unknown platform or flag is a usage error (exit 2). The script checks the flags before it deletes or builds anything.
 
 The script owns its output directory. It writes the marker file `<outdir>/.omt-release` and then removes `<outdir>/build`, `<outdir>/npm`, and `<outdir>/github`. It exits 1 and deletes nothing in these cases:
@@ -2482,15 +2484,16 @@ The npm packages get only the files that `git ls-files -- skills` lists.
 
 The script writes these paths under `<outdir>`:
 
-- `npm/oh-my-t3code/` and `npm/omt3/`. The two directories are identical except the `name` field. Each holds `package.json`, `dist/cli.js` (mode 0755), `skills/`, `assets/icon.svg`, `assets/banner.png`, `README.md`, and `LICENSE`. The `package.json` has the repository version, the description, `type: "module"`, the license, the repository, the homepage, `bin: { "omt": "dist/cli.js", "omt3": "dist/cli.js", "oh-my-t3code": "dist/cli.js" }`, `files: ["dist", "skills", "assets", "README.md", "LICENSE"]`, and `engines.node: ">=22"`. It has no dependencies and no scripts. `dist/cli.js` reads `skills/` from the package root (section 5). The packages hold no `templates/`, because `dist/cli.js` inlines the worktree setup runner (section 5.11).
+- `npm/oh-my-t3/`, `npm/oh-my-t3code/`, and `npm/omt3/`. The three directories are identical except the `name` field. Each holds `package.json`, `dist/cli.js` (mode 0755), `skills/`, `assets/icon.svg`, `assets/banner.png`, `README.md`, and `LICENSE`. The `package.json` has the repository version, the description, `type: "module"`, the license, the repository, the homepage, `bin: { "omt": "dist/cli.js", "omt3": "dist/cli.js", "oh-my-t3code": "dist/cli.js", "oh-my-t3": "dist/cli.js" }`, `files: ["dist", "skills", "assets", "README.md", "LICENSE"]`, and `engines.node: ">=22"`. It has no dependencies and no scripts. `dist/cli.js` reads `skills/` from the package root (section 5). The packages hold no `templates/`, because `dist/cli.js` inlines the worktree setup runner (section 5.11).
 - `github/oh-my-t3code-v<version>-<platform>.tar.gz` for each platform. The archive holds only `omt` (mode 0755) at its root.
 - `github/SHA256SUMS`, with one `<sha256>  <archive name>` line per archive, so `shasum -a 256 -c SHA256SUMS` checks them.
 
 The script publishes nothing. At the end it prints the owner's publish commands, in this order:
 
-1. `bun publish --access public` in `npm/oh-my-t3code`.
-2. `bun publish --access public` in `npm/omt3`.
-3. `gh release create v<version> <outdir>/github/*`.
+1. `bun publish --access public` in `npm/oh-my-t3`.
+2. `bun publish --access public` in `npm/oh-my-t3code`.
+3. `bun publish --access public` in `npm/omt3`.
+4. `gh release create v<version> <outdir>/github/*`.
 
 The commands use paths relative to the current directory. A path with a character other than a letter, a digit, `_`, `.`, `/`, or `-` is in single quotes. The `/*` glob stays outside the quotes, so the shell expands it.
 
@@ -2515,16 +2518,16 @@ Three GitHub Actions workflows run the tests, the release, and the site deploy. 
 | --- | --- | --- | --- |
 | `verify` | none | `contents: read` | Calls `./.github/workflows/ci.yml` as a reusable workflow. |
 | `build` | `verify` | `contents: read` | Checkout and mise. Reads the version with `jq` and fails when the tag is not `v` plus the `version` of `package.json`. Runs `bun install --frozen-lockfile` and `bun scripts/release.ts`. Fails unless `dist/release/github` holds 6 `.tar.gz` archives and `SHA256SUMS`, and `sha256sum -c SHA256SUMS` passes. Uploads `dist/release/npm` and `dist/release/github` as the artifact `release`, with root `dist/release`, `if-no-files-found: error`, and `retention-days: 7`. |
-| `npm` | `build` | `contents: read`, `id-token: write` | Runs in the environment `npm`. Downloads `release` to `dist/release`. Fails when `dist/release/npm/<pkg>/package.json` is missing for `oh-my-t3code` or `omt3`. Sets up Node, then publishes each package. |
+| `npm` | `build` | `contents: read`, `id-token: write` | Runs in the environment `npm`. Downloads `release` to `dist/release`. Fails when `dist/release/npm/<pkg>/package.json` is missing for `oh-my-t3code`, `omt3`, or `oh-my-t3`. Sets up Node, then publishes each package. |
 | `github` | `build` | `contents: write` | Downloads `release` to `dist/release`. Creates or checks the GitHub release. |
 
-The `npm` job uses npm trusted publishing (OIDC). No npm token is stored. For each of `oh-my-t3code` and `omt3`, it reads the version from the package's `package.json` and runs `npm view <pkg>@<version> version` outside the package folder:
+The `npm` job uses npm trusted publishing (OIDC). No npm token is stored. For each of `oh-my-t3`, `oh-my-t3code`, and `omt3`, it reads the version from the package's `package.json` and runs `npm view <pkg>@<version> version` outside the package folder:
 
 - Exit 0 with the version as output: the version is published. The job skips the package.
 - Exit 1 with `E404` in the output: the job runs `npm publish --access public --tag latest` in the package folder.
 - Any other result, or a failed `npm publish`: the package fails.
 
-The job tries both packages before it fails. The job summary lists the failed packages, if any, and the published packages. The job exits 1 when a package failed.
+The job tries all three packages before it fails. The job summary lists the failed packages, if any, and the published packages. The job exits 1 when a package failed.
 
 The `github` job uses `GH_TOKEN: ${{ github.token }}`. It expects the 6 archives and `SHA256SUMS`, 7 assets in total, and fails otherwise. Then it runs `gh release view <tag>`:
 
@@ -2535,19 +2538,20 @@ The `github` job uses `GH_TOKEN: ${{ github.token }}`. It expects the 6 archives
 
 `.github/workflows/site.yml` (name `Site`):
 
-- Triggers: `pull_request` and `push` to `main` that change `site/**` or `.github/workflows/site.yml`, and `workflow_dispatch`. A push or a pull request that changes no file in these paths does not start the workflow.
+- Triggers: `pull_request` and `push` to `main` that change `site/**`, the root `package.json`, or `.github/workflows/site.yml`, and `workflow_dispatch`. A push or a pull request that changes no file in these paths does not start the workflow.
 - Job `check`, with `contents: read` and the concurrency group `site-check-<ref>` with `cancel-in-progress: true`. It runs in `site/`: checkout, mise, Node, `bun install --frozen-lockfile`, `bun run typecheck`, `bun run build`, `bunx playwright install --with-deps chromium webkit`, and `bun run e2e`. When a step fails, it uploads `site/test-results/` as the artifact `site-e2e-report` for 7 days.
-- Job `deploy` needs `check` and runs only for a push or a manual start on `main`, never for a pull request. It has `contents: read`, the environment `site`, and the concurrency group `site-deploy` with `cancel-in-progress: false`, so two deploys never run at the same time. It runs in `site/`: checkout, mise, `bun install --frozen-lockfile`, and `bun run deploy`. The deploy step reads `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from the secrets. The token is an account token with only the `Pages Write` permission.
+- Job `deploy` needs `check` and runs only for a push or a manual start on `main`, never for a pull request. It has `contents: read`, the environment `site`, and the concurrency group `site-deploy` with `cancel-in-progress: false`, so two deploys never run at the same time. It runs in `site/`: checkout, mise, and `bun install --frozen-lockfile`. It lists Pages projects with Wrangler and creates `oh-my-t3` with production branch `main` when absent. It verifies that the project owns `oh-my-t3.pages.dev`, then runs `bun run deploy`. After that succeeds, it deploys a static HTTP 301 redirect from `oh-my-t3code` to the new site, with the path preserved. These steps read `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from the secrets. The token is an account token with only the `Pages Write` permission.
 
 ### 17.2 Site
 
 `site/` holds the landing page. It is a separate Bun package with its own `package.json` and `bun.lock`, so its dependencies never reach the CLI or the npm packages. The root `bun test` and `bun run typecheck` do not cover it.
 
-- Stack: TanStack Start (React) with Vite. The only route, `/`, is prerendered at build time, so `dist/client` holds the whole site as static files. The site runs on the Cloudflare Pages project `oh-my-t3code`, at `https://oh-my-t3code.pages.dev`. `wrangler.jsonc` names the project and sets `pages_build_output_dir`. `public/404.html` is the page for an unknown path.
+- Stack: TanStack Start (React) with Vite. The only route, `/`, is prerendered at build time, so `dist/client` holds the whole site as static files. The site runs on the Cloudflare Pages project `oh-my-t3`, at `https://oh-my-t3.pages.dev`. `wrangler.jsonc` names the project and sets `pages_build_output_dir`. `public/404.html` is the page for an unknown path.
 - Scripts: `dev`, `build`, `preview`, `typecheck`, `e2e` (`playwright test`), and `deploy` (`vite build` and `wrangler pages deploy --branch main`, a production deployment).
 - End-to-end tests: `e2e/site.e2e.ts` runs in Chromium and WebKit at 1440 x 1000 and in WebKit as an iPhone 15. `e2e/serve.ts` serves `dist/client` the way Cloudflare Pages does, with `404.html` and status 404 for an unknown path. The tests check that the page renders with no errors and no sideways scroll, the 404 page, the order of the hero runs, the install tabs, the skill tour, the roles block, and reduced motion.
 - `site/AGENTS.md` is the guide for agents that change the site.
-- Design: the Paper file `omt3`, page `omt3 · Final`. The pictures in `site/public/img/` and `site/src/art/` are the design's SVG exports.
+- Design: the existing marketing design in Paper, updated for the `oh-my-t3` brand. [Brand assets and Paper references](design/brand-rename.md) record the file, pages, and exports. The pictures in `site/public/img/` and `site/src/art/` are the design's SVG exports.
+- Copy ownership: website source owns final wording. Paper description slots specify content purpose and approximate length, while brand names, commands, and functional identifiers stay real. Copy-only site edits require no duplicate Paper edit. [The Paper copy policy](design/paper-drift.md) records the slots and embedded banner previews. The site displays the root `package.json` version through `site/src/site.ts`.
 - Changes from the design, after the owner's review of the live site:
   - The hero picture is split in two, with ulw on the left and swarm on the right, on the same grid. The ulw run plays first while the swarm panel shows its last frame, dimmed; then the swarm run plays. Both then stay on their last frame, and "Play again" plays them again.
     - The two pictures put Build at x 200 and Review on the rail at x 300.

@@ -7,11 +7,13 @@ on:
   pull_request:
     paths:
       - "site/**"
+      - "package.json"
       - ".github/workflows/site.yml"
   push:
     branches: [main]
     paths:
       - "site/**"
+      - "package.json"
       - ".github/workflows/site.yml"
   workflow_dispatch:
 
@@ -72,7 +74,7 @@ jobs:
     runs-on: ubuntu-24.04
     environment:
       name: site
-      url: https://oh-my-t3code.pages.dev
+      url: https://oh-my-t3.pages.dev
     permissions:
       contents: read
     concurrency:
@@ -95,8 +97,33 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
+      - name: Ensure the Pages project exists
+        run: |
+          set -euo pipefail
+          projects="$RUNNER_TEMP/pages-projects.json"
+          bunx wrangler pages project list --json > "$projects"
+          if ! jq -e 'any(.[]; .["Project Name"] == "oh-my-t3")' "$projects" > /dev/null; then
+            bunx wrangler pages project create oh-my-t3 --production-branch main
+            bunx wrangler pages project list --json > "$projects"
+          fi
+          jq -e 'any(.[]; .["Project Name"] == "oh-my-t3" and (.["Project Domains"] | split(", ") | index("oh-my-t3.pages.dev") != null))' "$projects" > /dev/null
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       - name: Build and deploy
         run: bun run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Redirect the previous Pages address
+        run: |
+          redirect="$RUNNER_TEMP/previous-pages-redirect"
+          mkdir -p "$redirect"
+          printf '%s\n' '/* https://oh-my-t3.pages.dev/:splat 301' > "$redirect/_redirects"
+          printf '%s\n' '<!doctype html><title>oh-my-t3</title><a href="https://oh-my-t3.pages.dev">Visit oh-my-t3</a>' > "$redirect/index.html"
+          bunx wrangler pages deploy "$redirect" --project-name oh-my-t3code --branch main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

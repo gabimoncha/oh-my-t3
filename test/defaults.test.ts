@@ -125,7 +125,7 @@ for (const [name, text] of Object.entries({ USER_STARTER_CONFIG, PROJECT_STARTER
     const parsed = JSON.parse(stripJsonc(text)) as Record<string, unknown>;
     assert.deepEqual(Object.keys(parsed).sort(), ["$schema", "limits", "roles", "version"]);
     assert.equal(Object.hasOwn(parsed, "defaults"), false);
-    assert.equal(parsed.$schema, "https://raw.githubusercontent.com/gabimoncha/oh-my-t3code/main/schema/omt.schema.json");
+    assert.equal(parsed.$schema, "https://raw.githubusercontent.com/gabimoncha/oh-my-t3/main/schema/omt.schema.json");
     assert.equal(parsed.version, 1);
     assert.deepEqual(parsed.roles, {});
     assert.deepEqual(parsed.limits, {});

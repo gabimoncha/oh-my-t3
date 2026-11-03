@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/gabimoncha/oh-my-t3code/main/schema/omt.schema.json",
-  "title": "oh-my-t3code config",
+  "$id": "https://raw.githubusercontent.com/gabimoncha/oh-my-t3/main/schema/omt.schema.json",
+  "title": "oh-my-t3 config",
   "description": "A user (~/.config/oh-my-t3code/config.jsonc) or project (.omt/config.jsonc) config layer.",
   "type": "object",
   "additionalProperties": false,

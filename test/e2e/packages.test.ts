@@ -12,7 +12,7 @@ test("npm, pnpm, and bun install the release as a dev dependency and run install
     const env = registry.env(manager, manager === "bun" ? tool.bunPath : tool.nodePath);
     const project = join(registry.root, manager);
     gitRepo(env.HOME!, project, { "package.json": JSON.stringify({ name: `test-${manager}`, private: true }) });
-    const pkg = `oh-my-t3code@${registry.version}`;
+    const pkg = `oh-my-t3@${registry.version}`;
     const args = manager === "npm"
       ? ["install", "--save-dev", "--no-audit", "--no-fund", "--prefer-offline", pkg]
       : manager === "pnpm"
@@ -20,7 +20,7 @@ test("npm, pnpm, and bun install the release as a dev dependency and run install
         : ["add", "--dev", "--registry", registry.registry, pkg];
     await run(tool[manager], args, project, env);
     const manifest = JSON.parse(readFileSync(join(project, "package.json"), "utf8")) as { devDependencies?: Record<string, string> };
-    assert.ok(manifest.devDependencies?.["oh-my-t3code"], `${manager} must save a dev dependency`);
+    assert.ok(manifest.devDependencies?.["oh-my-t3"], `${manager} must save a dev dependency`);
     const runner = manager === "npm" ? tool.npx : tool[manager];
     const runnerArgs = manager === "npm"
       ? ["--no-install", "omt"]

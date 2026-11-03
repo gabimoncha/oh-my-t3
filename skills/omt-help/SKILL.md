@@ -13,7 +13,7 @@ You answer questions about omt and give a short tour. You run only read commands
 
 Follow [The CLI](../omt/references/delegation.md#the-cli). Below, `omt` means the command that you found, such as `.omt/bin/omt`.
 
-When no CLI exists, answer from the [workflow table](../omt/SKILL.md#workflows) and the docs, say that the answer is not checked against an install, and link the [install guide](https://github.com/gabimoncha/oh-my-t3code/blob/main/docs/install.md).
+When no CLI exists, answer from the [workflow table](../omt/SKILL.md#workflows) and the docs, say that the answer is not checked against an install, and link the [install guide](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/install.md).
 
 Done when: `omt --version` prints a version, or you told the user that no CLI exists.
 
@@ -58,7 +58,7 @@ Write the answer:
 - For a command, the flags as its `--help` prints them.
 - For a doctor line with `WARN` or `FAIL`, the line itself and the fix that it prints.
 - For a config change, the key and the file that would change. Then offer `omt-setup` (step 5).
-- One link to the doc that covers the topic. The install does not ship `docs/`, so link GitHub, in the form `https://github.com/gabimoncha/oh-my-t3code/blob/main/docs/<file>.md`:
+- One link to the doc that covers the topic. The install does not ship `docs/`, so link GitHub, in the form `https://github.com/gabimoncha/oh-my-t3/blob/main/docs/<file>.md`:
 
 | Topic | Doc file |
 | --- | --- |

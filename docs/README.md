@@ -1,4 +1,4 @@
-# oh-my-t3code docs
+# oh-my-t3 docs
 
 Start with the page that fits your task. The [project README](../README.md) has the pitch, and its [Install](../README.md#install) section installs omt.
 

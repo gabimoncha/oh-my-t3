@@ -19,7 +19,7 @@ test("U7 check: doctor reports B and agent commands send no request", async () =
   const doctor = await run(tool.node, [cli, "doctor"], reg.root, envFor("doctor"));
   assert.ok(doctor.includes(`INFO  update`));
   assert.ok(doctor.includes(`omt ${reg.nextVersion} is out; run omt update`));
-  assert.deepEqual(reg.requests, ["/-/package/oh-my-t3code/dist-tags"]);
+  assert.deepEqual(reg.requests, ["/-/package/oh-my-t3/dist-tags"]);
 
   for (const args of [["roles"], ["brief", "qa", "--task", "Check the update behavior."]]) {
     const before = reg.requests.length;

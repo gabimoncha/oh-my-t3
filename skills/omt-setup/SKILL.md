@@ -24,7 +24,7 @@ Run steps 1 and 2 first. Then run the steps that the request names. For a plain 
 
 ### 1. Find the CLI and your mode
 
-Follow [The CLI](../omt/references/delegation.md#the-cli). Below, `omt` means the command that you found, such as `.omt/bin/omt`. When no CLI exists, the user installs it first: follow the [agent quick start](https://github.com/gabimoncha/oh-my-t3code/blob/main/docs/agents/quickstart.md), which asks the user for a channel.
+Follow [The CLI](../omt/references/delegation.md#the-cli). Below, `omt` means the command that you found, such as `.omt/bin/omt`. When no CLI exists, the user installs it first: follow the [agent quick start](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/agents/quickstart.md), which asks the user for a channel.
 
 When you have the T3 tools, call `t3_thread_configuration` with no `threadId` and read your `interactionMode`. In `plan` mode, run only the read commands, list the write commands for the user, and ask the user to switch the thread to default mode.
 
@@ -88,7 +88,7 @@ Done when: the user knows whether the skill is available, and has the installati
 ### 6. Change a profile or a role
 
 1. Run `omt config path`. Use the project file for one project, and the user file for all projects. When the file is absent, propose `omt init` (project) or `omt config init` (user), and ask.
-2. Read the file and `omt config show --defaults`. Write the planned JSONC edit as the new block, with its key path. Keep the rules of the [configuration guide](https://github.com/gabimoncha/oh-my-t3code/blob/main/docs/configuration.md):
+2. Read the file and `omt config show --defaults`. Write the planned JSONC edit as the new block, with its key path. Keep the rules of the [configuration guide](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/configuration.md):
    - A new role needs `description`, `access`, and `chain`. A new profile needs `description`.
    - A `chain` replaces the old chain as a whole. `null` removes a role.
    - `"profile": "<name>"` selects the default profile.
@@ -103,7 +103,7 @@ Done when: `omt config validate` exits 0, and `omt profile show <name>` shows th
 ### 7. Update omt
 
 1. Run `omt update --dry-run` and show the output. It names the channel and its update command (`run:`), the new shim pin of a one-shot install (`pin:`), or a `hint:`, and it lists each scope that the skills sync reaches. For a dev dependency, the hint names the package manager command. Run it only after the user agrees.
-2. After the user agrees, run `omt update --yes`. Tell the user each `kept <skill>  (<reason>)` line: that skill stays as the user edited it. When it fails with `cannot reach the npm registry`, update by hand as [Update omt](https://github.com/gabimoncha/oh-my-t3code/blob/main/docs/agents/quickstart.md#update-omt) says.
+2. After the user agrees, run `omt update --yes`. Tell the user each `kept <skill>  (<reason>)` line: that skill stays as the user edited it. When it fails with `cannot reach the npm registry`, update by hand as [Update omt](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/agents/quickstart.md#update-omt) says.
 3. `--yes` also accepts current defaults. Include this in the approval request. When the new CLI has not yet been installed, its defaults diff is not available in the dry run. To let the user review that diff first, run `omt update` interactively after approval for the CLI update. Answer its defaults question only after the user decides.
 4. The check: `omt doctor --project --dry-run` for a project install, or `omt doctor --dry-run` for a global install, as in step 2. When any skill changed, tell the user to close the T3 threads of this project and start new ones, because a running session keeps the old skills.
 

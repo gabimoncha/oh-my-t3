@@ -7,7 +7,7 @@ Snapshot: prime-agent clone at commit `2ed8356` of 2026-10-06 (`git -C prime-age
 ## Path conventions
 
 - `pa:` is the root of a clone of https://github.com/PrimeIntellect-ai/prime-agent at commit `2ed8356`.
-- `omt:` is the root of this repository, https://github.com/gabimoncha/oh-my-t3code.
+- `omt:` is the root of this repository, https://github.com/gabimoncha/oh-my-t3.
 - `catalog:` is the owner's private catalog note on prime-agent. It is not public.
 - `RT` in a path means `prime-agent-runtime/src/rlm` inside the clone. So `pa:RT/harness.py` is `pa:prime-agent-runtime/src/rlm/harness.py`.
 - I read the self-improvement code (Q2) myself. Read-only explore subagents read parts of Q1 and Q3 to Q7. I spot-checked their key ranges. Every cite is a line range that one of us read.

@@ -1,16 +1,18 @@
 {
-  "name": "oh-my-t3code",
+  "name": "oh-my-t3",
   "version": "0.5.0",
   "private": true,
   "description": "Roles, briefs, plans, and review loops for agents that run in T3 Code.",
   "type": "module",
   "license": "MIT",
-  "repository": "github:gabimoncha/oh-my-t3code",
-  "homepage": "https://oh-my-t3code.pages.dev",
+  "repository": "github:gabimoncha/oh-my-t3",
+  "homepage": "https://oh-my-t3.pages.dev",
   "packageManager": "bun@1.4.4",
   "bin": {
     "omt": "dist/cli.js",
-    "oh-my-t3code": "dist/cli.js"
+    "oh-my-t3code": "dist/cli.js",
+    "oh-my-t3": "dist/cli.js",
+    "omt3": "dist/cli.js"
   },
   "files": [
     "dist",

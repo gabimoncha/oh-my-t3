@@ -1,8 +1,8 @@
 import { setTopLevelValue } from "./jsonc.ts";
 
-export const SCHEMA_URL = "https://raw.githubusercontent.com/gabimoncha/oh-my-t3code/main/schema/omt.schema.json";
+export const SCHEMA_URL = "https://raw.githubusercontent.com/gabimoncha/oh-my-t3/main/schema/omt.schema.json";
 
-export const USER_STARTER_CONFIG = `// oh-my-t3code user config. It applies to every project.
+export const USER_STARTER_CONFIG = `// oh-my-t3 user config. It applies to every project.
 // A project config in .omt/config.jsonc overrides it.
 // Run \`omt config show --defaults\` to see the built-in roles and limits.
 {
@@ -36,7 +36,7 @@ export const USER_STARTER_CONFIG = `// oh-my-t3code user config. It applies to e
 }
 `;
 
-export const PROJECT_STARTER_CONFIG = `// oh-my-t3code project config. It overrides the user config for this project.
+export const PROJECT_STARTER_CONFIG = `// oh-my-t3 project config. It overrides the user config for this project.
 // Run \`omt config show --defaults\` to see the built-in roles and limits,
 // and \`omt profile show\` to see the effective config.
 {

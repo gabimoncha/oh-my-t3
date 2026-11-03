@@ -1,6 +1,6 @@
-# About the design of oh-my-t3code
+# About the design of oh-my-t3
 
-oh-my-t3code is an orchestration layer for [T3 Code](https://t3.codes). It gives any agent inside a T3 thread a disciplined way to plan, delegate, review, and verify work through T3's own orchestrator. The ideas come from oh-my-openagent (OmO) and oh-my-pi (omp). The mechanism is T3 orchestrator v2.
+oh-my-t3 is an orchestration layer for [T3 Code](https://t3.codes). It gives any agent inside a T3 thread a disciplined way to plan, delegate, review, and verify work through T3's own orchestrator. The ideas come from oh-my-openagent (OmO) and oh-my-pi (omp). The mechanism is T3 orchestrator v2.
 
 The [T3 orchestration report](research/t3-orchestrator-v2.md), [OmO report](research/oh-my-openagent.md), and [omp report](research/oh-my-pi.md) record the research behind the original design. The exact contracts for the code are in [`spec.md`](spec.md).
 
@@ -8,7 +8,7 @@ The [T3 orchestration report](research/t3-orchestrator-v2.md), [OmO report](rese
 
 The user is a developer who runs Claude Code, Codex, Cursor, Pi, or OpenCode agents from T3 Code. That developer wants one sentence ("ulw: add OAuth to the API") to turn into a planned run. The main thread plans and builds the work, and role-routed child tasks check it: one review child and one QA child, with the checks that the profile requires. The normal profile makes the reviewer of HEAVY work a cross-family oracle.
 
-The maintainer inherits a small TypeScript CLI with no runtime dependencies, a set of portable skills, and one config file. Every subagent runs as a T3 child thread, so the T3 UI already shows progress, cancellation, and results. oh-my-t3code adds no daemon. Its only server is the local config editor, which runs only while `omt config edit --web` runs.
+The maintainer inherits a small TypeScript CLI with no runtime dependencies, a set of portable skills, and one config file. Every subagent runs as a T3 child thread, so the T3 UI already shows progress, cancellation, and results. oh-my-t3 adds no daemon. Its only server is the local config editor, which runs only while `omt config edit --web` runs.
 
 ## What T3 already gives us
 
@@ -20,7 +20,7 @@ T3 orchestrator v2 exposes app-owned orchestration to every provider session thr
 - `t3_thread_launch` starts a top-level thread in its own git worktree.
 - `schedule_task`, `watch_pull_request`, and native `/goal` keep work going across turns.
 
-T3 does not give us roles, model routing, briefs, review loops, or done criteria. A `role` argument adds one line of text. Children share the parent's checkout. No limit stops a fan-out storm. These gaps are what oh-my-t3code fills.
+T3 does not give us roles, model routing, briefs, review loops, or done criteria. A `role` argument adds one line of text. Children share the parent's checkout. No limit stops a fan-out storm. These gaps are what oh-my-t3 fills.
 
 ## Decisions
 
@@ -180,7 +180,7 @@ The type checker is `tsrs`, the Rust port of the TypeScript 7 compiler that Clou
 
 The npm package holds one JavaScript file that `bun build --target=node` makes, plus the skills. A package that starts with `#!/usr/bin/env bun` fails on a machine with only Node, and most users have Node. So the bundle starts with `#!/usr/bin/env node` and runs on Node 22 or later, or on Bun. Node 20 is past its end of life, so 22 is the minimum. Because the bundle must run on Node, `src/` uses only `node:` built-in modules and no `Bun.*` API. The bundle has no dependencies and no install scripts. A launcher with one optional package per platform, as Biome ships, would run the binary through npm too. It needs one more package for each platform in every release, and the bundle needs none.
 
-The package is also published as `omt3`. The npm name `omt` belongs to another author. A one-shot runner such as `npx` downloads the package that has the name of the command, so `npx omt` outside a project that installed omt runs that other package. `omt3` is free, and `npx omt3` runs omt. The docs never tell users to run `npx omt` outside a project with omt as a dev dependency.
+The package is also published as `omt3` and, from version `0.5.0`, `oh-my-t3`. The shorter `oh-my-t3` name is easier to remember. All three packages provide the CLI, skills, and hooks. The npm name `omt` belongs to another author. A one-shot runner such as `npx` downloads the package that has the name of the command, so `npx omt` outside a project that installed omt runs that other package. `npx omt3` and `npx oh-my-t3` run omt. The docs never tell users to run `npx omt` outside a project with omt as a dev dependency.
 
 The GitHub release holds a compiled binary for each POSIX platform: macOS, Linux with glibc, and Linux with musl, on arm64 and x64. The binary holds the skills, and needs neither Node nor Bun. It serves users who install tools with mise, and machines without a JavaScript runtime. mise reads the platform from each archive name and checks `SHA256SUMS`. Windows binaries come later.
 
@@ -188,7 +188,7 @@ A project install from a one-shot runner writes a shim that calls the same runne
 
 ### Updates run the channel's own command
 
-omt reaches users through many channels: two mise backends, global npm, pnpm, and Bun installs, dev dependencies, and one-shot runners. Each channel owns the files that it installed. The package manager or mise records the installed version, and mise keeps each version in its own folder. An omt that replaced its own files would leave those records wrong. So `omt update` finds the channel from the path that the CLI runs from, and runs that channel's own command, such as `npm install -g oh-my-t3code@<v>` or `mise use -g github:gabimoncha/oh-my-t3code@<v>`. The command pins the exact version that the registry reported. A path alone cannot prove a pnpm global install, because pnpm 11 can keep the real files in a store that projects share. So omt asks the package manager for its global folder before it runs a command. A channel that omt cannot confirm gets the table of manual commands as a hint. A dev dependency gets a hint too, with the command of its package manager: that command changes `package.json` and the lockfile, which git tracks, so the user runs it and commits the result. A one-shot project gets a new version pin in its shim, because the shim is the install. omt first checks that the runner starts the new version, so a failed download leaves the old pin in place.
+omt reaches users through many channels: two mise backends, global npm, pnpm, and Bun installs, dev dependencies, and one-shot runners. Each channel owns the files that it installed. The package manager or mise records the installed version, and mise keeps each version in its own folder. An omt that replaced its own files would leave those records wrong. So `omt update` finds the channel from the path that the CLI runs from, and runs that channel's own command, such as `npm install -g oh-my-t3@<v>` or `mise use -g github:gabimoncha/oh-my-t3@<v>`. The command pins the exact version that the registry reported. A path alone cannot prove a pnpm global install, because pnpm 11 can keep the real files in a store that projects share. So omt asks the package manager for its global folder before it runs a command. A channel that omt cannot confirm gets the table of manual commands as a hint. A dev dependency gets a hint too, with the command of its package manager: that command changes `package.json` and the lockfile, which git tracks, so the user runs it and commits the result. A one-shot project gets a new version pin in its shim, because the shim is the install. omt first checks that the runner starts the new version, so a failed download leaves the old pin in place.
 
 The new CLI, not the old one, syncs the skills, because only the new CLI carries the new skills. The sync runs the install planner, so an update and `omt install` judge a skill by the same hashes and markers. `omt install` stops on a skill that the user edited. The sync keeps that skill and names it in the output, because an update that runs with `--yes` or from an automatic check must never discard the user's work. `omt install --force` still replaces it when the user asks. Agent sessions load the skills when they start, so the command ends with a line that tells the user to restart them.
 
@@ -200,10 +200,10 @@ omt used to promise that the CLI never uses the network. An update needs the lat
 
 ## What is out of scope
 
-- A T3 fork or a T3 plugin API. oh-my-t3code uses only the surfaces T3 already exposes.
+- A T3 fork or a T3 plugin API. oh-my-t3 uses only the surfaces T3 already exposes.
 - A DAG scheduler, team mailboxes, memory, or computer use. T3 child threads and worktree threads cover the common cases. No scheduler process runs. Instead, `omt plan status` lists the ready units: the open units whose `Depends on` units are done. The main thread builds them in that order.
 - Hooks for Codex, Cursor, and OpenCode. Codex hooks need per-hook trust. They are a later step.
-- Copied code or prompt text from OmO. Its license (Sustainable Use License 1.0) does not allow that. oh-my-t3code re-implements ideas in its own words. omp and T3 Code are MIT.
+- Copied code or prompt text from OmO. Its license (Sustainable Use License 1.0) does not allow that. oh-my-t3 re-implements ideas in its own words. omp and T3 Code are MIT.
 
 ## Credits
 

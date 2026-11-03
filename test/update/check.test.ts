@@ -6,7 +6,7 @@ import { updateStatePath } from "../../src/paths.ts";
 import { fakeContext, tempDir, writeFile } from "../helpers.ts";
 
 const captured = readFileSync(new URL("../fixtures/npm-dist-tags-oh-my-t3code.json", import.meta.url), "utf8");
-const endpoint = "https://registry.npmjs.org/-/package/oh-my-t3code/dist-tags";
+const endpoint = "https://registry.npmjs.org/-/package/oh-my-t3/dist-tags";
 
 test("fetchLatest: captured registry response", async () => {
   const request = (async (url: Parameters<typeof fetch>[0], opts?: RequestInit) => {

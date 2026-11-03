@@ -17,7 +17,7 @@ Each starter config has a `$schema` line near the top, below a few comment lines
 
 ```jsonc
 {
-  "$schema": "https://raw.githubusercontent.com/gabimoncha/oh-my-t3code/main/schema/omt.schema.json",
+  "$schema": "https://raw.githubusercontent.com/gabimoncha/oh-my-t3/main/schema/omt.schema.json",
   "version": 1
 }
 ```
@@ -63,7 +63,7 @@ This example turns off cross-family review. After the change, `review` always st
 
 ```jsonc
 {
-  "$schema": "https://raw.githubusercontent.com/gabimoncha/oh-my-t3code/main/schema/omt.schema.json",
+  "$schema": "https://raw.githubusercontent.com/gabimoncha/oh-my-t3/main/schema/omt.schema.json",
   "version": 1,
   "roles": {
     "review": {

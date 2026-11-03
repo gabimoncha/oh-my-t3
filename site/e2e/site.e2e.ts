@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import manifest from "../../package.json" with { type: "json" };
 
 // Ends the running CSS animations inside a host at once. A clock that ends this way still fires
 // animationend, so the hero and the skill tour move on as they do in real time.
@@ -12,13 +13,19 @@ async function finishAnimations(page: Page, host: string) {
 
 const states = (page: Page) => page.locator(".hero-run").evaluateAll((runs) => runs.map((run) => run.getAttribute("data-state")));
 
-test("the page renders with no errors and no sideways scroll", async ({ page }) => {
+test("the page renders with the current brand, no errors, and no sideways scroll", async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
   await page.goto("/");
+  await expect(page).toHaveTitle("oh-my-t3: give the agent a goal, get back reviewed work");
+  await expect(page.getByRole("link", { name: "oh-my-t3, home" })).toBeVisible();
+  await expect(page.locator('nav[aria-label="Main"] a[href="https://github.com/gabimoncha/oh-my-t3"]')).toHaveText("GitHub");
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "oh-my-t3: give the agent a goal, get back reviewed work");
+  const versionNote = page.getByText(`This is version ${manifest.version}. The config format and the CLI output can change.`, { exact: true });
+  await expect(versionNote).toBeAttached();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Give the agent a goal\.\s*Get back reviewed work\./);
   for (const name of ["Install", "How it works", "Skills", "Who it is for"]) {
     await expect(page.getByRole("heading", { level: 2, name, exact: true })).toBeVisible();
@@ -27,6 +34,11 @@ test("the page renders with no errors and no sideways scroll", async ({ page }) 
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(errors).toEqual([]);
+  if (testInfo.project.name === "mobile") await page.setViewportSize({ width: 390, height: 844 });
+  await versionNote.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("release-version.png") });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: testInfo.outputPath("brand-home.png") });
 });
 
 test("an unknown path returns the 404 page", async ({ page }) => {
@@ -53,7 +65,7 @@ test("install defaults to Bun, and a one-shot run allows only the project instal
   const channels = page.getByRole("tablist", { name: "Install channel" });
   const scopes = page.getByRole("tablist", { name: "Install scope" });
   await expect(channels.getByRole("tab", { selected: true })).toHaveText("Bun");
-  await expect(page.locator("#install")).toContainText("bun add -g oh-my-t3code");
+  await expect(page.locator("#install")).toContainText("bun add -g oh-my-t3");
   await expect(page.locator("#install")).toContainText("omt install --hooks");
 
   await channels.getByRole("tab", { name: "Bun" }).focus();
@@ -65,7 +77,7 @@ test("install defaults to Bun, and a one-shot run allows only the project instal
   await expect(scopes.getByRole("tab", { name: "All projects" })).toHaveAttribute("aria-disabled", "true");
   await expect(scopes.getByRole("tab", { selected: true })).toHaveText("One project");
   await expect(page.locator("#install")).toContainText("# in the folder of your project");
-  await expect(page.locator("#install")).toContainText("npx omt3 install --project --hooks");
+  await expect(page.locator("#install")).toContainText("npx oh-my-t3 install --project --hooks");
 });
 
 test("the skill tour moves the pointer by itself and stops on a click", async ({ page }) => {

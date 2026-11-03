@@ -1,4 +1,4 @@
-# Install oh-my-t3code
+# Install oh-my-t3
 
 You install omt in two parts. First, install the `omt` CLI from a package registry or as a release binary. You do not clone the repository. Then let the CLI install the skills, in one of two modes:
 
@@ -24,15 +24,15 @@ Pick one channel. The last column shows how to run omt from that channel.
 
 | Channel | Command | Run omt as |
 | --- | --- | --- |
-| mise, release binary | `mise use -g github:gabimoncha/oh-my-t3code` | `omt` |
-| mise, npm package | `mise use -g npm:oh-my-t3code` | `omt` |
-| npm, global | `npm i -g oh-my-t3code` | `omt` |
-| pnpm, global | `pnpm add -g oh-my-t3code` | `omt` |
-| Bun, global | `bun add -g oh-my-t3code` | `omt` |
-| npm, dev dependency | `npm i -D oh-my-t3code` | `npx omt` |
-| pnpm, dev dependency | `pnpm add -D oh-my-t3code` | `pnpm exec omt` |
-| Bun, dev dependency | `bun add -D oh-my-t3code` | `bunx omt` |
-| One-shot | none | `npx omt3`, `bunx omt3`, or `pnpm dlx omt3` |
+| mise, release binary | `mise use -g github:gabimoncha/oh-my-t3` | `omt` |
+| mise, npm package | `mise use -g npm:oh-my-t3` | `omt` |
+| npm, global | `npm i -g oh-my-t3` | `omt` |
+| pnpm, global | `pnpm add -g oh-my-t3` | `omt` |
+| Bun, global | `bun add -g oh-my-t3` | `omt` |
+| npm, dev dependency | `npm i -D oh-my-t3` | `npx omt` |
+| pnpm, dev dependency | `pnpm add -D oh-my-t3` | `pnpm exec omt` |
+| Bun, dev dependency | `bun add -D oh-my-t3` | `bunx omt` |
+| One-shot | none | `npx oh-my-t3`, `bunx oh-my-t3`, or `pnpm dlx oh-my-t3` |
 
 To check the install, run the command of the last column with `--version`. It prints the omt version, such as `0.1.0`.
 
@@ -40,19 +40,19 @@ The `omt` command of the npm package needs `node` on `PATH`. This applies to the
 
 ### Release binary
 
-`mise use -g github:gabimoncha/oh-my-t3code` downloads a binary from the GitHub release. The binary holds the skills and needs neither Node nor Bun. The release has binaries for macOS on arm64 and x64, and for Linux on arm64 and x64, with glibc or musl. Windows has no binary yet.
+`mise use -g github:gabimoncha/oh-my-t3` downloads a binary from the GitHub release. The binary holds the skills and needs neither Node nor Bun. The release has binaries for macOS on arm64 and x64, and for Linux on arm64 and x64, with glibc or musl. Windows has no binary yet.
 
-To pin a version, add it after `@`. For example, `mise use -g github:gabimoncha/oh-my-t3code@0.1.0` installs version 0.1.0.
+To pin a version, add it after `@`. For example, `mise use -g github:gabimoncha/oh-my-t3@0.1.0` installs version 0.1.0.
 
-By default, recent mise versions hide a release for its first 24 hours, through the setting `minimum_release_age`. In that time, `mise use -g github:gabimoncha/oh-my-t3code` installs the previous release, or fails with `no versions found ... matching minimum_release_age` when no older release exists. A pinned version, such as `@0.1.0`, installs the new release at once.
+By default, recent mise versions hide a release for its first 24 hours, through the setting `minimum_release_age`. In that time, `mise use -g github:gabimoncha/oh-my-t3` installs the previous release, or fails with `no versions found ... matching minimum_release_age` when no older release exists. A pinned version, such as `@0.1.0`, installs the new release at once.
 
 mise checks the archive against the `SHA256SUMS` file of the release. mise puts `omt` on your `PATH` only in a shell where mise is active, or where the mise shims directory is on `PATH`. `mise which omt` prints the path of the binary.
 
 ### npm package
 
-The npm package `oh-my-t3code` holds one JavaScript file, `dist/cli.js`, and the skills. It has no dependencies. It gives three commands: `omt`, `omt3`, and `oh-my-t3code`. All three run the same file. The file starts with `#!/usr/bin/env node`, so these commands need Node 22 or later on `PATH`. Bun 1.4.4 or later can also run the file, through `bunx` or `bun`.
+The release script builds the same JavaScript file, `dist/cli.js`, and skills for the npm packages `oh-my-t3`, `oh-my-t3code`, and `omt3`. They have no dependencies. From version `0.5.0`, `oh-my-t3` is another name for the package. The `oh-my-t3` package gives four commands: `omt`, `omt3`, `oh-my-t3code`, and `oh-my-t3`. All four run the same file. The file starts with `#!/usr/bin/env node`, so these commands need Node 22 or later on `PATH`. Bun 1.4.4 or later can also run the file, through `bunx` or `bun`.
 
-`mise use -g npm:oh-my-t3code` installs the npm package through mise. To make mise install it with Bun instead of npm, set the mise setting first:
+`mise use -g npm:oh-my-t3` installs the npm package through mise. To make mise install it with Bun instead of npm, set the mise setting first:
 
 ```sh
 mise settings set npm.package_manager bun
@@ -64,15 +64,15 @@ A dev dependency installs omt into one project only. The project needs a `packag
 
 ### One-shot run
 
-A one-shot run installs no CLI. The runner downloads the npm package `omt3` and runs it once:
+A one-shot run needs no global CLI install. The runner downloads the npm package `oh-my-t3` and runs it:
 
 ```sh
-npx omt3 install --project
-bunx omt3 install --project
-pnpm dlx omt3 install --project
+npx oh-my-t3 install --project
+bunx oh-my-t3 install --project
+pnpm dlx oh-my-t3 install --project
 ```
 
-`omt3` is the same build as `oh-my-t3code`, under a name that a runner can download. Use `npx omt3`, not `npx omt`. Outside a project that installed omt, `npx omt` downloads a different npm package named `omt`.
+`omt3` and `oh-my-t3code` remain compatible package aliases. Project shims from all three packages use the pinned `omt3` package. Outside a project that installed omt, `npx omt` downloads a different npm package named `omt`. Use `npx oh-my-t3` for a one-shot run.
 
 A one-shot run can install only into a project. A global install from a one-shot run is refused, because no `omt` command would stay for the skills and the hook.
 
@@ -83,7 +83,7 @@ On a machine with Bun 1.4.4 or later and no Node, the bare `omt` command fails w
 | Channel | Run omt as |
 | --- | --- |
 | Bun, dev dependency | `bunx omt` |
-| One-shot | `bunx omt3` |
+| One-shot | `bunx oh-my-t3` |
 | Bun, global | `bun "$(bun pm bin -g)/omt"` |
 | Any copy of the package | `bun <package>/dist/cli.js` |
 
@@ -95,7 +95,7 @@ The global install through Bun works too: `bun "$(bun pm bin -g)/omt" install`. 
 
 ## Install into one project
 
-Run the install in the project root. This example uses `omt`. Replace it with the command of your channel from the last column of [Install the CLI](#install-the-cli), such as `npx omt` or `npx omt3`:
+Run the install in the project root. This example uses `omt`. Replace it with the command of your channel from the last column of [Install the CLI](#install-the-cli), such as `npx omt` or `npx oh-my-t3`:
 
 ```sh
 cd /path/to/your-project
@@ -163,7 +163,7 @@ For the release binary and the npm package, the shim tries these commands in ord
 
 1. `<project>/node_modules/.bin/omt`, from a dev dependency.
 2. The first `omt` on `PATH` that is not the shim itself.
-3. None. The shim prints `omt: the omt CLI is not installed; see https://github.com/gabimoncha/oh-my-t3code#install` and exits 127.
+3. None. The shim prints `omt: the omt CLI is not installed; see https://github.com/gabimoncha/oh-my-t3#install` and exits 127.
 
 A one-shot shim calls the runner on each call. After the runner's cache is cleared, the next call downloads the package again and needs the network. The install prints a `note:` line that says so.
 
@@ -232,7 +232,7 @@ The install replaces the block of the old path, unless the old path still has it
 .omt/bin/omt uninstall --project
 ```
 
-The uninstall removes the shim. Run later commands with the command of your channel, such as `omt` or `npx omt3`.
+The uninstall removes the shim. Run later commands with the command of your channel, such as `omt` or `npx oh-my-t3`.
 
 The uninstall removes the skills, the links, the shim, the hook entry, the exclude block, and the manifest. It also removes each file and empty directory that the install created.
 
@@ -307,7 +307,7 @@ omt uninstall
 
 `omt uninstall` removes the managed skill copies, the links that point at them, the hook entry, and the manifest. It keeps your config. Add `--purge` to remove the config too. It never removes a path that it does not manage. Project `.omt/` directories stay in place.
 
-`omt uninstall` does not remove the CLI. To remove it, use the command of its channel, such as `mise unuse -g github:gabimoncha/oh-my-t3code`, `npm rm -g oh-my-t3code`, `pnpm rm -g oh-my-t3code`, or `bun rm -g oh-my-t3code`.
+`omt uninstall` does not remove the CLI. To remove it, use the command of its channel, such as `mise unuse -g github:gabimoncha/oh-my-t3`, `npm rm -g oh-my-t3code`, `pnpm rm -g oh-my-t3code`, or `bun rm -g oh-my-t3code`.
 
 ## Update omt
 
@@ -322,20 +322,20 @@ omt update
 
 | Channel | What `omt update` does |
 | --- | --- |
-| mise, release binary | Runs `mise use -g github:gabimoncha/oh-my-t3code@<version>`. |
-| mise, npm package | Runs `mise use -g npm:oh-my-t3code@<version>`. |
-| npm, pnpm, or Bun, global | Runs `npm install -g`, `pnpm add -g`, or `bun add -g` with `oh-my-t3code@<version>`. |
-| Dev dependency | Prints two commands of the project's package manager. The first updates the dependency, such as `pnpm add -D oh-my-t3code@<version>`. The second syncs the skills with the new CLI, such as `pnpm exec omt update --skills-only --project`. omt runs neither, because the first command changes `package.json` and the lockfile. |
+| mise, release binary | Runs `mise use -g github:gabimoncha/oh-my-t3@<version>`. |
+| mise, npm package | Runs `mise use -g npm:oh-my-t3@<version>`. |
+| npm, pnpm, or Bun, global | Runs `npm install -g`, `pnpm add -g`, or `bun add -g` with the installed package name, such as `oh-my-t3@<version>`. |
+| Dev dependency | Prints two commands of the project's package manager. The first updates the dependency, such as `pnpm add -D oh-my-t3@<version>`. The second syncs the skills with the new CLI, such as `pnpm exec omt update --skills-only --project`. omt runs neither, because the first command changes `package.json` and the lockfile. |
 | One-shot | Writes the new version into the shim `.omt/bin/omt`, after the runner starts that version. |
 | Release binary elsewhere, or a clone | Prints a hint. |
 
-Each command installs the exact version that the registry returned. So the mise channels write an exact pin, such as `github:gabimoncha/oh-my-t3code@0.3.0`, into your global mise config. A later `omt update` moves that pin. An exact version also skips the 24-hour wait of `minimum_release_age`.
+Each npm update keeps the package name that you installed, whether `oh-my-t3`, `oh-my-t3code`, or `omt3`. Each command installs the exact version that the registry returned. So the mise channels write an exact pin, such as `github:gabimoncha/oh-my-t3@0.3.0`, into your global mise config. A later `omt update` moves that pin. An exact version also skips the 24-hour wait of `minimum_release_age`.
 
 The sync keeps a skill that you edited, and prints `kept <skill>  (<reason>)`. `omt install --force` replaces it. The sync removes a managed skill that the new bundle no longer ships, with its links, as `omt install` does. It keeps an edited one with the reason `locally modified; no longer shipped; omt install --force backs it up and removes it`. A project that runs another omt, such as a dev dependency, gets the command to run in that project. The command shows defaults changes and asks before accepting them. `--yes` also accepts the current defaults. Declining keeps the last accepted defaults. When any skill changed, restart your agent sessions in T3 Code.
 
 `--project` updates only the current project. `--skills-only` syncs the skills with the CLI that runs now. It sends no request, so it works without the network.
 
-To update by hand, run the install command of your channel from [Install the CLI](#install-the-cli) with `@latest` or a version, such as `npm i -g oh-my-t3code@latest`. For a one-shot install, run the project install again with the new version, such as `npx omt3@<version> install --project`. Then run `omt update --skills-only` to sync the skills.
+To update by hand, run the install command of your channel from [Install the CLI](#install-the-cli) with `@latest` or a version, such as `npm i -g oh-my-t3@latest`. For a one-shot install, run the project install again with the new version, such as `npx omt3@<version> install --project`. Then run `omt update --skills-only` to sync the skills.
 
 To get a note when a new version is out, set `"update": "check"` in the user config. [The `update` key](configuration.md#check-for-updates) explains it.
 

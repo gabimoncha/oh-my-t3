@@ -3,9 +3,9 @@ import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-r
 import appCss from "../styles.css?url";
 import { SITE_URL } from "../site";
 
-const TITLE = "oh-my-t3code: give the agent a goal, get back reviewed work";
+const TITLE = "oh-my-t3: give the agent a goal, get back reviewed work";
 const DESCRIPTION =
-  "oh-my-t3code adds plans, roles, task briefs, and review loops to the agents that you run in T3 Code.";
+  "oh-my-t3 adds plans, roles, task briefs, and review loops to the agents that you run in T3 Code.";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -22,7 +22,7 @@ export const Route = createRootRoute({
       { property: "og:image", content: `${SITE_URL}/og.png` },
       { property: "og:image:width", content: "1280" },
       { property: "og:image:height", content: "640" },
-      { property: "og:image:alt", content: "omt3. Give the agent a goal. Get back reviewed work." },
+      { property: "og:image:alt", content: "oh-my-t3. Give the agent a goal. Get back reviewed work." },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [

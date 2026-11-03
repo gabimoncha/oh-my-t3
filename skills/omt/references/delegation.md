@@ -6,8 +6,8 @@ The T3 rules for every omt skill. The T3 MCP server key is `t3-code`. Skills nam
 
 Look up the CLI in this order, and use the first one that exists:
 
-1. `omt` on `PATH` (`command -v omt`). A global install puts it there: `npm i -g oh-my-t3code`, `pnpm add -g oh-my-t3code`, `bun add -g oh-my-t3code`, or `mise use -g github:gabimoncha/oh-my-t3code`.
-2. `.omt/bin/omt` in the project root. `omt install --project` creates it, also from a dev dependency or from a one-shot run such as `npx omt3 install --project`.
+1. `omt` on `PATH` (`command -v omt`). A global install puts it there: `npm i -g oh-my-t3`, `pnpm add -g oh-my-t3`, `bun add -g oh-my-t3`, or `mise use -g github:gabimoncha/oh-my-t3`.
+2. `.omt/bin/omt` in the project root. `omt install --project` creates it, also from a dev dependency or from a one-shot run such as `npx oh-my-t3 install --project`.
 3. The shim of the main checkout, for a linked worktree: `"$(git rev-parse --path-format=absolute --git-common-dir)/../.omt/bin/omt"`.
 
 A shim from a one-shot run calls its runner (`npx`, `pnpm dlx`, or `bunx`) with the pinned version. After the runner's cache is cleared, the next call downloads the package again and needs the network.

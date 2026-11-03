@@ -4,7 +4,7 @@ description: oh-my-t3code router. Lists the omt workflows for T3 Code, when to u
 disable-model-invocation: true
 ---
 
-# oh-my-t3code
+# oh-my-t3
 
 omt runs workflows in this T3 thread: the main thread explores, plans, and builds, and role-routed subagents started with the T3 `delegate_task` tool review and test the work. Pick the workflow that matches the request, then load that skill.
 

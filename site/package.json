@@ -1,5 +1,5 @@
 {
-  "name": "omt3-site",
+  "name": "oh-my-t3-site",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.4",
