@@ -39,7 +39,7 @@ export interface Limits {
 export interface Workflow {
   plan: {
     review: "two-families" | "one" | "owner";
-    testLayers: ("e2e" | "integration" | "unit")[];
+    testLayers: ("integration" | "e2e" | "unit")[];
   };
   design: {
     variants: number;

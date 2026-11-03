@@ -2,6 +2,10 @@
 
 The T3 rules for every omt skill. The T3 MCP server key is `t3-code`. Skills name its tools by base name (`delegate_task`, `task_status`). Your harness may add a prefix, such as `mcp__t3-code__delegate_task` or `mcp__t3_code__delegate_task`: call the tool under the name your tool list shows.
 
+## User instructions win
+
+On git actions, reply style, tests, and model choice, the user's own instructions win over omt defaults. Their message comes first, then their `AGENTS.md` or `CLAUDE.md`. omt owns the workflow steps.
+
 ## The CLI
 
 Look up the CLI in this order, and use the first one that exists:
@@ -23,10 +27,10 @@ When none exists, follow the manual steps in [roles.md](roles.md) and [brief.md]
 
 ## Your interaction mode
 
-Each omt skill that dispatches work checks its modes first. It calls `t3_thread_configuration` with no `threadId`. It returns only this thread's `modelSelection`, `runtimeMode`, and `interactionMode`. Read your own `interactionMode` from it. On ACP providers whose T3 tools are missing, call it with:
+Each omt skill that dispatches work checks its modes first. It calls `t3_thread_configure` with no arguments. It returns only this thread's `modelSelection`, `runtimeMode`, and `interactionMode`. With `modelSelection`, the same tool sets the thread's model, so T3 marks it destructive. Pass no `threadId` and no `modelSelection`, so that the call only reads. Read your own `interactionMode` from it. On ACP providers whose T3 tools are missing, call it with:
 
 ```sh
-ELECTRON_RUN_AS_NODE=1 "$T3_ACP_MCP_NODE" ${T3_ACP_MCP_ENTRYPOINT:+"$T3_ACP_MCP_ENTRYPOINT"} acp-mcp-call t3_thread_configuration '{}'
+ELECTRON_RUN_AS_NODE=1 "$T3_ACP_MCP_NODE" ${T3_ACP_MCP_ENTRYPOINT:+"$T3_ACP_MCP_ENTRYPOINT"} acp-mcp-call t3_thread_configure '{}'
 ```
 
 Do not call `orchestrator_capabilities` to read your modes. Use it only for the provider and model catalog ([roles.md](roles.md)). Its result is large, so save it to a temp file and read only the fields you need.

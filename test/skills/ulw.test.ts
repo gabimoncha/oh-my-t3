@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { SKILLS_DIR, readSkill, section } from "./shared.ts";
 
-test("each mode-check step calls t3_thread_configuration, and no skill reads modes from orchestrator_capabilities (ulw)", () => {
+test("each mode-check step calls t3_thread_configure, and no skill reads modes from orchestrator_capabilities (ulw)", () => {
   const modeSteps: Record<string, string> = {
     "omt-ulw": "### 0. ",
     "omt-swarm": "### 0. ",
@@ -15,7 +15,7 @@ test("each mode-check step calls t3_thread_configuration, and no skill reads mod
     assert.ok(start >= 0, `${name} has no step ${heading.trim()}`);
     const end = text.indexOf("\n### ", start + 1);
     const step = text.slice(start, end < 0 ? undefined : end);
-    assert.match(step, /t3_thread_configuration/, `${name} mode step`);
+    assert.match(step, /t3_thread_configure/, `${name} mode step`);
     assert.doesNotMatch(step, /orchestrator_capabilities/, `${name} mode step`);
   }
 });
@@ -129,7 +129,9 @@ test("omt-ulw plans LIGHT runs itself and HEAVY runs through omt-plan", () => {
   assert.match(plan, /HEAVY: run the `omt-plan` skill with the slug before any plan file exists\./);
   assert.match(plan, /The owner approves the HEAVY plan before you build\./);
   assert.match(plan, /name the effective `plan\.testLayers` value in the task text/);
-  assert.match(plan, /Write each approved test as `- <layer> <unit>: <flow or case>\. File: <path>\. Reason: <why>\.` With `build\.qa: planned`, keep only the owner's approved test lines\. With `build\.qa: off`, leave `## Tests` empty\./);
+  assert.match(plan, /Write each approved test as `- <layer> <unit>: <flow or case>\. File: <path>\. Reason: <why>\.` The reason names the bug or regression that the test catches\. With `build\.qa: planned`, keep only the owner's approved test lines\. With `build\.qa: off`, leave `## Tests` empty\./);
+  assert.match(plan, /Use integration tests by default: real code through the interface that production uses, with only external services faked\./);
+  assert.match(plan, /Use e2e only for a core user journey, or for a failure that needs the client, server, and backend together, and unit only for pure logic with real branching/);
   assert.match(plan, /The role of a unit that you build is `main`\./);
   assert.match(plan, /has a done condition on an input shaped like real data, also in a LIGHT plan/);
   assert.match(plan, /A unit that implements a design or changes UI has the role `ui`, also in a LIGHT plan\./);

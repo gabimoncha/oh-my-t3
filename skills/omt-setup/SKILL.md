@@ -26,7 +26,7 @@ Run steps 1 and 2 first. Then run the steps that the request names. For a plain 
 
 Follow [The CLI](../omt/references/delegation.md#the-cli). Below, `omt` means the command that you found, such as `.omt/bin/omt`. When no CLI exists, the user installs it first: follow the [agent quick start](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/agents/quickstart.md), which asks the user for a channel.
 
-When you have the T3 tools, call `t3_thread_configuration` with no `threadId` and read your `interactionMode`. In `plan` mode, run only the read commands, list the write commands for the user, and ask the user to switch the thread to default mode.
+When you have the T3 tools, call `t3_thread_configure` with no arguments and read your `interactionMode`. In `plan` mode, run only the read commands, list the write commands for the user, and ask the user to switch the thread to default mode.
 
 Done when: `omt --version` prints a version, and you know your mode.
 

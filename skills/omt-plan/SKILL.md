@@ -20,7 +20,7 @@ You explore, ask, and write the plan yourself. Children only read broad areas (`
 
 ### 0. Check your mode
 
-Call `t3_thread_configuration` with no `threadId` and read your `interactionMode` and `modelSelection` ([delegation.md](../omt/references/delegation.md#your-interaction-mode)). Keep the driver of `modelSelection`, such as `claudeAgent` or `codex`, as your family. Step 4 passes it to `--against`.
+Call `t3_thread_configure` with no arguments and read your `interactionMode` and `modelSelection` ([delegation.md](../omt/references/delegation.md#your-interaction-mode)). Keep the driver of `modelSelection`, such as `claudeAgent` or `codex`, as your family. Step 4 passes it to `--against`.
 
 In `plan` mode:
 
@@ -83,12 +83,12 @@ Read the effective profile again with the step 1 command before you fill `## Tes
 - Paste the output of `omt roles --plan <slug>` under `Roles`.
 - Under `## Research`, write each research question, its answer, and its sources.
 - When `build.qa` is `off`, leave `## Tests` empty. When `build.qa` is `planned`, fill `## Tests` top-down with the owner's approved lines.
-- Start with e2e tests of the main user flows of each vertical slice that `qa` can also walk. Then add integration cases that e2e skips, followed by unit cases. Add other test kinds only when the owner asks.
+- Start with integration tests: real code through the interface that production uses, with only external services faked. Add an e2e test only for a core user journey, or for a failure that needs the client, server, and backend together. Add a unit test only for pure logic with real branching. Add other test kinds only when the owner asks.
 - Propose only the layers in `plan.testLayers` without an owner request. Keep a line in another layer only with its reason and the owner's approval.
-- Use one e2e test per main flow. Keep edge cases out of the e2e lines.
+- Keep edge cases out of the e2e lines.
 - Map each grill edge case with `State: accepted` or `State: changed`. A changed edge case uses the user's handling and test layer from the grill file. A `dropped` edge case gets no line and no done condition. A `pending` edge case gets no line until the owner answers it.
 - Each mapped grill edge case with `Test: integration` or `Test: unit` becomes a `## Tests` line of that layer, with `Reason: grill edge case GE<k>`. When that layer is outside `plan.testLayers`, put the line in the step 2 batch for owner approval, as any other line outside. A grill edge case never becomes an e2e line. A mapped edge case with `Test: none`, and every mapped edge case when `build.qa` is `off`, goes into the done condition of the unit that owns its handling.
-- Write each `## Tests` line as `- <layer> <unit>: <flow or case>. File: <path>. Reason: <why>.` An empty `## Tests` section means no new tests.
+- Write each `## Tests` line as `- <layer> <unit>: <flow or case>. File: <path>. Reason: <why>.` The reason names the bug or regression that the test catches. An empty `## Tests` section means no new tests.
 - Docs units use the `writing` role: a unit that only writes documentation or other prose.
 - UI units use the `ui` role. When an approved design spec exists, cite it in the unit. Plan an `omt-design` step only when the user requests a design pass first. Otherwise plan direct UI implementation from the task requirements, by [UI implementation](../omt/references/frontend-design.md#ui-implementation). A missing design spec or design tool does not block a UI unit.
 - Name each shared resource in the plan, such as a build folder, a generated project, a simulator, or a dev-server port. Write each verify command that uses shared build state as `omt lock run <resource> -- <command>`. Use the same `<resource>` for commands that share that state.

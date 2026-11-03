@@ -22,7 +22,7 @@ You review a change with report-only children and merge their findings. A small 
 
 ### 0. Check your mode
 
-Call `t3_thread_configuration` with no `threadId` and read your `interactionMode` and `modelSelection` ([delegation.md](../omt/references/delegation.md#your-interaction-mode)). Keep the driver of `modelSelection`, such as `claudeAgent` or `codex`, as `<your family>`. In `plan` mode, dispatch only `review` and `oracle` tasks with `interactionMode: "plan"`, write no ledger entry and no evidence file, and deliver the merged findings in your final message. The fixes in step 6 need default mode.
+Call `t3_thread_configure` with no arguments and read your `interactionMode` and `modelSelection` ([delegation.md](../omt/references/delegation.md#your-interaction-mode)). Keep the driver of `modelSelection`, such as `claudeAgent` or `codex`, as `<your family>`. In `plan` mode, dispatch only `review` and `oracle` tasks with `interactionMode: "plan"`, write no ledger entry and no evidence file, and deliver the merged findings in your final message. The fixes in step 6 need default mode.
 
 Accept `omt-code-review --profile <name> <target>` for one run. With `--profile`, run `omt profile show <name> --json`. Otherwise run `omt profile show --json` to use the config's profile. Read `profile`, `workflow.review`, `limits`, `roles`, and `models` from the output. Use the output's `profile` as `<profile>` in every brief and role lookup. Read the profile again after a context reset, with the run's `--profile` override when one exists. The `review-<slug>` id is ledger-only, so do not use `omt profile show --plan review-<slug>`.
 

@@ -5,6 +5,8 @@
 > - `delegate_task` accepts `isolation: "worktree"`. A child with that option runs in a separate checkout based on the parent's local commit ([tools.ts](https://github.com/pingdotgg/t3code/blob/v0.1.0/apps/server/src/mcp/toolkits/orchestrator/tools.ts#L66)).
 > - Agents outside T3 can connect to T3's `/mcp` endpoint with OAuth ([outside-agents.md](https://github.com/pingdotgg/t3code/blob/v0.1.0/docs/user/outside-agents.md)). Thread-only tools such as `delegate_task` and `task_status` still need a T3 thread as the caller ([handlers.ts](https://github.com/pingdotgg/t3code/blob/v0.1.0/apps/server/src/mcp/toolkits/orchestrator/handlers.ts#L19)).
 >
+> Note, 2026-11-03: T3 PR #25423 ("merge 18 tools into action tools") merged the separate read tool into `t3_thread_configure`. With no arguments, it reads this thread's `modelSelection`, `runtimeMode`, and `interactionMode`. With `modelSelection`, it sets the model, so T3 marks the tool destructive (`apps/server/src/mcp/toolkits/thread/tools.ts:153`).
+>
 > Release data: [GitHub API, latest release](https://api.github.com/repos/pingdotgg/t3code/releases/latest). Provider setup: [install.md, Providers](https://github.com/pingdotgg/t3code/blob/v0.1.0/docs/user/install.md#providers).
 
 Research date: 2026-10-06.
@@ -80,8 +82,7 @@ All tools here default `threadId` to the calling thread. Writes use `readWritabl
 | `t3_thread_fork` | Fork a thread | `threadId`, `sourcePoint`, `title` | `sequence`, `targetThreadId` | Source point is `latest_stable`, `run`, or `checkpoint` (`:199-209`, `packages/contracts/src/orchestrationV2.ts:134-138`) |
 | `t3_thread_merge_back` | Merge context from one thread back to a related one | `sourceThreadId`, `targetThreadId`, `sourcePoint` | `sequence`, `targetThreadId` | Both threads must be writable (`:210-220`, `handlers.ts:137-153`) |
 | `t3_thread_transfers` | List context transfers | `threadId` | `transfers[]{id, sourceThreadId, targetThreadId, status}` | Read-only (`:221-237`) |
-| `t3_thread_configuration` | Read model selection and modes | `threadId` | `modelSelection`, `runtimeMode`, `interactionMode` | Read-only (`:174-187`) |
-| `t3_thread_configure` | Set provider, model, options | `threadId`, `modelSelection` | `sequence` | Does not change permission modes (`:188-196`) |
+| `t3_thread_configure` | Read model selection and modes; set provider, model, options | `threadId`, `modelSelection` (both optional) | `modelSelection`, `runtimeMode`, `interactionMode`, or `sequence` | Reads with no `modelSelection`. Does not change permission modes (`:174-196`) |
 | `t3_pending_request_list` | List pending user questions | `threadId` | `requestIds[]` | Approval requests are excluded (`:147-155`) |
 | `t3_pending_request_read` | Read one question | `threadId`, `requestId` | `questions[]` | (`:156-164`) |
 | `t3_pending_request_respond` | Answer a question | `threadId`, `requestId`, `answers` | `sequence` | Cannot approve permissions (`:165-172`) |
@@ -391,9 +392,9 @@ Uses the app's bounded search, then filters to one project. It may return fewer 
 
 Actions: `pin`, `unpin`, `snooze` (needs `snoozedUntil`), `unsnooze`, `settle`, `unsettle`, `archive`, `unarchive`, `mark_unread`. It does not schedule anything (`apps/server/src/mcp/toolkits/thread/tools.ts:31-59`, `handlers.ts:278-305`).
 
-#### `t3_thread_configure` and `t3_thread_configuration`
+#### `t3_thread_configure`
 
-Configuration reads `modelSelection`, `runtimeMode`, and `interactionMode`. Configure sets `modelSelection` with the app's selection command. It cannot change modes (`apps/server/src/mcp/toolkits/thread/tools.ts:174-196`, `handlers.ts:168-196`). No MCP tool changes a thread's runtime or interaction mode (inferred from the tool list).
+With no `modelSelection`, it reads `modelSelection`, `runtimeMode`, and `interactionMode`. With `modelSelection`, it sets the model with the app's selection command. It cannot change modes (`apps/server/src/mcp/toolkits/thread/tools.ts:174-196`, `handlers.ts:168-196`). No MCP tool changes a thread's runtime or interaction mode (inferred from the tool list).
 
 #### Queue tools and pending request tools
 

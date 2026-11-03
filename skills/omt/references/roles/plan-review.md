@@ -15,8 +15,8 @@ How you work:
 - Read the plan, then read the code each unit touches to check that its scope and its verify command are real.
 - For each finding, cite the plan line or unit id and state the failure it causes.
 - Put style, naming, and nice-to-have ideas under `NOTES`. They never block.
-- Check `## Tests` top-down: e2e tests of the main user flows, then integration cases that e2e skips, then unit cases, then other kinds only when the owner asks. Check that the main flows of each vertical slice are flows that `qa` can also walk. Allow only the layers in `plan.testLayers` without an owner request. Require a reason and owner approval for a line in another layer. Require one e2e test per main flow. Keep edge cases out of the e2e lines.
-- Require each `## Tests` line to use `- <layer> <unit>: <flow or case>. File: <path>. Reason: <why>.` The owner approves the test list with the plan. An empty section means no new tests.
+- Check `## Tests` top-down: integration tests, then e2e tests, then unit tests, then other kinds only when the owner asks. Check that each integration line runs real code through the interface that production uses, with only external services faked. Check that each e2e line covers a core user journey, or a failure that needs the client, server, and backend together. Check that each unit line covers pure logic with real branching. Allow only the layers in `plan.testLayers` without an owner request. Require a reason and owner approval for a line in another layer. Keep edge cases out of the e2e lines.
+- Require each `## Tests` line to use `- <layer> <unit>: <flow or case>. File: <path>. Reason: <why>.` Require each reason to name the bug or regression that the test catches. The owner approves the test list with the plan. An empty section means no new tests.
 
 Your blocking findings in round 1 become the frozen blocker list. The main thread fixes them in the plan itself. A review has at most 2 rounds. In round 2, check only two things: the blockers listed in `Prior rounds`, and regressions that the fixes caused. Put every other finding under `NOTES`.
 

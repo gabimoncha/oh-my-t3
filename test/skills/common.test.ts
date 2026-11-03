@@ -94,7 +94,7 @@ test("every relative Markdown link under skills/ resolves to a file", () => {
   assert.deepEqual(broken, []);
 });
 
-test("each mode-check step calls t3_thread_configuration, and no skill reads modes from orchestrator_capabilities (common)", () => {
+test("each mode-check step calls t3_thread_configure, and no skill reads modes from orchestrator_capabilities (common)", () => {
   const modeSteps: Record<string, string> = {
     "omt-research": "### 0. ",
   };
@@ -104,7 +104,7 @@ test("each mode-check step calls t3_thread_configuration, and no skill reads mod
     assert.ok(start >= 0, `${name} has no step ${heading.trim()}`);
     const end = text.indexOf("\n### ", start + 1);
     const step = text.slice(start, end < 0 ? undefined : end);
-    assert.match(step, /t3_thread_configuration/, `${name} mode step`);
+    assert.match(step, /t3_thread_configure/, `${name} mode step`);
     assert.doesNotMatch(step, /orchestrator_capabilities/, `${name} mode step`);
   }
   const offenders: string[] = [];
@@ -116,6 +116,36 @@ test("each mode-check step calls t3_thread_configuration, and no skill reads mod
     }
   }
   assert.deepEqual(offenders, []);
+});
+
+test("the mode check calls t3_thread_configure with no arguments, so it cannot set the model", () => {
+  const delegation = readFileSync(join(SKILLS_DIR, "omt", "references", "delegation.md"), "utf8");
+  assert.match(delegation, /It calls `t3_thread_configure` with no arguments\./);
+  assert.match(delegation, /Pass no `threadId` and no `modelSelection`, so that the call only reads\./);
+  assert.match(delegation, /acp-mcp-call t3_thread_configure '\{\}'/);
+  const offenders: string[] = [];
+  for (const file of walk(SKILLS_DIR).filter((path) => path.endsWith(".md"))) {
+    const text = readFileSync(file, "utf8");
+    if (/t3_thread_configur(?!e\b)/.test(text)) offenders.push(`${relative(PACKAGE_ROOT, file)}: retired tool name`);
+    for (const call of text.match(/t3_thread_configure`? with [^.]*/g) ?? []) {
+      if (!call.includes("with no arguments")) offenders.push(`${relative(PACKAGE_ROOT, file)}: ${call}`);
+    }
+  }
+  assert.deepEqual(offenders, []);
+});
+
+test("the router and delegation.md say that the user's instructions win over omt defaults", () => {
+  const rule = [
+    /On git actions, reply style, tests, and model choice, the user's own instructions win over omt defaults\./,
+    /Their message comes first, then their `AGENTS\.md` or `CLAUDE\.md`\./,
+    /omt owns the workflow steps\b/,
+  ];
+  const delegation = readFileSync(join(SKILLS_DIR, "omt", "references", "delegation.md"), "utf8");
+  const section = delegation.slice(delegation.indexOf("\n## User instructions win\n"), delegation.indexOf("\n## The CLI\n"));
+  for (const line of rule) assert.match(section, line, "delegation.md");
+  const router = readFileSync(join(SKILLS_DIR, "omt", "SKILL.md"), "utf8");
+  for (const line of rule) assert.match(router, line, "omt/SKILL.md");
+  assert.match(router, /\(references\/delegation\.md#user-instructions-win\)/);
 });
 
 test("no skill text says that review runs on the same family as execute", () => {

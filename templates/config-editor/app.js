@@ -14,7 +14,7 @@ const KEY_DOCS = {
   "limits.maxDepth": "Most levels of child tasks below the main thread (0 to 3). At the most, a child does the work itself.",
   "limits.maxReviewRounds": "Most review rounds for one build before the main thread stops and asks you (1 to 10).",
   "workflow.plan.review": "Who reviews a plan. two-families: one reviewer from the other model family. one: one reviewer from any family. owner: you review it.",
-  "workflow.plan.testLayers": "The test layers that a plan must name: e2e, integration, unit.",
+  "workflow.plan.testLayers": "The test layers that a plan proposes without an owner request: integration, e2e, unit.",
   "workflow.design.variants": "How many variants of each screen the design step draws (1 to 5).",
   "workflow.build.review": "every-round: review fixes again. first-round: review once. off: skip review unless an oracle is required.",
   "workflow.build.qa": "planned: write the approved tests. off: leave the test list empty. QA still runs checks and device flows.",

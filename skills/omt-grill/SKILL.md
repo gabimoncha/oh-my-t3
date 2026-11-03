@@ -20,7 +20,7 @@ You do the grill yourself. Children only read broad areas (`explore`), read docs
 
 ### 0. Check your mode
 
-Call `t3_thread_configuration` with no `threadId` and read your `interactionMode` and `modelSelection` ([delegation.md](../omt/references/delegation.md#your-interaction-mode)). Keep the driver of `modelSelection`, such as `claudeAgent` or `codex`, as your family. Step 3 passes it to `--against`.
+Call `t3_thread_configure` with no arguments and read your `interactionMode` and `modelSelection` ([delegation.md](../omt/references/delegation.md#your-interaction-mode)). Keep the driver of `modelSelection`, such as `claudeAgent` or `codex`, as your family. Step 3 passes it to `--against`.
 
 In `plan` mode:
 

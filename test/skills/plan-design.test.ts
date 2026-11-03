@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { SKILLS_DIR, readSkill, section } from "./shared.ts";
 
-test("each mode-check step calls t3_thread_configuration, and no skill reads modes from orchestrator_capabilities (plan-design)", () => {
+test("each mode-check step calls t3_thread_configure, and no skill reads modes from orchestrator_capabilities (plan-design)", () => {
   const modeSteps: Record<string, string> = {
     "omt-plan": "### 0. ",
     "omt-design": "### 0. ",
@@ -15,7 +15,7 @@ test("each mode-check step calls t3_thread_configuration, and no skill reads mod
     assert.ok(start >= 0, `${name} has no step ${heading.trim()}`);
     const end = text.indexOf("\n### ", start + 1);
     const step = text.slice(start, end < 0 ? undefined : end);
-    assert.match(step, /t3_thread_configuration/, `${name} mode step`);
+    assert.match(step, /t3_thread_configure/, `${name} mode step`);
     assert.doesNotMatch(step, /orchestrator_capabilities/, `${name} mode step`);
   }
 });
@@ -96,14 +96,16 @@ test("omt-plan asks the owner to approve the test lines and reads the profile's 
   assert.match(write, /Read `workflow\.plan\.testLayers` as `plan\.testLayers` and `workflow\.build\.qa` as `build\.qa`\./);
   assert.match(write, /When `build\.qa` is `off`, leave `## Tests` empty\./);
   assert.match(write, /When `build\.qa` is `planned`, fill `## Tests` top-down with the owner's approved lines\./);
-  assert.match(write, /Start with e2e tests of the main user flows of each vertical slice that `qa` can also walk\./);
-  assert.match(write, /Then add integration cases that e2e skips, followed by unit cases\./);
+  assert.match(write, /Start with integration tests: real code through the interface that production uses, with only external services faked\./);
+  assert.match(write, /Add an e2e test only for a core user journey, or for a failure that needs the client, server, and backend together\./);
+  assert.match(write, /Add a unit test only for pure logic with real branching\./);
   assert.match(write, /Add other test kinds only when the owner asks\./);
   assert.match(write, /Propose only the layers in `plan\.testLayers` without an owner request\./);
   assert.match(write, /Keep a line in another layer only with its reason and the owner's approval\./);
-  assert.match(write, /Use one e2e test per main flow\./);
+  assert.doesNotMatch(write, /one e2e test per main flow/);
   assert.match(write, /Keep edge cases out of the e2e lines\./);
   assert.match(write, /Write each `## Tests` line as `- <layer> <unit>: <flow or case>\. File: <path>\. Reason: <why>\.`/);
+  assert.match(write, /The reason names the bug or regression that the test catches\./);
   assert.match(write, /An empty `## Tests` section means no new tests\./);
 });
 

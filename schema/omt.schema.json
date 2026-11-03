@@ -313,8 +313,8 @@
               "type": "array",
               "items": {
                 "enum": [
-                  "e2e",
                   "integration",
+                  "e2e",
                   "unit"
                 ]
               }

@@ -11,7 +11,7 @@ You answer a question with citations. A narrow question you answer yourself. A b
 
 ### 0. Check your mode
 
-Call `t3_thread_configuration` with no `threadId` and read your `interactionMode` ([delegation.md](../omt/references/delegation.md#your-interaction-mode)). In `plan` mode, write no ledger entry and no report file, and deliver the answer in your final message. Both child roles are read-only, so the rest of the steps stay the same.
+Call `t3_thread_configure` with no arguments and read your `interactionMode` ([delegation.md](../omt/references/delegation.md#your-interaction-mode)). In `plan` mode, write no ledger entry and no report file, and deliver the answer in your final message. Both child roles are read-only, so the rest of the steps stay the same.
 
 Done when: you know your mode.
 

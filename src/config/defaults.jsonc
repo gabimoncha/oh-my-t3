@@ -12,7 +12,7 @@
         "plan": {
           "review": "two-families",
           "testLayers": [
-            "e2e"
+            "integration"
           ]
         },
         "design": {
