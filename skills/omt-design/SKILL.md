@@ -43,7 +43,7 @@ Done when: the frame and the slug are written in your reply.
 
 ### 2. Draw the variants
 
-Read the effective profile again with the step 1 command before each design pass. Read `workflow.design.variants` as `design.variants`. Draw `design.variants` distinct variants of each screen. When the owner asked for another count, use that count. Make a screenshot of every variant. The persona in [roles/design.md](../omt/references/roles/design.md) is the standard for both drawers. Follow [Design](../omt/references/frontend-design.md#design) to load Anthropic's `frontend-design` skill when available. Put its installed path in a child's brief so the child loads it too.
+Read the effective profile again with the step 1 command before each design pass. Read `workflow.design.variants` as `design.variants`. Draw `design.variants` distinct variants of each screen. When the owner asked for another count, use that count. Make a screenshot of every variant. The persona in [roles/design.md](../omt/references/roles/design.md) is the standard for both drawers. Follow [Design](../omt/references/roles.md#main-thread-or-child) to load Anthropic's `frontend-design` skill when available. Put its installed path in a child's brief so the child loads it too.
 
 When you draw:
 
@@ -56,9 +56,9 @@ When a `design` child draws:
 
 1. Before each dispatch, run `omt ledger stats --plan <ledger plan>`. When a plan file exists, dispatch only while it reports `can dispatch: yes`. Otherwise, use the step 1 dispatch check.
 2. Build the brief with `omt brief design --task-file - --title "design DS<k>: <slug> variants" --scope docs/design/<slug>/ --plan <ledger plan> --unit DS<k> --round 1 --attempt 1 --json`. The task carries the frame from step 1 and the variant count. The task asks the designer to make a new Paper file named after the project when Paper is available, or to use the mockup fallback otherwise.
-3. Call `delegate_task` with `mode: "wait"`. Record the dispatch with `--task-id`, `--provider`, and `--model` ([results.md](../omt/references/results.md#recording)), and wait for it in this turn ([delegation.md](../omt/references/delegation.md#waiting)). Then read the result, record it, and settle the child.
+3. Call `delegate_task` with `mode: "wait"`. Record the dispatch with `--task-id`, `--provider`, and `--model` ([results.md](../omt/references/delegation.md#dispatching-a-child)), and wait for it in this turn ([delegation.md](../omt/references/delegation.md#waiting)). Then read the result, record it, and settle the child.
 
-When T3 refuses a target, try the configured `design` fallbacks by [Fall back to the next rung](../omt/references/roles.md#fall-back-to-the-next-rung). When every configured target fails, or the role is unavailable, stop and tell the owner which targets failed and why.
+When T3 refuses a target, try the configured `design` fallbacks by [Fall back to the next rung](../omt/references/delegation.md#failure-codes). When every configured target fails, or the role is unavailable, stop and tell the owner which targets failed and why.
 
 Done when: every variant of each screen has a screenshot under `docs/design/<slug>/`, or the owner knows why the design child cannot run.
 

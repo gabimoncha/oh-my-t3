@@ -13,7 +13,7 @@ You explore, ask, and write the plan yourself. Children only read broad areas (`
 
 - You wait for each child inside your turn ([delegation.md](../omt/references/delegation.md#waiting)). For one child, call `delegate_task` with `mode: "wait"`. For parallel children, dispatch each with `mode: "async"`, then call `t3_thread_wait` with `threadId` and `runId` for each.
 - You end your turn only for the owner: a batch of questions, a plan approval, or the hand-off.
-- Record every child dispatch and every result in the ledger ([results.md](../omt/references/results.md#recording)).
+- Record every child dispatch and every result in the ledger ([results.md](../omt/references/delegation.md#dispatching-a-child)).
 - Read only the part of a child's result that your next action needs.
 
 ## Steps
@@ -49,7 +49,7 @@ With a selected profile and no plan file for the `--plan` id:
 - Dispatch only when the ledger's `active` is below the profile's `limits.maxParallel`.
 - Use this check in place of `can dispatch`.
 
-Read the code that the goal touches yourself. Send only broad reads to 1 to `maxParallel` read-only `explore` children, one narrow question each, in parallel. Use `--plan <slug> --unit E<k> --round 1 --attempt 1 --title "explore E<k>: <question>"`. Dispatch them with `mode: "async"` and wait for them in this turn ([delegation.md](../omt/references/delegation.md#waiting)). Then read the results and record them ([results.md](../omt/references/results.md#recording)).
+Read the code that the goal touches yourself. Send only broad reads to 1 to `maxParallel` read-only `explore` children, one narrow question each, in parallel. Use `--plan <slug> --unit E<k> --round 1 --attempt 1 --title "explore E<k>: <question>"`. Dispatch them with `mode: "async"` and wait for them in this turn ([delegation.md](../omt/references/delegation.md#waiting)). Then read the results and record them ([results.md](../omt/references/delegation.md#dispatching-a-child)).
 
 Done when: you can name each file and function that the change touches, with a `path:line` citation.
 
@@ -90,7 +90,7 @@ Read the effective profile again with the step 1 command before you fill `## Tes
 - Each mapped grill edge case with `Test: integration` or `Test: unit` becomes a `## Tests` line of that layer, with `Reason: grill edge case GE<k>`. When that layer is outside `plan.testLayers`, put the line in the step 2 batch for owner approval, as any other line outside. A grill edge case never becomes an e2e line. A mapped edge case with `Test: none`, and every mapped edge case when `build.qa` is `off`, goes into the done condition of the unit that owns its handling.
 - Write each `## Tests` line as `- <layer> <unit>: <flow or case>. File: <path>. Reason: <why>.` The reason names the bug or regression that the test catches. An empty `## Tests` section means no new tests.
 - Docs units use the `writing` role: a unit that only writes documentation or other prose.
-- UI units use the `ui` role. When an approved design spec exists, cite it in the unit. Plan an `omt-design` step only when the user requests a design pass first. Otherwise plan direct UI implementation from the task requirements, by [UI implementation](../omt/references/frontend-design.md#ui-implementation). A missing design spec or design tool does not block a UI unit.
+- UI units use the `ui` role. When an approved design spec exists, cite it in the unit. Plan an `omt-design` step only when the user requests a design pass first. Otherwise plan direct UI implementation from the task requirements, by [UI implementation](../omt/references/roles.md#main-thread-or-child). A missing design spec or design tool does not block a UI unit.
 - Name each shared resource in the plan, such as a build folder, a generated project, a simulator, or a dev-server port. Write each verify command that uses shared build state as `omt lock run <resource> -- <command>`. Use the same `<resource>` for commands that share that state.
 - Check for a lock tool with `command -v flock || command -v lockf`. When neither tool exists, run `omt plan limit <slug> 1` for a plan with shared build state and say why.
 - When a command leaves processes running after it exits, run that command outside `omt lock`. When a unit uses that command, run `omt plan limit <slug> 1` for the whole plan and say why in the plan.
@@ -112,7 +112,7 @@ Run at most 2 review rounds. Each round dispatches a fresh `plan-review` task; r
 2. Build the brief with `omt brief plan-review --task-file - --title "plan-review: <title>" --round <n> --attempt 1 --plan <slug> --unit plan [--against <your family>] --json`. The task names the plan path and its SHA-256, and asks the reviewer to confirm the hash before it reads. Name the effective `plan.testLayers` value in the task. In round 2, pass `--prior-file` with the frozen blocker list and your response to each blocker.
 3. Before each dispatch, run `omt ledger stats --plan <slug>`. When a plan file exists, dispatch only while it reports `can dispatch: yes`. Otherwise, use the step 1 dispatch check.
 4. With `two-families`, check that the target's provider is in the other family before the call. When a failure code would move the task to a rung of your own family, do not fall back. Stop and tell the user that no reviewer from the other family can run.
-5. Dispatch it with `mode: "wait"`. Record the dispatch with `--task-id`, `--provider`, and `--model`, and wait for it in this turn ([delegation.md](../omt/references/delegation.md#waiting)). Then read the verdict and record it ([results.md](../omt/references/results.md#recording)).
+5. Dispatch it with `mode: "wait"`. Record the dispatch with `--task-id`, `--provider`, and `--model`, and wait for it in this turn ([delegation.md](../omt/references/delegation.md#waiting)). Then read the verdict and record it ([results.md](../omt/references/delegation.md#dispatching-a-child)).
 
 Round 1: `APPROVE` ends the review; notes do not block. Otherwise the reviewer's blocking findings are the frozen blocker list. Write the list under `Log` in the plan. Fix each blocker in the plan yourself, update `## Summary`, and compute the hash again.
 

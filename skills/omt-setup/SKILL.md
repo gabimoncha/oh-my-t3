@@ -81,7 +81,7 @@ Done when: you finished each step of worktrees.md that applies to this checkout.
 
 ### 5a. Check the frontend design skill
 
-Follow [Check availability](../omt/references/frontend-design.md#check-availability). Check for Anthropic's `frontend-design` skill and recommend installing it when missing. Explain that it helps during design and direct UI implementation without a design spec. It is optional.
+Follow [Check availability](../omt/references/roles.md#main-thread-or-child). Check for Anthropic's `frontend-design` skill and recommend installing it when missing. Explain that it helps during design and direct UI implementation without a design spec. It is optional.
 
 Done when: the user knows whether the skill is available, and has the installation recommendation when it is missing.
 

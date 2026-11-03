@@ -48,7 +48,7 @@ To find the CLI (`omt`, `.omt/bin/omt`, or the manual steps), follow [The CLI](r
 | `omt plan profile <slug> <name\|none>` | switches the plan's profile; `none` removes the plan override |
 | `omt plan mark <slug> <id> <done\|open\|blocked>` | ticks one plan item, for example `omt plan mark auth U3 done` |
 | `omt plan status [<slug>]` | unit counts, the next open unit, the ready units, and a `warning:` line for each dependency that names no unit or names its own unit. It also prints one warning for the first dependency cycle only. |
-| `omt ledger add --plan <slug> --unit <id> --role <r> --round <n> --attempt <n> --status <s> ...` | appends one ledger entry; a terminal entry closes the matching dispatched entry ([results.md](references/results.md#recording)) |
+| `omt ledger add --plan <slug> --unit <id> --role <r> --round <n> --attempt <n> --status <s> ...` | appends one ledger entry; a terminal entry closes the matching dispatched entry ([results.md](references/delegation.md#dispatching-a-child)) |
 | `omt ledger stats --plan <slug>` | `dispatched` and `active` counts, `max parallel`, and `can dispatch: yes` or `no` |
 | `omt ledger request-id --plan <slug> --unit <id> --role <r> --round <n> --attempt <n>` | the `clientRequestId` |
 | `omt config show` | the merged config before profile selection, including limits |
@@ -58,7 +58,7 @@ To find the CLI (`omt`, `.omt/bin/omt`, or the manual steps), follow [The CLI](r
 | `omt lock run <name> [--wait <seconds>] -- <command>` | runs a command under a shared build lock and returns its exit code |
 | `omt lock list` | each lock's state and the holder of a held lock |
 
-Pass `delegateTask` to `delegate_task` unchanged. Record the dispatch with the printed `ledger.dispatched` line after replacing `<taskId>`. Use [delegation.md](references/delegation.md#getting-the-arguments) for retries and plan-mode dispatch.
+Pass `delegateTask` to `delegate_task` unchanged. Record the dispatch with the printed `ledger.dispatched` line after replacing `<taskId>`. Use [delegation.md](references/delegation.md#dispatching-a-child) for retries and plan-mode dispatch.
 
 ## Shared references
 
@@ -66,7 +66,7 @@ Pass `delegateTask` to `delegate_task` unchanged. Record the dispatch with the p
 - [roles.md](references/roles.md): the default roles, when to pick each, manual resolution, effort options, fallback, custom roles.
 - [brief.md](references/brief.md): the brief layout, how to write the task text, and a full example.
 - [results.md](references/results.md): how to read each result block and verify a claim.
-- [frontend-design.md](references/frontend-design.md): when design and UI work load Anthropic's optional `frontend-design` skill, and how setup recommends it.
+- [frontend-design.md](references/roles.md): when design and UI work load Anthropic's optional `frontend-design` skill, and how setup recommends it.
 - [worktrees.md](references/worktrees.md): the T3 worktree setup script. Check it on the first run in a project, keep a compatible setup, and activate a new one only from the base branch.
 - `references/roles/<role>.md`: one persona per role, for example [execute.md](references/roles/execute.md).
 - `references/results/<kind>.md`: one result contract per kind, for example [work.md](references/results/work.md).

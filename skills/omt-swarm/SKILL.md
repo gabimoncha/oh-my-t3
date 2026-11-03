@@ -117,7 +117,7 @@ The task tells the reviewer:
 - Report each other finding, such as a finding across tracks or a finding that changes the plan.
 - List each fix under `FIXES`, with its track and its absolute paths.
 
-Build the brief with `omt brief review --task-file - --context-file <file> --scope <track worktree>/<path> ... --title "review: <slug> tracks" --plan <slug> --unit REVIEW --round 1 --attempt 1 --against <your family> --save --json`. Dispatch it with `mode: "wait"`, and record the dispatch and the result ([results.md](../omt/references/results.md#recording)). Then settle the child.
+Build the brief with `omt brief review --task-file - --context-file <file> --scope <track worktree>/<path> ... --title "review: <slug> tracks" --plan <slug> --unit REVIEW --round 1 --attempt 1 --against <your family> --save --json`. Dispatch it with `mode: "wait"`, and record the dispatch and the result ([results.md](../omt/references/delegation.md#dispatching-a-child)). Then settle the child.
 
 Done when: the review child returned a result block and it is recorded in the ledger.
 

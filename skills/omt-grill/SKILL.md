@@ -13,7 +13,7 @@ You do the grill yourself. Children only read broad areas (`explore`), read docs
 
 - You wait for each child inside your turn ([delegation.md](../omt/references/delegation.md#waiting)). For one child, call `delegate_task` with `mode: "wait"`. For parallel children, dispatch each with `mode: "async"`, then call `t3_thread_wait` with `threadId` and `runId` for each.
 - You end your turn only for the owner: a batch of questions or the hand-off.
-- Record every child dispatch and every result in the ledger ([results.md](../omt/references/results.md#recording)).
+- Record every child dispatch and every result in the ledger ([results.md](../omt/references/delegation.md#dispatching-a-child)).
 - A question that the code, the docs, or the web can answer is not an owner question. Find the answer and cite it.
 
 ## Steps
@@ -68,7 +68,7 @@ Done when: the `grill` role resolves, and your reply has the goal and each area 
 
 Read the code that the goal touches yourself. Send only broad reads to read-only `explore` children, and questions about docs or the web to read-only `research` children, one narrow question each, in parallel. Build each brief with `omt brief <explore|research> --task-file - --title "<role> GX<k>: <question>" --plan <slug> --unit GX<k> --round 1 --attempt 1 --save --json`. The units are `GX<k>`, so the later plan's explore units `E<k>` get their own request ids.
 
-Dispatch them with `mode: "async"`, record each dispatch ([results.md](../omt/references/results.md#recording)), and wait for them in this turn ([delegation.md](../omt/references/delegation.md#waiting)). Then read each result, record it, and settle the child ([delegation.md](../omt/references/delegation.md#releasing-children)). Spot-check one citation per child.
+Dispatch them with `mode: "async"`, record each dispatch ([results.md](../omt/references/delegation.md#dispatching-a-child)), and wait for them in this turn ([delegation.md](../omt/references/delegation.md#waiting)). Then read each result, record it, and settle the child ([delegation.md](../omt/references/delegation.md#releasing-children)). Spot-check one citation per child.
 
 Done when: your reply has the facts that the goal rests on, each with a `path:line` or URL citation.
 
