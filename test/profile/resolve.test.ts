@@ -76,10 +76,13 @@ test("custom profiles without extends inherit normal, and preset workflows are c
   assert.equal(prototype.workflow.design.variants, 1);
   assert.equal(prototype.workflow.build.failureProofs, "off");
   assert.equal(prototype.workflow.build.oracle, "off");
-  const review = resolveProfile(config, "pr-review");
-  assert.deepEqual(review.workflow.review, {
+  assert.deepEqual(normal.workflow.review, {
     reviewers: "auto", families: "one", oracle: "on", fixLoop: "offer",
     ci: "fix", verify: "changed-flows", tests: "offer", guardrails: "propose", crap: "report",
+  });
+  assert.deepEqual(prototype.workflow.review, {
+    reviewers: 1, families: "one", oracle: "off", fixLoop: "offer",
+    ci: "off", verify: "off", tests: "off", guardrails: "off", crap: "off",
   });
 });
 
@@ -106,7 +109,7 @@ test("profile errors name unknown names, cycles, and chains deeper than eight", 
     assert.throws(() => resolveProfile(DEFAULT_CONFIG, name), (error: unknown) => {
       assert.ok(omtExit(2)(error));
       assert.match(error.message, new RegExp(`unknown profile "${name}" in chain: ${name}`));
-      assert.equal(error.hint, "known profiles: normal, prototype, pr-review");
+      assert.equal(error.hint, "known profiles: normal, prototype");
       return true;
     });
   }
@@ -138,9 +141,9 @@ test("effectiveConfig selects argument, plan, project, user, then default withou
   writeFile(user, JSON.stringify({ profile: "prototype" }));
   assert.equal(effectiveConfig(await loadConfig(ctx)).profile.name, "prototype");
   assert.equal(effectiveConfig(await loadConfig(ctx)).profile.source, "config");
-  writeFile(project, JSON.stringify({ profile: "pr-review" }));
+  writeFile(project, JSON.stringify({ profile: "custom", profiles: { custom: { description: "Custom." } } }));
   const loaded = await loadConfig(ctx);
-  assert.equal(effectiveConfig(loaded).profile.name, "pr-review");
+  assert.equal(effectiveConfig(loaded).profile.name, "custom");
   assert.equal(effectiveConfig(loaded).profile.source, "config");
   assert.equal(effectiveConfig(loaded, { planProfile: "prototype" }).profile.name, "prototype");
   assert.equal(effectiveConfig(loaded, { planProfile: "prototype" }).profile.source, "plan");
@@ -148,7 +151,22 @@ test("effectiveConfig selects argument, plan, project, user, then default withou
   assert.equal(argument.profile.name, "normal");
   assert.equal(argument.profile.source, "argument");
   assert.equal(argument.config.profile, "normal");
-  assert.equal(loaded.config.profile, "pr-review");
+  assert.equal(loaded.config.profile, "custom");
+  assert.deepEqual(argument.issues, loaded.issues);
+  const retired = (source: string) => ({
+    source, path: "", severity: "warning", message: 'profile "pr-review" is no longer used; normal runs the PR steps',
+  });
+  for (const [options, source] of [
+    [{ profile: "pr-review" }, "--profile"],
+    [{ profile: "pr-review", planProfile: "prototype" }, "--profile"],
+    [{ planProfile: "pr-review" }, "plan header"],
+  ] as const) {
+    const result = effectiveConfig(loaded, options);
+    assert.equal(result.profile.name, "normal");
+    assert.equal(result.profile.workflow.review.ci, "fix");
+    assert.equal(result.config.profile, "normal");
+    assert.deepEqual(result.issues, [...loaded.issues, retired(source)]);
+  }
   writeFile(project, JSON.stringify({ profile: "normal" }));
   assert.equal(effectiveConfig(await loadConfig(ctx)).profile.source, "default");
 });

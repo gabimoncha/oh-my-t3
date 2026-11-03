@@ -78,7 +78,7 @@ Give the tour when the user asks for one, or offer it once when the user is new 
 1. What omt is. The T3 thread that runs an omt skill is the main thread. It explores, plans, and builds the units itself. Child tasks on role-routed models review and test the result, and a large independent unit can go to a child too. The skills hold the workflows, and the CLI gives them the routes, the briefs, and the plan state.
 2. The doctor check. Run `omt doctor --project --dry-run` as step 3 says, and explain each line. `PASS` needs nothing, `INFO` is a note, and `WARN` and `FAIL` lines print their fix.
 3. A first task. Suggest a small task, such as `$omt-ulw add a --version flag to the CLI`. Say what happens: the main thread explores, asks, plans, and builds, then one review child and one QA child check the work. Read the limits from `omt profile show --json`, in `limits`.
-4. A review. Suggest `$omt-code-review the uncommitted changes`. For a pull request, `$omt-code-review --profile pr-review <number>`.
+4. A review. Suggest `$omt-code-review the uncommitted changes`. For a pull request, `$omt-code-review <number>`. It runs all PR steps, and `--profile prototype` turns them off.
 5. A profile. Run `omt profile list`. Show `$omt-ulw --profile prototype <task>` for one run. To make a profile the default, offer `omt-setup`.
 
 Done when: the user saw each step that they wanted, or said stop.

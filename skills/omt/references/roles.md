@@ -8,7 +8,6 @@ A role names a kind of work. The config maps each role to a chain of rungs (prov
 | --- | --- | --- | --- |
 | `explore` | read-only | research | One narrow question about this repository, answered with `path:line` citations. |
 | `research` | read-only | research | A question that needs docs, the web, or other repositories. |
-| `plan` | edit | plan | Turning a goal into a plan file. Use it when the plan is large enough to hand off. |
 | `plan-review` | read-only | review | Checking a plan for gaps before any unit runs. Cross-family. Pass the plan author's provider with `--against`. |
 | `grill` | read-only | grill | Testing a goal before it has a plan: edge cases, open questions, and options. Cross-family. One child per grill, with the main thread's family in `--against`. |
 | `execute` | edit | work | One large planned unit with a disjoint scope, built as an independent track while the main thread builds the rest. |
@@ -16,7 +15,7 @@ A role names a kind of work. The config maps each role to a chain of rungs (prov
 | `oracle` | edit | review | The final gate. Attack the finished change from the family other than the main implementer's. Fixes local findings when its access allows edits. Cross-family. |
 | `qa` | edit | test | Running the given check commands and device flows for a verdict with exit codes, logs, and screenshots. Edits nothing and writes no tests. |
 | `guardrail` | read-only | guardrail | Turning review findings into deterministic checks and rule fixes. Proposes changes and edits no files. |
-| `writing` | edit | work | Documentation and other prose. |
+| `writing` | edit | work | One docs unit (documentation or other prose only) as an independent track. |
 | `design` | edit | work | Design variants of each screen and the design spec for screens and flows ([omt-design](../../omt-design/SKILL.md)). |
 | `ui` | edit | work | One UI unit, built from its approved design spec or the task requirements as an independent track, when the main thread is not Opus. |
 
@@ -48,7 +47,6 @@ Use the access and interaction mode from `omt roles`. In the current defaults, `
 | --- | --- | --- |
 | `explore` | codex / gpt-6.1-terra / low | claudeAgent / claude-haiku-5-5 / medium |
 | `research` | codex / gpt-6.1-sol / low | claudeAgent / claude-sonnet-5-5 / medium |
-| `plan` | claudeAgent / claude-opus-5-5 / medium | codex / gpt-6-astra / high |
 | `plan-review` | codex / gpt-6-astra / medium | claudeAgent / claude-opus-5-5 / medium |
 | `grill` | codex / gpt-6-astra / medium | claudeAgent / claude-opus-5-5 / medium |
 | `execute` | claudeAgent / claude-opus-5-5 / low | codex / gpt-6.1-sol / high |
@@ -80,7 +78,7 @@ The effort option id depends on the driver:
 | `pi` | `thinking` | unchanged |
 | `opencode` | `variant` | `off` and `minimal` become `low`; `max` becomes `xhigh` |
 
-For any other driver, send no effort option. Set `role` to the T3 role (`research` for explore and research, `design` for plan and design, `review` for plan-review, grill, review, oracle, and guardrail, `implementation` for execute, writing, and ui, `test` for qa). Set `interactionMode` from the Access column (`plan` for read-only, `default` for edit) and `runtimeMode` to `inherit`.
+For any other driver, send no effort option. Set `role` to the T3 role (`research` for explore and research, `design` for design, `review` for plan-review, grill, review, oracle, and guardrail, `implementation` for execute, writing, and ui, `test` for qa). Set `interactionMode` from the Access column (`plan` for read-only, `default` for edit) and `runtimeMode` to `inherit`.
 
 ## Fast mode
 

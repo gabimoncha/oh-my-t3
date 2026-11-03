@@ -1,15 +1,16 @@
 import { createHash } from "node:crypto";
+import { dirname } from "node:path";
 import { readConfigTarget, writeConfigTarget } from "../target.ts";
 import type { ConfigTarget } from "../target.ts";
 import { findProjectRoot, projectConfigPath, userConfigPath } from "../../paths.ts";
 import { EFFORT_LADDER } from "../../types.ts";
-import type { CliContext, ConfigIssue, OmtConfig, ProfileConfig } from "../../types.ts";
+import type { Capabilities, CliContext, ConfigIssue, OmtConfig, ProfileConfig } from "../../types.ts";
 import { OmtError } from "../../util/errors.ts";
 import { readFileIfExists } from "../../util/fs.ts";
 import { isRecord } from "../../util/json.ts";
 import { plural } from "../../util/output.ts";
 import { configLeaves, DEFAULT_CONFIG } from "../defaults.ts";
-import { activeDefaults } from "../defaultsState.ts";
+import { activeDefaults, isCompleteDefaults } from "../defaultsState.ts";
 import { explainConfig } from "../explain.ts";
 import type { ExplainEntry, ExplainReport, ExplainSource } from "../explain.ts";
 import { parseJsonc, setJsoncValue } from "../jsonc.ts";
@@ -40,10 +41,24 @@ import {
   T3_ROLE_VALUES,
   WORKFLOW_RULES,
 } from "../validate.ts";
+import { bundledSkillNames, editorCatalog } from "./catalog.ts";
+import type { Catalog } from "./catalog.ts";
 import { lineDiff } from "./diff.ts";
 import type { DiffLine } from "./diff.ts";
 
 type FileKind = "user" | "project";
+
+// Maintainer mode, which `bun run defaults:edit` starts in an omt clone: the editor saves the built-in defaults in
+// defaultsPath, on an empty base, and the skill files under skillsRoot. The page shows the one file as "user".
+export interface MaintainerTarget {
+  defaultsPath: string;
+  skillsRoot: string;
+}
+
+const EMPTY_BASE = {
+  config: { version: 1, profile: "normal", profiles: {}, models: {}, roles: {}, limits: {} } as unknown as OmtConfig,
+  source: "none",
+};
 
 // An expected failure of an editor request. The server sends it as { ok: false, code, message, hint?, newErrors? }.
 export class EditorError extends Error {
@@ -101,6 +116,7 @@ export interface EditorFile {
 
 export interface EditorState {
   version: string;
+  mode: "config" | "defaults";
   defaults: { source: string };
   files: EditorFile[];
   profiles: string[];
@@ -108,6 +124,8 @@ export interface EditorState {
   issues: ConfigIssue[];
   explain: ExplainReport; // no effective entries when neither the selected profile nor normal resolves; the issues say why
   vocab: typeof VOCAB;
+  catalog: Catalog;
+  skills: string[]; // the bundled skills, by folder name
 }
 
 export interface EditRequest {
@@ -130,17 +148,22 @@ export function textHash(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
-function configFiles(ctx: CliContext): { kind: FileKind; path: string }[] {
+function configFiles(ctx: CliContext, maintainer?: MaintainerTarget): { kind: FileKind; path: string }[] {
+  if (maintainer !== undefined) return [{ kind: "user", path: maintainer.defaultsPath }];
   return [
     { kind: "user", path: userConfigPath(ctx.env, ctx.homedir) },
     { kind: "project", path: projectConfigPath(findProjectRoot(ctx.cwd)) },
   ];
 }
 
-async function readLayers(ctx: CliContext) {
-  const files = await Promise.all(configFiles(ctx).map(async (file) => ({ ...file, text: await readFileIfExists(file.path) })));
+function baseDefaults(ctx: CliContext, maintainer?: MaintainerTarget) {
+  return maintainer === undefined ? activeDefaults(ctx) : Promise.resolve(EMPTY_BASE);
+}
+
+async function readLayers(ctx: CliContext, maintainer?: MaintainerTarget) {
+  const files = await Promise.all(configFiles(ctx, maintainer).map(async (file) => ({ ...file, text: await readFileIfExists(file.path) })));
   const layers = files.map((file) => layerFromText(file.kind, file.path, file.text));
-  return { files, layers, loaded: mergeConfigLayers(layers, await activeDefaults(ctx)) };
+  return { files, layers, loaded: mergeConfigLayers(layers, await baseDefaults(ctx, maintainer)) };
 }
 
 function valueAt(value: unknown, path: readonly string[]): unknown {
@@ -200,32 +223,39 @@ function explainSelected(layers: ConfigFileLayer[], loaded: ReturnType<typeof me
   return { ...report, profile: { name: config.profile, source }, root, effective: [] };
 }
 
-export async function editorState(ctx: CliContext): Promise<EditorState> {
-  const { files, layers, loaded } = await readLayers(ctx);
+export async function editorState(ctx: CliContext, capabilities?: Capabilities, maintainer?: MaintainerTarget): Promise<EditorState> {
+  const { files, layers, loaded } = await readLayers(ctx, maintainer);
   return {
     version: ctx.version,
+    mode: maintainer === undefined ? "config" : "defaults",
     defaults: {
       source: loaded.defaultsSource,
     },
-    files: files.map((file, index) => ({
-      kind: file.kind,
-      path: file.path,
-      present: file.text !== undefined,
-      hash: file.text === undefined ? null : textHash(file.text),
-      text: file.text ?? null,
-      issues: (layers[index] as ConfigFileLayer).issues,
-    })),
+    files: [
+      ...files.map((file, index) => ({
+        kind: file.kind,
+        path: file.path,
+        present: file.text !== undefined,
+        hash: file.text === undefined ? null : textHash(file.text),
+        text: file.text ?? null,
+        issues: (layers[index] as ConfigFileLayer).issues,
+      })),
+      // The page expects both files, so maintainer mode sends the project file as absent.
+      ...(maintainer === undefined ? [] : [{ kind: "project" as const, path: "", present: false, hash: null, text: null, issues: [] }]),
+    ],
     profiles: Object.keys(loaded.config.profiles),
     selectedProfile: loaded.config.profile,
     issues: loaded.issues,
     explain: explainSelected(layers, loaded),
     vocab: VOCAB,
+    catalog: await editorCatalog(ctx, loaded.config, capabilities),
+    skills: await bundledSkillNames(maintainer === undefined ? ctx.packageRoot : dirname(maintainer.skillsRoot)),
   };
 }
 
-export async function explainProfile(ctx: CliContext, name: string | null): Promise<ExplainReport> {
+export async function explainProfile(ctx: CliContext, name: string | null, maintainer?: MaintainerTarget): Promise<ExplainReport> {
   if (name === null || name === "") throw new EditorError(400, "bad_request", "api/explain needs ?profile=<name>");
-  const { layers, loaded } = await readLayers(ctx);
+  const { layers, loaded } = await readLayers(ctx, maintainer);
   const known = Object.keys(loaded.config.profiles);
   if (!known.includes(name)) {
     throw new EditorError(400, "unknown_profile", `unknown profile "${name}"`, { hint: `known profiles: ${known.join(", ")}` });
@@ -288,9 +318,10 @@ function issueKey(issue: ConfigIssue): string {
 }
 
 // Applies the edits to the text read in this call and checks the result together with the other file.
-async function prepare(ctx: CliContext, request: EditRequest) {
-  const files = configFiles(ctx);
-  const file = files.find((entry) => entry.kind === request.file) as { kind: FileKind; path: string };
+async function prepare(ctx: CliContext, request: EditRequest, maintainer?: MaintainerTarget) {
+  const files = configFiles(ctx, maintainer);
+  const file = files.find((entry) => entry.kind === request.file);
+  if (file === undefined) throw badRequest(`the editor edits only the ${files.map((entry) => entry.kind).join(" and ")} file here`);
   const target: ConfigTarget = { scope: request.file, path: file.path };
   let snapshot: string;
   try {
@@ -312,21 +343,29 @@ async function prepare(ctx: CliContext, request: EditRequest) {
     }
     throw error;
   }
-  const other = files.find((entry) => entry.kind !== request.file) as { kind: FileKind; path: string };
-  const otherText = await readFileIfExists(other.path);
+  const other = files.find((entry) => entry.kind !== request.file);
+  const otherText = other === undefined ? undefined : await readFileIfExists(other.path);
   const layersWith = (text: string) =>
     files.map((entry) => layerFromText(entry.kind, entry.path, entry.kind === request.file ? text : otherText));
-  const baseDefaults = await activeDefaults(ctx);
-  const current = mergeConfigLayers(layersWith(snapshot), baseDefaults);
+  const base = await baseDefaults(ctx, maintainer);
+  const current = mergeConfigLayers(layersWith(snapshot), base);
   const candidateLayers = layersWith(next);
-  const candidate = mergeConfigLayers(candidateLayers, baseDefaults);
+  const candidate = mergeConfigLayers(candidateLayers, base);
+  if (maintainer !== undefined && !isCompleteDefaults((candidateLayers[0] as ConfigFileLayer).layer)) {
+    candidate.issues.push({
+      severity: "error",
+      source: file.path,
+      path: "",
+      message: "the built-in defaults must keep version, profile, the normal workflow, every limit, and each role's and profile's required keys",
+    });
+  }
   const known = new Set(current.issues.map(issueKey));
   const newErrors = candidate.issues.filter((issue) => issue.severity === "error" && !known.has(issueKey(issue)));
   return { target, snapshot, next, current, candidate, candidateLayers, newErrors };
 }
 
-export async function previewEdits(ctx: CliContext, request: EditRequest): Promise<PreviewResult> {
-  const prepared = await prepare(ctx, request);
+export async function previewEdits(ctx: CliContext, request: EditRequest, maintainer?: MaintainerTarget): Promise<PreviewResult> {
+  const prepared = await prepare(ctx, request, maintainer);
   const result: PreviewResult = {
     text: prepared.next,
     diff: lineDiff(prepared.snapshot, prepared.next),
@@ -336,8 +375,13 @@ export async function previewEdits(ctx: CliContext, request: EditRequest): Promi
   return result;
 }
 
-export async function writeEdits(ctx: CliContext, request: EditRequest): Promise<{ ok: true; state: EditorState }> {
-  const prepared = await prepare(ctx, request);
+export async function writeEdits(
+  ctx: CliContext,
+  request: EditRequest,
+  capabilities?: Capabilities,
+  maintainer?: MaintainerTarget,
+): Promise<{ ok: true; state: EditorState }> {
+  const prepared = await prepare(ctx, request, maintainer);
   if (prepared.newErrors.length > 0) {
     const count = plural(prepared.newErrors.length, "config error");
     throw new EditorError(422, "config_invalid", `the change adds ${count}; nothing was written`, { newErrors: prepared.newErrors });
@@ -350,5 +394,5 @@ export async function writeEdits(ctx: CliContext, request: EditRequest): Promise
       throw error;
     }
   }
-  return { ok: true, state: await editorState(ctx) };
+  return { ok: true, state: await editorState(ctx, capabilities, maintainer) };
 }

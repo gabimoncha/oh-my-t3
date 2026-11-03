@@ -11,32 +11,10 @@
 <body>
 <div class="app" id="app">
 <header class="cmdbar" id="cmdbar">
-<a class="wordmark" href="#/">omt</a>
-<a class="cmd-config" href="#/">config</a>
-<span class="cmd-version" id="version"></span>
-<span class="spacer"></span>
-<label class="cmd-label" for="profile-picker">profile</label>
-<span class="picker">
-<select id="profile-picker" disabled><option>…</option></select>
-<span class="caret" aria-hidden="true">▼</span>
-</span>
-<span class="cmd-label" id="edit-in-label">edit in</span>
-<div class="seg" id="edit-in" role="radiogroup" aria-label="Edit in"></div>
+<a class="brand" href="#/skills/build"><strong>omt</strong> config</a>
 </header>
 <main class="content" id="content">
-<section class="screen-effective">
-<div class="pipeline" aria-hidden="true"></div>
-<div class="columns">
-<div class="tree-col">
-<div class="tree loading" role="tree" aria-label="Config keys" aria-busy="true">
-<p class="loading-line">reading config files…</p>
-<p class="loading-row">▾ roles <span class="bar">░░░░░░░░░░░░░░</span></p>
-<p class="loading-row">▾ limits <span class="bar">░░░░░░░░░░░</span></p>
-</div>
-</div>
-<aside class="inspector"></aside>
-</div>
-</section>
+<p class="loading-line" role="status">Reading config files…</p>
 </main>
 <div class="review-host" id="review-host"></div>
 <div class="issues-pop" id="issues-pop" hidden></div>

@@ -81,8 +81,24 @@ function parseChoice(value: unknown, where: string): OptionChoice {
   return choice;
 }
 
+// Newer T3 builds send an option as { id, values, default } with no type and no choice objects.
+function parseCompactDescriptor(obj: Json, where: string): OptionDescriptor {
+  const id = requiredString(obj, "id", where);
+  const values = optionalArray(obj, "values", where);
+  if (values.length > 0 && values.every((v) => typeof v === "boolean")) return { id, type: "boolean" };
+  return {
+    id,
+    type: "select",
+    options: values.map((v, i) => {
+      if (typeof v !== "string" || v === "") fail(`${where}.values[${i}] must be a non-empty string or a boolean`);
+      return v === obj.default ? { id: v, isDefault: true } : { id: v };
+    }),
+  };
+}
+
 function parseDescriptor(value: unknown, where: string): OptionDescriptor {
   const obj = objectAt(value, where);
+  if (obj.type === undefined && Array.isArray(obj.values)) return parseCompactDescriptor(obj, where);
   const descriptor: OptionDescriptor = {
     id: requiredString(obj, "id", where),
     type: requiredString(obj, "type", where),

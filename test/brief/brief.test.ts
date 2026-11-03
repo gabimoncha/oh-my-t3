@@ -361,8 +361,13 @@ test("brief, roles, and route apply configured, plan, and explicit profiles, inc
     }
     const unknown = await project.run([...argv, "--profile", "missing"]);
     assert.equal(unknown.code, 2);
-    assert.match(unknown.ctx.err(), /known profiles: normal, prototype, pr-review, configured, planned, override/);
+    assert.match(unknown.ctx.err(), /known profiles: normal, prototype, configured, planned, override/);
+    const retired = await project.runOk([...argv, "--profile", "pr-review"]);
+    assert.match(retired.ctx.err(), /warning --profile: profile "pr-review" is no longer used; normal runs the PR steps\n/);
   }
+  const retiredBrief = await project.runOk(["brief", "execute", "--task", "x", "--profile", "pr-review", "--max-depth", "2"]);
+  assert.match(retiredBrief.ctx.out(), /--profile normal\b/);
+  assert.doesNotMatch(retiredBrief.ctx.out(), /pr-review/);
   const table = await project.runOk(["roles", "--role", "execute", "--plan", "p", "--capabilities", LIVE_CAPS_FILE]);
   assert.match(table.ctx.out(), /codex\/gpt-6.1-sol reasoningEffort=high serviceTier=priority/);
   const missing = await project.run(["profile", "show", "--plan", "review-x", "--json"]);

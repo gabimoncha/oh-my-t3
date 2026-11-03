@@ -28,23 +28,24 @@ An editor that reads JSON Schema, such as VS Code, uses this line to complete ke
 
 A role, such as `execute` or `review`, maps to an ordered chain of provider, model, and effort. The agent uses the first entry that T3 accepts. Each entry in the chain is a rung.
 
-| Role | Use | First choice | Fallback |
-| --- | --- | --- | --- |
-| `explore` | Answer one narrow question about this repository | GPT-6.1-Terra, low | Claude Haiku 5.5, medium |
-| `research` | Answer a question from docs, the web, and code | GPT-6.1-Sol, low | Claude Sonnet 5.5, medium |
-| `plan` | Turn a goal into a plan file | Claude Opus 5.5, medium | GPT-6-Astra, high |
-| `plan-review` | Check a plan for gaps | GPT-6-Astra, medium | Claude Opus 5.5, medium |
-| `grill` | Test a goal before it has a plan: edge cases, questions, and options | GPT-6-Astra, medium | Claude Opus 5.5, medium |
-| `execute` | Implement one planned unit that the main thread hands off as an independent track | Claude Opus 5.5, low | GPT-6.1-Sol, high |
-| `review` | Review a diff against its brief, fix local findings, and report the rest | GPT-6-Astra, medium | Claude Opus 5.5, medium |
-| `oracle` | Attack the finished change before it counts as done, fix local findings, and report the rest | GPT-6-Astra, medium | Claude Opus 5.5, medium |
-| `qa` | Run the check commands and device flows, and return each exit code with its log and screenshots. Edits nothing. | GPT-6.1-Sol, medium | Claude Sonnet 5.5, low |
-| `guardrail` | Propose checks and rule fixes for review findings | Claude Opus 5.5, high | GPT-6-Astra, high |
-| `writing` | Write or edit documentation | Claude Opus 5.5, medium | GPT-6-Astra, medium |
-| `design` | Design screens and flows, and write a design spec | Claude Opus 5.5, medium | GPT-6-Astra, high |
-| `ui` | Implement one UI unit from a design spec or task requirements | Claude Opus 5.5, low | GPT-6.1-Sol, high |
+| Role | Use | Used by | First choice | Fallback |
+| --- | --- | --- | --- | --- |
+| `explore` | Answer one narrow question about this repository | `omt-research`, `omt-plan`, `omt-grill` | GPT-6.1-Terra, low | Claude Haiku 5.5, medium |
+| `research` | Answer a question from docs, the web, and code | `omt-research` | GPT-6.1-Sol, low | Claude Sonnet 5.5, medium |
+| `plan-review` | Check a plan for gaps | `omt-plan` | GPT-6-Astra, medium | Claude Opus 5.5, medium |
+| `grill` | Test a goal before it has a plan: edge cases, questions, and options | `omt-grill` | GPT-6-Astra, medium | Claude Opus 5.5, medium |
+| `execute` | Implement one planned unit that the main thread hands off as an independent track | `omt-ulw` | Claude Opus 5.5, low | GPT-6.1-Sol, high |
+| `review` | Review a diff against its brief, fix local findings, and report the rest | `omt-ulw`, `omt-code-review`, `omt-swarm` | GPT-6-Astra, medium | Claude Opus 5.5, medium |
+| `oracle` | Attack the finished change before it counts as done, fix local findings, and report the rest | `omt-ulw`, `omt-code-review` | GPT-6-Astra, medium | Claude Opus 5.5, medium |
+| `qa` | Run the check commands and device flows, and return each exit code with its log and screenshots. Edits nothing. | `omt-ulw`, `omt-code-review`, `omt-swarm` | GPT-6.1-Sol, medium | Claude Sonnet 5.5, low |
+| `guardrail` | Propose checks and rule fixes for review findings | `omt-code-review` | Claude Opus 5.5, high | GPT-6-Astra, high |
+| `writing` | Write or edit documentation in one docs unit that the main thread hands off as an independent track | `omt-ulw` | Claude Opus 5.5, medium | GPT-6-Astra, medium |
+| `design` | Design screens and flows, and write a design spec | `omt-design` | Claude Opus 5.5, medium | GPT-6-Astra, high |
+| `ui` | Implement one UI unit from a design spec or task requirements | `omt-ulw` | Claude Opus 5.5, low | GPT-6.1-Sol, high |
 
 The table shows the current defaults. The fallback runs when T3 refuses the first choice. You review the designs.
+
+The `plan` role was removed, because the main thread writes every plan itself. A config file that still sets `roles.plan` loads with the warning `roles.plan is no longer used; remove it`.
 
 `plan-review`, `grill`, `review`, and `oracle` are cross-family roles. The reviewer comes from the model family that did not do the work. GPT-6-Astra reviews Claude work, and Claude Opus 5.5 reviews GPT work. The skills pass the worker to `omt brief --against`, and the CLI puts the rungs of the other family first. When the other family is not available, the same family reviews. A build oracle uses the family that did not do most of the implementation. A review oracle uses the family that did not do most of the reviews.
 
@@ -136,11 +137,10 @@ To give a role its own persona, write `.omt/roles/<role>.md`. The file content i
 
 ## Choose a profile
 
-A profile is a named set of workflow switches, limits, and role overrides. omt has three presets:
+A profile is a named set of workflow switches, limits, and role overrides. omt has two presets:
 
-- `normal` reviews the build again after each round of fixes, and the reviewer of a HEAVY run is the oracle. The main thread proves that each new test can fail.
-- `prototype` reviews the build once, with one plan reviewer on any family. It skips the oracle and the failure proofs, allows 2 review rounds, and draws 1 design variant per screen.
-- `pr-review` adds CI fixes, verification of changed flows, CRAP reports, test offers, and guardrail proposals to the normal review workflow.
+- `normal` reviews the build again after each round of fixes, and the reviewer of a HEAVY run is the oracle. The main thread proves that each new test can fail. A pull request review runs all PR steps: CI fixes, verification of changed flows, CRAP reports, test offers, and guardrail proposals.
+- `prototype` reviews the build once, with one plan reviewer on any family. It skips the oracle and the failure proofs, allows 2 review rounds, and draws 1 design variant per screen. It turns off the CI check and the other PR steps.
 
 Run `omt profile list` to see the presets and your custom profiles. Run `omt profile show prototype --json` to see the resolved workflow, limits, roles, and models of one profile.
 
@@ -288,6 +288,10 @@ The main thread runs the build, so the keys that served per-unit dispatch have n
 
 A config file that still sets one of them loads. omt ignores the key and prints one warning for each key, such as `profiles.normal.workflow.build.checkpoint is no longer used; remove it`. Delete the key to clear the warning.
 
+## Remove the `pr-review` profile
+
+The `pr-review` profile was removed, because `normal` now runs all PR steps. To review a pull request, type `omt-code-review <number>`. A config file that still declares `profiles.pr-review` loads with the warning `profiles.pr-review is no longer used; remove it`. A selection of `pr-review` by the `profile` key, `--profile`, a plan header, or `extends` uses `normal` and warns `profile "pr-review" is no longer used; normal runs the PR steps`. Delete the declaration and change each selection to `normal` to clear the warnings.
+
 ## Remove the `visuals` key
 
 omt no longer shows a plan as a page, so the `visuals` key has no effect. `omt-plan` writes the plan summary in its reply. A config file that still sets `visuals` loads with the warning `visuals is no longer used; remove it`. Delete the key to clear the warning.
@@ -360,32 +364,37 @@ Press Ctrl-C to stop. The editor also stops when you close its tab.
 
 omt starts a local server and opens the URL in your default browser. With `--no-open`, it only prints the URL, and you open it yourself. The page reads the same value sources as `omt config explain`. The editor edits only a config file that exists, so run `omt config init` or `omt init` first.
 
-The page shows the config as a tree of keys. Each row shows the value, a strip of four cells, and the layer that sets the value, such as `defaults`, `user`, or `profile fast-proto (user)`. The cells of the strip are the accepted defaults, the user config, the project config, and the profile, in this order (`strip = D U P F`). The purple cell is the layer that wins. A gray cell is a layer that also sets the value, but a higher layer overrides it. Click a key to see its source stack, from the accepted defaults to the profile.
+With `--capabilities <file>`, the role editor lists the providers, models, effort levels, and fast mode that T3 reports. The file holds the output of the T3 tool `orchestrator_capabilities`, as for `omt detect`. The `omt-setup` skill can save this file and start the editor for you. Without the file, the provider list holds the harnesses that `omt detect` finds, and the model list holds the models that the config already names.
 
-To change one value:
+The page opens on **Skills**. It lists the 10 bundled skills. Build, Code review, Plan, and Design have a configured flow: select a stage to edit its settings. The flow shows conditions, review loops, QA retries, and the responsible actor. It does not show a live run. Every skill page shows the child roles that the skill starts and its instructions, the `SKILL.md` of the installed omt. The instructions are read-only, because `omt update` replaces the skill files.
 
-1. In the `profile` picker, select the profile that you want to see. The tree then shows the values of that profile. The picker writes nothing.
-2. In `edit in`, select `user` or `project`. This selects the file that gets the edit.
-3. Click the key in the tree.
-4. Under `EDIT IN user · PATH IN THIS FILE`, select the path in the file. For a key under `roles`, `limits`, or `models`, you can select the path of the selected profile, such as `profiles.fast-proto.limits.maxParallel`, or the root path, such as `limits.maxParallel (root)`. When a higher layer overrides a path, a warning shows below it, such as `▲ project overrides this value · it sets 4`. An edit of that path does not change what runs.
-5. Enter the value, and click `Queue edit`. The button changes to `Queued ✓`. To remove the edit from the queue, click `Undo`.
-6. Click `Review changes ⏎` in the status bar, or press Ctrl-Enter (Cmd-Enter on macOS). The review shows the queued edits, the diff of the file, and the result of the check, with one tab for each file.
-7. Click the write button, for example `Write 1 edit to user`. To change more values first, click `Back`.
+**Roles** lists child tasks and their model chains. Provider, Model, and Effort are dropdowns, and **Other model…** accepts a model that the list does not hold. **Profiles** shows each profile with the values that it changes and the three ways to use it: `--profile <name>` in the T3 composer for one run, **Make default** for every run, and `omt plan profile <slug> <name>` for a running plan. **Settings** holds the harnesses, the limits, and the model options. Each value has a source badge. Select the badge for help, source history, the exact edit path, and **Reset to inherited**.
+
+To change a value:
+
+1. Select a profile in **Show values for**. This shows the values of that profile on every page, and changes nothing that runs. While it loads, edits pause. If it fails, the page keeps the last profile that loaded.
+2. Select **Edit file** to choose Project or User. A missing optional file is gray and unavailable. The file help gives its path and init command.
+3. Select the edit scope. **Base settings** writes a root key. **Profile: <name>** writes a profile key. Workflow keys always belong to the preview profile. A warning identifies an edit that a higher layer overrides.
+4. Change the value in its row or stage panel. Dropdowns and segments stage changes immediately. Text and number fields stage changes on Enter or change. The row shows **Unsaved** and **Undo**. Role and profile forms use **Add changes** for their draft fields.
+5. Select **Review changes**, or press Ctrl-Enter. Use Cmd-Enter on macOS. The review shows the edits, the JSONC diff, and validation for one file.
+6. Select **Write project file** or **Write user file**. Each write changes one file. Changes for the other file stay unsaved.
+
+**Saved default** is separate from **Show values for**. Changing it stages an edit to the selected file's `profile` key. A command's profile or a plan header can still take precedence.
 
 The page follows these rules:
 
-- `Reset to inherited` queues the removal of the key from the selected file. The sentence below the button gives the value that runs after the removal. The button is off when the file does not set the key.
-- Click a role or a profile in the tree to open its editor. The `edit` link of the `harnesses · models · profile` group opens the root settings. These screens queue edits in the same way. To go back to the tree, press Esc when no field has focus.
-- Queued edits stay in the page until you write them. The status bar counts the queued edits of each file.
-- When the page loads the config again, for example after a write, an editor that you did not change shows the new values. An editor that you changed but did not queue keeps your input.
-- If the file of an unqueued edit changed, also through a write from the page, the editor shows `Based on older text. The file changed after you started this edit.` You cannot queue that input until you click `Keep my edit` or `Discard`. `Keep my edit` keeps your input on the new text, and the review shows what the write changes. `Discard` shows the new values.
-- Unqueued input stays when you leave an editor. The editor shows it again when you open it with the same profile and the same `Edit in` file. Each path in `PATH IN THIS FILE` keeps its own input. Each file keeps its input when you select the other file in `Edit in`, or when the page selects the other file because the selected file was deleted or stops parsing.
-- In a chain, an option key that you clear removes the option when you queue the chain. A key that is the same as another key of the rung stops the queue, and a message shows next to the key. The page keeps your text until you change it. While a `+ key=value` form has text, you cannot queue the chain, and the form shows `Press Enter to add the option, or clear it.`
-- When the edits add a config error, the `CHECK` block of the review shows the new errors, and the write button is off. A warning that the file already has does not block the write.
-- The defaults source is read-only. Use `omt doctor` or `omt update` to review and accept current defaults.
-- When the file changed on disk, the page shows `✕ CHANGED ON DISK`. Click `Reload…`, then `Drop 1 edit and reload` to drop the queued edits of that file and load the new file. The queued edits of the other file stay. To keep your edits, click `Keep editing`.
-- When a config file does not exist, its layer shows `absent`, and you cannot select it in `edit in`. Create the file with the command that the page shows, then reload the page. When a file does not parse, you cannot select it until you fix the file.
-- When the editor stops, the page shows `● disconnected · the editor stopped` and becomes read-only. omt does not write the queued edits. To edit again, run `omt config edit --web`.
+- The flows, the profile editor, and Settings share the same unsaved changes. A change in one view updates the others.
+- Profiles can override base settings. Other profiles inherit unset keys from `normal`.
+- **Reset to inherited** stages removal of a key from the selected file. Removing a role stages `null`. These actions have different effects.
+- A model chain shows its configured first choice and fallbacks. Reorder cards by drag or the arrow buttons. Fast mode has **Inherit**, **On**, and **Off**. Each card shows **Available in T3**, **Not in T3**, or **Model not in T3** when the editor has the T3 capabilities, and **Unverified** without them. A model that has no fast mode disables **On**.
+- For a cross-family role, **Main driver** previews the attempt order. Rung numbers keep their configured positions.
+- **Harnesses** has one checkbox for each driver, with what the editor detected. All on removes the `harnesses` key.
+- Unsaved form input stays when you change views, edit scope, or files. If its file changed, **Keep my edit** or **Discard** resolves the stale draft before you stage it.
+- The page asks before you leave with unsaved changes or form input. Changes remain in this tab until you write them.
+- If a file changes on disk, **Reload and review** keeps its unsaved changes and loads the newer file. Review the new diff before writing. **Discard changes** asks before it removes that file's changes.
+- New validation errors block a write. Warnings do not. A file that does not parse cannot be an edit destination.
+- If the server stops, the page becomes read-only and keeps unsaved changes in the tab. Start `omt config edit --web` again to edit.
+- Defaults are read-only. Use `omt doctor` or `omt update` to review and accept current defaults.
 
 Each write follows these rules:
 

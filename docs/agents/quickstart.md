@@ -246,7 +246,7 @@ Show the current setup:
 .omt/bin/omt profile show normal --json
 ```
 
-`omt roles` prints the selected target of each role. `omt profile list` prints the presets `normal`, `prototype`, and `pr-review`, and any custom profiles. `omt profile show <name> --json` prints the resolved workflow, limits, roles, and models of one profile.
+`omt roles` prints the selected target of each role. `omt profile list` prints the presets `normal` and `prototype`, and any custom profiles. `omt profile show <name> --json` prints the resolved workflow, limits, roles, and models of one profile.
 
 Tell the user how to change them:
 

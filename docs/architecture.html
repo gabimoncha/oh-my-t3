@@ -549,13 +549,13 @@ footer.page-footer ul { columns: 2 300px; }
   <div class="table-wrap" tabindex="0" role="region" aria-label="Build switches by profile">
     <table>
       <caption>Build switches by profile</caption>
-      <thead><tr><th scope="col">Switch</th><th scope="col">Step</th><th scope="col"><code>normal</code></th><th scope="col"><code>prototype</code></th><th scope="col"><code>pr-review</code></th></tr></thead>
+      <thead><tr><th scope="col">Switch</th><th scope="col">Step</th><th scope="col"><code>normal</code></th><th scope="col"><code>prototype</code></th></tr></thead>
       <tbody>
-        <tr><th scope="row"><code>build.review</code></th><td>8, 9</td><td><code>every-round</code></td><td><code>first-round</code></td><td><code>every-round</code></td></tr>
-        <tr><th scope="row"><code>build.qa</code></th><td>7</td><td><code>planned</code></td><td><code>planned</code></td><td><code>planned</code></td></tr>
-        <tr><th scope="row"><code>build.failureProofs</code></th><td>7</td><td><code>on</code></td><td><code>off</code></td><td><code>on</code></td></tr>
-        <tr><th scope="row"><code>build.oracle</code></th><td>8</td><td><code>heavy</code></td><td><code>off</code></td><td><code>heavy</code></td></tr>
-        <tr><th scope="row"><code>maxReviewRounds</code></th><td>9</td><td>4</td><td>2</td><td>4</td></tr>
+        <tr><th scope="row"><code>build.review</code></th><td>8, 9</td><td><code>every-round</code></td><td><code>first-round</code></td></tr>
+        <tr><th scope="row"><code>build.qa</code></th><td>7</td><td><code>planned</code></td><td><code>planned</code></td></tr>
+        <tr><th scope="row"><code>build.failureProofs</code></th><td>7</td><td><code>on</code></td><td><code>off</code></td></tr>
+        <tr><th scope="row"><code>build.oracle</code></th><td>8</td><td><code>heavy</code></td><td><code>off</code></td></tr>
+        <tr><th scope="row"><code>maxReviewRounds</code></th><td>9</td><td>4</td><td>2</td></tr>
       </tbody>
     </table>
   </div>
@@ -1163,7 +1163,7 @@ can dispatch: yes</code></pre>
       <dl>
         <dt>Trigger</dt><dd>Review uncommitted changes, a branch, a commit, or a PR. It replaces <code>omt-review</code>.</dd>
         <dt>Does</dt><dd>Reads the active profile, or the one that <code>--profile</code> names. Sizes the review by changed lines, without <code>docs/design/</code>. Under 200 lines: 1 reviewer over the whole change, which is the oracle when <code>review.oracle</code> is <code>on</code>. 200 lines or more: 2 groups under 1,000, 3 under 3,000, else 4, each with 1 <code>review</code> child, then 1 <code>oracle</code> over the whole change. A number from 1 to 4 in <code>review.reviewers</code> overrides the size rule. At most 4 reviewers and 1 oracle. Reviewers are report-only: each task runs in plan mode. The main thread waits in its turn, merges the findings, and makes every approved fix itself. Plan <code>review-&lt;slug&gt;</code>, units <code>G&lt;k&gt;</code>, <code>oracle</code>, and <code>FIX</code>.</dd>
-        <dt>Dispatches</dt><dd><code>review</code> and <code>oracle</code>. After fixes, 1 <code>review</code> child over all fixes of the round (<code>FIX</code>). For a pull request, its eleven PR steps can also dispatch <code>qa</code> for changed flows and new tests, and <code>guardrail</code>, as the <code>review.*</code> switches say. <code>omt-code-review --profile pr-review &lt;number&gt;</code> turns on every PR step.</dd>
+        <dt>Dispatches</dt><dd><code>review</code> and <code>oracle</code>. After fixes, 1 <code>review</code> child over all fixes of the round (<code>FIX</code>). For a pull request, its eleven PR steps can also dispatch <code>qa</code> for changed flows and new tests, and <code>guardrail</code>, as the <code>review.*</code> switches say. <code>omt-code-review &lt;number&gt;</code> with the <code>normal</code> profile runs every PR step, and the <code>prototype</code> profile turns them off.</dd>
         <dt>Hands off to</dt><dd>Returns findings to the user.</dd>
       </dl>
     </article>

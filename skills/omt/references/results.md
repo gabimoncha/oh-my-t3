@@ -8,7 +8,7 @@ Every role ends with a fixed result block. `task_status.summary` is the child's 
 | `review` | review, oracle, plan-review | [results/review.md](results/review.md) | `VERDICT: APPROVE \| REQUEST_CHANGES \| BLOCK` |
 | `test` | qa | [results/test.md](results/test.md) | `VERDICT: VERIFIED \| NOT VERIFIED \| INCONCLUSIVE` |
 | `research` | explore, research | [results/research.md](results/research.md) | `ANSWER:` |
-| `plan` | plan | [results/plan.md](results/plan.md) | `PLAN:` |
+| `plan` | none by default; a custom role can set it | [results/plan.md](results/plan.md) | `PLAN:` |
 | `guardrail` | guardrail | [results/guardrail.md](results/guardrail.md) | `VERDICT: PROPOSALS \| NONE` |
 | `grill` | grill | [results/grill.md](results/grill.md) | `VERDICT: OPEN \| CLEAR` |
 

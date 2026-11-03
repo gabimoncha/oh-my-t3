@@ -115,7 +115,7 @@ Done when: the evidence file exists and the user has the verdict and the offer.
 
 ## PR review
 
-Run these eleven steps for a pull request with any profile. `omt-code-review --profile pr-review <number>` enables all PR steps. Steps 1, 2, 6, and 10 always run. Step 11 applies its named switches. For a switch set to `off`, mark its step skipped and continue in order. Use the mode, dispatch, wait, ledger, limit, report-only, and design-exclusion rules above throughout this path. Post no comment and no review to GitHub.
+Run these eleven steps for a pull request with any profile. `omt-code-review <number>` uses the `normal` profile, which enables all PR steps. The `prototype` profile turns the PR steps off. Steps 1, 2, 6, and 10 always run. Step 11 applies its named switches. For a switch set to `off`, mark its step skipped and continue in order. Use the mode, dispatch, wait, ledger, limit, report-only, and design-exclusion rules above throughout this path. Post no comment and no review to GitHub.
 
 ### PR 1. Target
 

@@ -367,7 +367,6 @@ test("every default role resolves when its models are advertised", () => {
   const expected: Record<string, [string, string, Record<string, string>]> = {
     "explore": ["codex", "gpt-6.1-terra", {"reasoningEffort": "low"}],
     "research": ["codex", "gpt-6.1-sol", {"reasoningEffort": "low", "serviceTier": "priority"}],
-    "plan": ["claudeAgent", "claude-opus-5-5", {"effort": "medium"}],
     "plan-review": ["codex", "gpt-6-astra", {"reasoningEffort": "medium"}],
     "grill": ["codex", "gpt-6-astra", {"reasoningEffort": "medium"}],
     "execute": ["claudeAgent", "claude-opus-5-5", {"effort": "low"}],

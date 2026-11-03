@@ -48,10 +48,10 @@ UI work needs no design spec. The agent that builds the UI follows an approved s
 In a T3 thread, run the skill:
 
 ```text
-omt-code-review --profile pr-review <number>
+omt-code-review <number>
 ```
 
-The skill does these steps in order:
+The `normal` profile runs all of these steps. The `prototype` profile turns off steps 3, 4, 7, 8, and 9, the qa task of step 5, and the test offer of step 11. The skill does these steps in order:
 
 1. It reads and links the PR. When a step needs the PR checkout, it saves your branch and checks out the PR. A checkout needs a clean working tree.
 2. It reads the project rules. A finding that breaks a written rule cites the file and line of the rule.
@@ -65,7 +65,7 @@ The skill does these steps in order:
 10. It reports the findings, the CI fixes, the screenshots, the flows without tests, the proposals, and the command that returns you to your branch.
 11. It offers a fix loop and the exact e2e test lines for verified flows without tests. Each offer needs your approval. If the project has no e2e framework, it offers no test. After your yes, the main thread makes the fixes and writes the approved tests, and a qa task runs the new tests. Then it commits the approved changes and pushes them by the [git policy](#commit-push-and-open-a-pr).
 
-A review starts at most 4 reviewers and 1 oracle, and the main thread waits for them inside its turn. The first-round reviewers and the oracle read the saved PR commits. Reviews after a fix read the working tree. The skill posts no GitHub comment and no GitHub review. Other profiles can skip steps with `workflow.review`. The same skill, without a PR number, reviews uncommitted changes, a branch, or a commit. The [spec](spec.md#154-pull-request-review) lists the switches and the rules.
+A review starts at most 4 reviewers and 1 oracle, and the main thread waits for them inside its turn. The first-round reviewers and the oracle read the saved PR commits. Reviews after a fix read the working tree. The skill posts no GitHub comment and no GitHub review. A custom profile can skip steps with `workflow.review`. The same skill, without a PR number, reviews uncommitted changes, a branch, or a commit. The [spec](spec.md#154-pull-request-review) lists the switches and the rules.
 
 ## Commit, push, and open a PR
 

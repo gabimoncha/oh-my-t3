@@ -56,7 +56,7 @@ test("the design and ui personas exist, and no model reviews design artifacts (p
 
 test("every plan has a summary (personas)", () => {
   const rolesDir = join(SKILLS_DIR, "omt", "references", "roles");
-  assert.match(readFileSync(join(rolesDir, "plan.md"), "utf8"), /Write `## Summary` last, in at most 15 lines for the owner/);
+  assert.match(readFileSync(join(SKILLS_DIR, "omt", "references", "planning.md"), "utf8"), /Write `## Summary` last, in at most 15 lines for the owner/);
   assert.match(readFileSync(join(rolesDir, "plan-review.md"), "utf8"), /6\. A line of `## Summary` that the rest of the plan does not support\./);
 });
 
@@ -170,7 +170,7 @@ test("review cites written rules and computes requested CRAP findings (personas)
 });
 
 test("plan writes the test list top-down with owner approval (personas)", () => {
-  const persona = readFileSync(join(SKILLS_DIR, "omt", "references", "roles", "plan.md"), "utf8");
+  const persona = readFileSync(join(SKILLS_DIR, "omt", "references", "planning.md"), "utf8");
   assert.match(persona, /Fill `## Tests` top-down: e2e tests of the main user flows, then integration cases that e2e skips, then unit cases, then other kinds only when the owner asks\./);
   assert.match(persona, /Use main flows of each vertical slice that `qa` can also walk\./);
   assert.match(persona, /Propose only the layers in `plan\.testLayers` without being asked\./);
@@ -299,8 +299,8 @@ test("the Mira fixes pin every new rule in the skills and references (personas)"
   const results = readFileSync(join(references, "results.md"), "utf8");
   assert.match(results, /A P0 with a clear fix inside the scope needs a fix\./);
   assert.doesNotMatch(results, /Stop the unit and re-plan before more fixes\./);
-  const plan = readFileSync(join(references, "roles", "plan.md"), "utf8");
+  const plan = readFileSync(join(references, "planning.md"), "utf8");
   assert.match(plan, /give it a done condition on an input shaped like real data/);
-  assert.match(plan, /The role is `main` for a unit that the main thread builds, and `ui` for a unit that implements a design or changes UI\./);
+  assert.match(plan, /The role is `main` for a unit that the main thread builds, `ui` for a unit that implements a design or changes UI, and `writing` for a unit that only writes documentation or other prose\./);
   assert.doesNotMatch(plan, /task budget/);
 });

@@ -392,6 +392,29 @@ function Skills() {
     <section id="skills" className="section wrap" aria-labelledby="skills-title">
       <h2 id="skills-title">Skills</h2>
       <SkillTour />
+      <div className="split roles">
+        <div className="col-even">
+          <h3>Roles</h3>
+          <p className="muted">
+            Skills name roles, never models. A role is a kind of child task with an ordered list of models. When T3
+            refuses one, the agent tries the next. Review roles run on the other model family. Profiles change the
+            workflow switches, the limits, and the roles. <code>omt roles</code> lists them.
+          </p>
+        </div>
+        <div className="col-even">
+          <ul className="plain muted roles-list">
+            <li>
+              <span className="meta">Find</span> explore, research
+            </li>
+            <li>
+              <span className="meta">Check</span> plan-review, grill, review, oracle, guardrail, qa
+            </li>
+            <li>
+              <span className="meta">Build</span> execute, ui, design, writing
+            </li>
+          </ul>
+        </div>
+      </div>
     </section>
   );
 }

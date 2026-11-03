@@ -30,6 +30,7 @@
     "test": "bun test",
     "typecheck": "sh scripts/tsrs.sh -p tsconfig.json",
     "schema": "bun scripts/build-schema.ts",
+    "defaults:edit": "bun scripts/edit-defaults.ts",
     "build": "bun scripts/build.ts",
     "release": "bun scripts/release.ts",
     "verify": "bun run typecheck && bun test"

@@ -71,12 +71,12 @@ Done when: every decision is settled from evidence or answered by the owner.
 
 ### 3. Write the plan
 
-`omt plan status <slug>` prints the absolute plan path, also from a worktree. Steps 3 and 4 edit and hash the plan at that path. When the plan exists, edit it. Otherwise run `omt plan new <slug> --title "<title>" --profile <name>`, after `omt init` when `.omt/.gitignore` is missing. Keep an existing plan: pass no `--force`. Fill every section yourself. The persona in [roles/plan.md](../omt/references/roles/plan.md) is the standard.
+`omt plan status <slug>` prints the absolute plan path, also from a worktree. Steps 3 and 4 edit and hash the plan at that path. When the plan exists, edit it. Otherwise run `omt plan new <slug> --title "<title>" --profile <name>`, after `omt init` when `.omt/.gitignore` is missing. Keep an existing plan: pass no `--force`. Fill every section yourself. The standard in [planning.md](../omt/references/planning.md) is the standard.
 
 Read the effective profile again with the step 1 command before you fill `## Tests`. Read `workflow.plan.testLayers` as `plan.testLayers` and `workflow.build.qa` as `build.qa`.
 
 - `Done when` items are checks that can fail.
-- Fill `## Summary` last, by the summary rule in [roles/plan.md](../omt/references/roles/plan.md), and update it after each review fix. A plan that has no `## Summary` gets one between the header line and `## Objective`.
+- Fill `## Summary` last, by the summary rule in [planning.md](../omt/references/planning.md), and update it after each review fix. A plan that has no `## Summary` gets one between the header line and `## Objective`.
 - When a unit reads outside data, such as recordings, files, or API responses, its done condition includes a check on an input shaped like real data: one captured from a real source, or with the properties real data has, such as offsets, gaps, and sizes. A seeded or ideal sample alone hides real-data defects.
 - Each unit has a role, a scope, a done condition, a verify command, and its dependencies. The role of a unit that the main thread builds is `main`.
 - Units with no dependency between them have disjoint scopes.
@@ -89,6 +89,7 @@ Read the effective profile again with the step 1 command before you fill `## Tes
 - Map each grill edge case with `State: accepted` or `State: changed`. A changed edge case uses the user's handling and test layer from the grill file. A `dropped` edge case gets no line and no done condition. A `pending` edge case gets no line until the owner answers it.
 - Each mapped grill edge case with `Test: integration` or `Test: unit` becomes a `## Tests` line of that layer, with `Reason: grill edge case GE<k>`. When that layer is outside `plan.testLayers`, put the line in the step 2 batch for owner approval, as any other line outside. A grill edge case never becomes an e2e line. A mapped edge case with `Test: none`, and every mapped edge case when `build.qa` is `off`, goes into the done condition of the unit that owns its handling.
 - Write each `## Tests` line as `- <layer> <unit>: <flow or case>. File: <path>. Reason: <why>.` An empty `## Tests` section means no new tests.
+- Docs units use the `writing` role: a unit that only writes documentation or other prose.
 - UI units use the `ui` role. When an approved design spec exists, cite it in the unit. Plan an `omt-design` step only when the user requests a design pass first. Otherwise plan direct UI implementation from the task requirements, by [UI implementation](../omt/references/frontend-design.md#ui-implementation). A missing design spec or design tool does not block a UI unit.
 - Name each shared resource in the plan, such as a build folder, a generated project, a simulator, or a dev-server port. Write each verify command that uses shared build state as `omt lock run <resource> -- <command>`. Use the same `<resource>` for commands that share that state.
 - Check for a lock tool with `command -v flock || command -v lockf`. When neither tool exists, run `omt plan limit <slug> 1` for a plan with shared build state and say why.

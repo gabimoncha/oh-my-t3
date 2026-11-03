@@ -19,10 +19,16 @@ const AGENT_SKILLS: Skill[] = [
       "The agent explores the code, asks its questions in batches, and writes a plan. One model of the other family reviews it, for at most 2 rounds. The plan goes to .omt/plans/.",
   },
   {
+    name: "omt-grill",
+    note: "Your goal is vague, or you want to stress-test it before a plan.",
+    shows:
+      "The agent finds the facts, and one model of the other family gives a second opinion. You answer question batches until none is open. The grill file goes to omt-plan.",
+  },
+  {
     name: "omt-design",
     note: "You want designs or mockups before UI work.",
     shows:
-      "Opus draws some variants of each screen. You pick one and steer it until you approve it. Then the agent writes the design spec.",
+      "A Claude Opus main thread draws variants of each screen, or one design child does. You pick one and steer it until you approve it. Then the agent writes the design spec.",
   },
   {
     name: "omt-code-review",
@@ -35,6 +41,16 @@ const AGENT_SKILLS: Skill[] = [
     note: "You need an answer with sources from the repository, library docs, or the web.",
     shows:
       "The agent answers a narrow question itself. For a broad one, it searches the repository, library docs, and the web at the same time, checks each claim, and writes an answer with sources.",
+  },
+  {
+    name: "omt-help",
+    note: "You want to know what omt can do, or which skill or command to use.",
+    shows: "The agent answers from the output of the omt CLI and links the docs. It changes nothing.",
+  },
+  {
+    name: "omt-setup",
+    note: "You want to set up, configure, or update omt.",
+    shows: "The agent shows each command or edit first, runs a dry run where it can, and writes only after you agree.",
   },
 ];
 
@@ -57,7 +73,7 @@ const ALL = [...AGENT_SKILLS, ...NAMED_SKILLS];
 // After a picture ends, the tour holds the last frame for this long, then goes to the next skill.
 const HOLD = 2200;
 
-// The agent starts the first five by itself; you start the last two by name. A pointer goes down
+// The agent starts the first nine by itself; you start the last two by name. A pointer goes down
 // the list of skills, and the picture of each skill plays next to it. A click or
 // the arrow keys select a skill and stop the tour. Out of view, the tour pauses.
 export function SkillTour() {

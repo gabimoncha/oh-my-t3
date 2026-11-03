@@ -302,7 +302,7 @@ test("pickWorker breaks a tie with the provider whose last worker entry comes la
   const entries = [
     entry({ unit: "U1", provider: "claudeAgent" }),
     entry({ unit: "U2", provider: "codex" }),
-    entry({ unit: "U3", provider: "claudeAgent", role: "plan" }),
+    entry({ unit: "U3", provider: "claudeAgent", role: "ui" }),
     entry({ unit: "U4", provider: "codex" }),
   ];
   assert.deepEqual(pickWorker(entries, ROLES, "p"), { provider: "codex", from: "plan" });

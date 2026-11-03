@@ -27,6 +27,7 @@ This page is the reference for the code, the skills, and the tests. [`design.md`
 | `test` | `bun test` |
 | `typecheck` | `sh scripts/tsrs.sh -p tsconfig.json` |
 | `schema` | `bun scripts/build-schema.ts` |
+| `defaults:edit` | `bun scripts/edit-defaults.ts` (section 5.1, maintainer mode) |
 | `build` | `bun scripts/build.ts` (section 5) |
 | `release` | `bun scripts/release.ts` (section 17) |
 | `verify` | `bun run typecheck && bun test` |
@@ -49,9 +50,10 @@ src/
   types.ts               shared types (section 3)
   paths.ts               path helpers (section 4)
   util/                  errors.ts, args.ts, fs.ts, output.ts, json.ts, ids.ts, open.ts (opens a URL in the default browser)
-  config/                jsonc.ts, defaults.ts (section 6.4), defaultsState.ts, target.ts, validate.ts, merge.ts, load.ts, starter.ts, schema.ts,
+  config/                jsonc.ts, defaults.ts and defaults.jsonc and defaultsText.ts (section 6.4), defaultsState.ts, target.ts, validate.ts, merge.ts, load.ts, starter.ts, schema.ts,
                          explain.ts (the source of each value, section 5.1)
-  config/editor/         server.ts, api.ts, diff.ts, assets.ts, assetText.ts: the config editor of omt config edit --web (section 5.1)
+  config/editor/         server.ts, api.ts, catalog.ts, skillFiles.ts, diff.ts, assets.ts, assetText.ts: the config editor of omt config edit --web
+                         and of bun run defaults:edit (section 5.1)
   routing/               capabilities.ts, effort.ts, resolve.ts, format.ts, family.ts
   brief/                 templates.ts, render.ts
   plan/                  template.ts, parse.ts
@@ -73,6 +75,7 @@ src/
 scripts/
   build-schema.ts        writes schema/omt.schema.json from src/config/schema.ts
   build.ts               builds dist/cli.js and the omt binaries (section 5)
+  edit-defaults.ts       starts the config editor in maintainer mode (section 5.1)
   release.ts             writes the npm packages, archives, and SHA256SUMS (section 17)
   tsrs.sh                runs the native tsrs binary for the type check (section 1)
 schema/
@@ -84,11 +87,11 @@ templates/
 skills/
   omt/                   router skill and shared references
   omt-ulw/ omt-plan/ omt-design/ omt-code-review/ omt-research/ omt-swarm/
-  omt-help/ omt-setup/
+  omt-grill/ omt-help/ omt-setup/
 test/
   helpers.ts             temp dirs and a fake CliContext
   run.ts                 command helpers
-  fixtures/              capabilities.json, capabilities-live.json
+  fixtures/              capabilities.json, capabilities-live.json, capabilities-compact.json
   config/profiles.test.ts profile validation and merging
   profile/               resolve.test.ts, profile.test.ts
   lock/                  lock.test.ts
@@ -264,6 +267,10 @@ export interface ModelCapability {
   label?: string;
   options: OptionDescriptor[];
 }
+
+// The parser also reads the compact option form of newer T3 builds, { id, values, default }. An option whose values
+// are all booleans becomes { id, type: "boolean" }. Other values become a "select" whose choices are the values, and
+// the choice equal to `default` gets isDefault.
 
 export interface ProviderCapability {
   providerInstanceId: string;
@@ -505,7 +512,7 @@ Argument parsing uses `node:util` `parseArgs` with `strict: true` and `allowPosi
 | `update` | `omt update [--check] [--dry-run] [--yes] [--skills-only] [--project] [--json]` (section 5.14) |
 | `doctor` | `omt doctor [--project] [--capabilities <file>] [--yes] [--dry-run] [--json]` |
 | `init` | `omt init` |
-| `config` | `omt config [show \| explain \| path \| validate \| init] [--json] [--defaults] [--force]`, `omt config explain [--profile <name>] [--json]`, `omt config edit --web [--no-open]` |
+| `config` | `omt config [show \| explain \| path \| validate \| init] [--json] [--defaults] [--force]`, `omt config explain [--profile <name>] [--json]`, `omt config edit --web [--no-open] [--capabilities <file>]` |
 | `detect` | `omt detect [--capabilities <file>] [--json] [--write] [--user \| --project] [--dry-run] [--yes]` |
 | `roles` | `omt roles [--capabilities <file>] [--role <name>]... [--plan <slug>] [--profile <name>] [--json]` |
 | `route` | `omt route <role> [--capabilities <file>] [--against <provider\|driver\|auto>] [--plan <slug>] [--profile <name>] [--unit <id>]` |
@@ -548,7 +555,7 @@ Both outputs inline the worktree setup runner, its module and its text (section 
 
 - `show` (the default subcommand) prints the merged config as JSON, before the selected profile is applied (section 6.7). `--defaults` prints the installed release's current defaults (section 6.4) instead. Config issues go to stderr, and the command still exits 0.
 - `explain` prints the layer that sets each value, as the section on value sources below describes.
-- `edit --web` starts the config editor, as the section on the config editor below describes. `edit` without `--web` is a usage error with the hint `use omt config edit --web`. `--web` and `--no-open` with another subcommand are usage errors.
+- `edit --web` starts the config editor, as the section on the config editor below describes. `edit` without `--web` is a usage error with the hint `use omt config edit --web`. `--web`, `--no-open`, and `--capabilities` with another subcommand are usage errors.
 - `path` prints two lines: `user: <path> (present)` or `(absent)`, then `project: <path> (present)` or `(absent)`. Neither path goes through `realpath`. The CLI takes its cwd from `$PWD` when `$PWD` resolves to `process.cwd()` and `findProjectRoot($PWD)` resolves to the same real directory as `findProjectRoot(process.cwd())`; otherwise it uses `process.cwd()`. So the project root always names the physical project, and `$PWD` changes only how it prints.
 - `validate` prints each issue as `<severity> <source> <path>: <message>`, or `<severity> <source>: <message>` when the path is empty. A JSONC syntax error is one issue with an empty path and the message `<line>:<column>: <reason>`, so the file path appears once. It prints `config ok` when there is no issue. It exits 1 when any issue is an error. `--json` prints `{ "ok": boolean, "issues": ConfigIssue[] }`.
 - `init` writes the starter user config (section 6.5) and prints `create <path>` or `overwrite <path>`. It refuses to overwrite an existing file unless `--force` is given.
@@ -590,7 +597,7 @@ The sources come from the merge steps, not from the paths that a file names:
 
 The text output starts with the two file paths, `user: <path>` and `project: <path>`, then `defaults: <source>` and `profile: <name> (<source>)`. Then come the lines `root:`, `removed:` (only when `removed` is not empty), and `effective:`, each followed by its entries. An entry is one line, `<dotted path>  <value>  <label>`, and one line `  over <label>: <value>` per `overridden` item. Values print with `formatValue` of `src/config/defaults.ts`. A `removed` entry prints as `<dotted path>  <label>`. The labels are `defaults`, `user`, `project`, and `profile <name> (<label of declaredIn>)`. `--json` prints the `ExplainReport`.
 
-Config editor. `omt config edit --web [--no-open]` calls `startConfigEditor(ctx, { open })` from `src/config/editor/server.ts`. It prints `omt config editor: <url>` and `Press Ctrl-C to stop. The editor also stops when you close its tab.`, waits until the server stops, prints `editor stopped`, and exits 0. On SIGINT or SIGTERM it closes the server and exits 0. It removes its signal handlers after the close. Without `--no-open`, it opens `http://127.0.0.1:<port>/` with `openUrl(url, platform)` from `src/util/open.ts`. This page asks for the full editor URL from the terminal and accepts only a URL on the same origin with a session token path. The browser opener never receives the token. The opener uses `open` on darwin, `cmd /c start "" <url>` on win32, and `xdg-open` on other platforms, spawned detached with `stdio: "ignore"`. When the opener cannot start, the command prints `warning: could not open a browser; open the URL yourself` to stderr and keeps running. With `--no-open`, nothing is spawned.
+Config editor. `omt config edit --web [--no-open] [--capabilities <file>]` reads the capabilities file with `readCapabilities` when given, and calls `startConfigEditor(ctx, { open, capabilities })` from `src/config/editor/server.ts`. It prints `omt config editor: <url>` and `Press Ctrl-C to stop. The editor also stops when you close its tab.`, waits until the server stops, prints `editor stopped`, and exits 0. On SIGINT or SIGTERM it closes the server and exits 0. It removes its signal handlers after the close. Without `--no-open`, it opens `http://127.0.0.1:<port>/` with `openUrl(url, platform)` from `src/util/open.ts`. This page asks for the full editor URL from the terminal and accepts only a URL on the same origin with a session token path. The browser opener never receives the token. The opener uses `open` on darwin, `cmd /c start "" <url>` on win32, and `xdg-open` on other platforms, spawned detached with `stdio: "ignore"`. When the opener cannot start, the command prints `warning: could not open a browser; open the URL yourself` to stderr and keeps running. With `--no-open`, nothing is spawned.
 
 ```ts
 interface ConfigEditorOptions {
@@ -632,6 +639,9 @@ Routes under `/<token>/`:
 | `app.css`, `app.js` | GET | the page assets |
 | `api/state` | GET | the editor state |
 | `api/explain?profile=<name>` | GET | `explainConfig` for that profile |
+| `api/skill?name=<skill>` | GET | `{ name, text }`: the `SKILL.md` of a bundled skill |
+| `api/skill-files?name=<skill>` | GET | maintainer mode only: `{ files: [{ path, hash, text }] }` |
+| `api/skill-file` | POST | maintainer mode only: saves one skill file |
 | `api/preview` | POST | the edit result, with nothing written |
 | `api/write` | POST | the write result |
 | `api/ping` | POST | 204 |
@@ -639,7 +649,23 @@ Routes under `/<token>/`:
 
 The page assets come from `src/config/editor/assetText.ts`, a Bun macro that reads `templates/config-editor/<name>`. `src/config/editor/assets.ts` imports it `with { type: "macro" }`, as `src/worktree/runner.ts` imports the runner text (section 5.11).
 
-`api/state` returns `{ version, defaults: { source }, files: [{ kind, path, present, hash, text, issues }], profiles, selectedProfile, issues, explain, vocab }`. `files` holds the user file, then the project file. `hash` is the SHA-256 hex of the file text, and `hash` and `text` are `null` for an absent file. `files[].issues` holds the issues of that file, and `issues` holds the issues of the merged config. `explain` is never `null`. It is the report of the selected profile. When that profile does not resolve, it is the report of `normal`. When `normal` does not resolve either, it has the `root` entries, the `removed` entries, and no `effective` entries, and the issues say why. `vocab` holds the keys, values, ranges, and patterns that `validateLayer` accepts, from the constants of `src/config/validate.ts` and `EFFORT_LADDER`, so the page offers the same choices.
+`api/state` returns `{ version, mode, defaults: { source }, files: [{ kind, path, present, hash, text, issues }], profiles, selectedProfile, issues, explain, vocab, catalog, skills }`. `files` holds the user file, then the project file. `hash` is the SHA-256 hex of the file text, and `hash` and `text` are `null` for an absent file. `files[].issues` holds the issues of that file, and `issues` holds the issues of the merged config. `explain` is never `null`. It is the report of the selected profile. When that profile does not resolve, it is the report of `normal`. When `normal` does not resolve either, it has the `root` entries, the `removed` entries, and no `effective` entries, and the issues say why. `vocab` holds the keys, values, ranges, and patterns that `validateLayer` accepts, from the constants of `src/config/validate.ts` and `EFFORT_LADDER`, so the page offers the same choices.
+
+`catalog` comes from `editorCatalog` in `src/config/editor/catalog.ts`: `{ source: "t3" | "local", providers: [{ id, driver, label, available, reason, models: [{ id, label?, efforts, fast }] }] }`. With capabilities, `source` is `t3`, each T3 provider is one entry, `available` is `canRunChildTask`, `efforts` are the choices of the model's first effort option that are on `EFFORT_LADDER`, and `fast` is true when the model has a `serviceTier` choice `priority` or a boolean `fastMode` option. Without capabilities, `source` is `local`, the entries are the default harnesses with the result of `detectHarnesses`, the models are the chain models of the defaults and the merged config for that driver, `efforts` is `EFFORT_LADDER`, and `fast` is `null`. `skills` lists the folder names under `<packageRoot>/skills` that match `^[a-z][a-z0-9-]{0,63}$`.
+
+`api/skill` reads `<packageRoot>/skills/<name>/SKILL.md`. A name that does not match the pattern above, or a skill without the file, gets 404 `unknown_skill`.
+
+Maintainer mode. `bun run defaults:edit [--no-open] [--capabilities <file>]` runs `scripts/edit-defaults.ts` in an omt clone. It starts the same server with `maintainer: { defaultsPath, skillsRoot }`, where `defaultsPath` is `src/config/defaults.jsonc` and `skillsRoot` is `skills/` of the clone. The published CLI has no way to start this mode. In maintainer mode:
+
+- `mode` is `defaults`. Otherwise it is `config`.
+- `files` holds `defaultsPath` with kind `user`, then a project entry with `path: ""` and `present: false`. The server reads no user or project config. An edit request with `file: "project"` gets 400 `bad_request`.
+- The merge base is an empty config, `{ version: 1, profile: "normal", profiles: {}, models: {}, roles: {}, limits: {} }`, not the accepted or current defaults. So `explain` shows the values of the file itself, and a removed key is gone.
+- Step 4 of an edit request also makes a new error when the candidate fails `isCompleteDefaults` of `src/config/defaultsState.ts`, the same check as for an accepted defaults snapshot.
+- `skills` lists the skill folders under `skillsRoot`.
+- `api/skill-files` lists `SKILL.md`, then each `.md` file under `references/` in path order, each with its SHA-256 `hash` and `text`. A symlink is not listed. A skill without `SKILL.md` gets 404 `unknown_skill`.
+- `api/skill-file` takes `{ name, path, base, text }`. `path` must be `SKILL.md` or `references/<path>.md` with at most 5 folder levels and no `..`; another value, a bad name, or a non-string `text` gets 400 `bad_request`. The route writes existing files only: an absent file gets 404 `unknown_skill_file`. A file whose real path is outside the skill folder gets 400 `bad_request`. A `base` that differs from the current text gets 409 `skill_changed`. A `SKILL.md` that does not start with `---` and `name: <name>` gets 422 `skill_frontmatter`. Otherwise the route writes the text atomically and returns `{ path, hash, text }`. The server runs it in the same queue as the config writes.
+
+Outside maintainer mode, `api/skill-files` and `api/skill-file` get 404 `not_found`.
 
 `api/explain` without a `profile` value gets 400 `bad_request`. An unknown name gets 400 `unknown_profile` with the known profiles in the hint. A profile whose chain does not resolve gets 422 `profile_invalid`.
 
@@ -653,6 +679,18 @@ Edit requests. `api/preview` and `api/write` take the body `{ "file": "user" | "
 `api/preview` returns `{ text, diff, issues, newErrors }` and writes nothing. `diff` comes from `lineDiff` in `src/config/editor/diff.ts`: `{ op: " " | "+" | "-"; line: string }[]`, from the longest common subsequence of the lines. When either text has over 5,000 lines, the diff removes every old line and adds every new line.
 
 `api/write` refuses a new error with 422 `config_invalid`, the message `the change adds <n> config errors; nothing was written` (`1 config error` for one error), and `newErrors`. Otherwise it writes the candidate text with `writeConfigTarget(target, snapshot, next)` (section 5.12), where `snapshot` is the text of step 1, and returns `{ "ok": true, "state" }` with the new editor state. When the candidate equals the snapshot, it writes nothing. A `config_changed` error from `writeConfigTarget` gets the 409 of step 2. The server runs previews and writes one at a time, in the order in which their bodies complete, from step 1 to the end of the atomic write. So of two writes with the same `base`, the second reads the new text and gets 409. A writer outside omt can still change the file between the last read and the rename, as for other config writes.
+
+Editor page. The initial view is Skills, with all 10 bundled skills. Build, Code review, Plan, and Design have a configured flow, and a selected stage shows its editable keys. Every skill page shows the skill description, its child roles, and its `SKILL.md` from `api/skill`, rendered read-only as text nodes: the page never inserts the file as HTML. A relative link in the file points to the file on GitHub, and a link with another scheme than `http` or `https` is plain text. Roles and Profiles have separate lists and focused editors. The rung fields Provider, Model, and Effort are dropdowns from `catalog`; Model also accepts a custom value. A profile card lists the values that the profile sets and the commands that select it. Settings holds the harnesses, with one checkbox per catalog driver, the limits, and the model options; the workflow keys, the roles, and the `profile` key are on the Skills pages, the Roles pages, and the header. A source badge opens help, the saved layer history, the edit destination, and reset. There is no layer strip, introductory legend, or permanent source inspector.
+
+In maintainer mode, the header names `src/config/defaults.jsonc` in place of the file picker, and the page calls the user layer `built-in`. A skill page shows the skill files from `api/skill-files` in three columns: the file list, a text area, and the rendered preview, which follows each key press. Save, or Cmd-S or Ctrl-S in the text area, sends `api/skill-file`. A role page links to the role's file under `skills/omt/references/roles/`, or to `_generic.md` for a custom role: in maintainer mode it opens that file in the Router skill page, and otherwise it opens the file on GitHub.
+
+`Show values for` fetches an explain report without staging a `profile` edit. During the request, dependent edits are disabled. A failed request retains the last successful report and identifies its profile. Late responses cannot replace a newer selection. `Saved default` stages a root `profile` edit in the selected file. The saved default can still be overridden by a command argument or plan header. The page compares the current preview with the saved-default explain report to compute changed values; it does not hard-code preset differences.
+
+Dropdowns, segments, and checkboxes stage changes immediately. Text and number fields stage on Enter or change, and invalid input stays in its draft. Workflow edits target `profiles.<preview>.workflow.*`. Roles, limits, and models use base or profile scope, separately from the User or Project file destination. Both the flows and the settings list read the same pending edits, including inherited profile changes and file precedence. The page marks unsaved values, names their destination, offers Undo, and identifies shadowed edits before a write. Boolean overrides support Inherit, On, and Off. Multi-field role and profile drafts use Add changes. Chain cards retain configured rung numbers and support reorder, driver and raw options, and explicit fast inheritance. Cross-family attempt order is a local preview for a selected main driver. Without capabilities, a rung never claims verified availability.
+
+Review changes shows a per-file diff and validation. Write project file or Write user file writes only the reviewed request for that file. Other files keep their queues and original hash bases. New errors block writes; warnings do not. Reload and review is an explicit conflict action: it loads the newer file, keeps the queued edits, rebases only that file, and requires a new review before writing. Discard asks before clearing a file's queue. A beforeunload handler warns about unsaved queues and dirty drafts. The disconnected state keeps them in the tab. A missing optional file is neutral and unavailable as a destination; file help gives its path and init command.
+
+Flows describe configured skill behavior, not live task state. Build QA always remains in the flow; `build.qa` controls the approved test list. A required oracle replaces the review child even when build review is off. Build review and QA run in sequence. Review loops and QA retries show their limits. Code review has separate sizing, family, oracle, pull request, and owner-approved fix rules. Plan review has at most two rounds. Design loops through owner feedback without an automatic model review.
 
 Lifetime. The page posts `api/ping` at load and then every 5 seconds. An `api/close` starts a timer of `closeGraceMs`, also before the first ping, and stops the idle timer. A ping in that time cancels the close. Else the server stops. A reload sends a close, and the new page pings at load, so the server keeps running. Each ping starts an idle timer of `idleMs`. When it runs out with no ping, the server stops. The default of 120 seconds is longer than the one-minute timer interval that Chrome gives a tab that stays hidden for more than 5 minutes. With no ping and no close, the server runs until SIGINT, SIGTERM, or `close()`. `close()` stops both timers and the listener, waits for the running preview or write to finish, closes the open connections, and then resolves `closed`.
 
@@ -1235,7 +1273,8 @@ A missing file is not an error. Each file is JSONC (section 7). Profile selectio
   - `fast`: a boolean.
   - `options`: an object whose values are strings or booleans.
 - Allowed limit keys and integer ranges: `maxParallel` 1 to 32, `maxDepth` 0 to 3, `maxReviewRounds` 1 to 10. An invalid limit is dropped with an error.
-- Retired keys and roles. omt ignores these keys: `workflow.build.verify`, `workflow.build.checkpoint`, and `workflow.build.stallMinutes` in any profile, `limits.maxTasksPerRun` at root or in a profile, and the roles `verify`, `quick`, and `deep` at root or in a profile. A layer that sets one still loads. Validation drops the key, whatever its value, and adds one warning for each key: `<path> is no longer used; remove it`, for example `profiles.normal.workflow.build.checkpoint is no longer used; remove it`. A retired key or role therefore has no effect on the effective config. `RETIRED_BUILD_KEYS`, `RETIRED_LIMIT_KEYS`, and `RETIRED_ROLES` in `src/config/defaults.ts` hold the lists.
+- Retired keys and roles. omt ignores these keys: `workflow.build.verify`, `workflow.build.checkpoint`, and `workflow.build.stallMinutes` in any profile, `limits.maxTasksPerRun` at root or in a profile, and the roles `verify`, `quick`, `deep`, and `plan` at root or in a profile. A layer that sets one still loads. Validation drops the key, whatever its value, and adds one warning for each key: `<path> is no longer used; remove it`, for example `profiles.normal.workflow.build.checkpoint is no longer used; remove it`. A retired key or role therefore has no effect on the effective config. `RETIRED_BUILD_KEYS`, `RETIRED_LIMIT_KEYS`, and `RETIRED_ROLES` in `src/config/defaults.ts` hold the lists.
+- Retired profiles. `RETIRED_PROFILES` in `src/config/defaults.ts` lists `pr-review`, because `normal` now runs all PR review steps. A layer that declares `profiles.pr-review`, with any value including `null`, gets the warning `profiles.pr-review is no longer used; remove it`, and validation drops the declaration. A root `profile` or a profile `extends` that names a retired profile gets the warning `profile "pr-review" is no longer used; normal runs the PR steps`, and validation replaces the name with `normal`.
 - `profile` and each profile name match the role-name pattern. A profile value is `null` or an object. Allowed fields are `description`, `extends`, `workflow`, `limits`, `roles`, and `models`. `visuals` is an unknown profile field, so it is an error.
 - Profile `description` is a non-empty string of at most 300 Unicode code points. An invalid description drops the whole profile override. Other invalid profile fields are dropped individually. `extends` matches the profile-name pattern.
 - Profile `roles` and `limits` use the root validation rules. Each workflow group and key follows section 6.7. An unknown group, key, or value is an error. Valid fields remain. `plan.testLayers` can be empty and can contain only `e2e`, `integration`, and `unit`.
@@ -1260,7 +1299,7 @@ A missing file is not an error. Each file is JSONC (section 7). Profile selectio
 - `update` replaces the old value. Absent in every layer, `config.update` stays unset, which means `off`. It is not a profile field, and the defaults leave it unset.
 - `profile` replaces the selected name. `models` merges per model and field.
 - Profiles merge per name. An existing profile keeps fields that a layer omits. `workflow` merges per group and key, `limits` per key, `roles` per role and field, and `models` per model and field. Arrays, including `chain` and `testLayers`, replace the old array.
-- A new profile needs `description`. `null` removes a custom profile, with a warning when it does not exist. Removing `normal`, `prototype`, or `pr-review` is an error.
+- A new profile needs `description`. `null` removes a custom profile, with a warning when it does not exist. Removing `normal` or `prototype` is an error.
 
 `loadConfig({ cwd, env, homedir })` reads, parses, validates, and merges the layers. It returns a `LoadedConfig`. After all layers merge, `validateMergedProfiles` checks the selected name and every inheritance chain. A project profile can extend a user profile. Unknown parents, cycles, and chains longer than eight profiles are errors that name the chain. Issues name the last source of the profile, or the selection source for an unknown root `profile`. This pass leaves the merged profiles intact.
 
@@ -1270,13 +1309,13 @@ Profile chain validation stops at the ninth profile when the supported maximum o
 
 A new profile without `description` gets the error `a new profile needs description; missing: description` and stays out of the merged config. `loadConfig` runs the chain check and the profile resolution on a temporary copy of the merged config that holds this profile, so its unknown `extends` parent and its role errors are reported too. It checks each dropped profile of each layer on its own copy and reports its issues with that layer's source, also when a later layer adds the description.
 
-`effectiveConfig` returns `issues: loaded.issues` and does not add the resolved profile's issues again. The resolved profile keeps its own `issues`. So `omt profile show` prints each profile issue once, with the file source.
+`effectiveConfig` returns `issues: loaded.issues`, plus a retired-profile selection warning (section 6.7), and does not add the resolved profile's issues again. The resolved profile keeps its own `issues`. So `omt profile show` prints each profile issue once, with the file source.
 
 A JSONC syntax error in a file becomes one error issue, and that file is skipped. Only unexpected I/O errors throw.
 
 ### 6.4 Defaults
 
-`src/config/defaults.ts` exports one `DEFAULT_CONFIG` and `diffDefaults(from, to, overrides): DefaultsChange[]`. Each release updates this configuration directly. The accepted snapshot in the install record supplies the active base until the user accepts the current defaults (section 5.12).
+`src/config/defaults.ts` exports one `DEFAULT_CONFIG` and `diffDefaults(from, to, overrides): DefaultsChange[]`. The values of `DEFAULT_CONFIG` are in `src/config/defaults.jsonc`. `src/config/defaultsText.ts` is a Bun macro that reads the file, and `defaults.ts` imports it `with { type: "macro" }` and parses the text with `parseJsonc`, so the bundle and the binary hold the text and read no file. The file is in the layout that `setJsoncValue` writes, so that a save from `bun run defaults:edit` changes only the edited lines. `test/defaults.test.ts` checks that the file has no validation issue and passes `isCompleteDefaults`. Each release updates this configuration directly. The accepted snapshot in the install record supplies the active base until the user accepts the current defaults (section 5.12).
 
 `diffDefaults` compares leaf values in both configurations. Arrays, including role chains, compare as one leaf. Chains print as `driver/model effort, ...`, with `provider` when no driver is set and ` fast` for a fast rung. Other values print as JSON. A missing value prints `none`. Added or removed objects report each leaf.
 
@@ -1292,7 +1331,6 @@ For a role without `crossFamily`, rung 2 runs only when T3 refuses rung 1. For a
 | --- | --- | --- | --- | --- | --- | --- |
 | `explore` | read-only | research | research | plan | false | codex/gpt-6.1-terra low, claudeAgent/claude-haiku-5-5 medium |
 | `research` | read-only | research | research | plan | false | codex/gpt-6.1-sol low, claudeAgent/claude-sonnet-5-5 medium |
-| `plan` | edit | plan | design | default | false | claudeAgent/claude-opus-5-5 medium, codex/gpt-6-astra high |
 | `plan-review` | read-only | review | review | plan | true | codex/gpt-6-astra medium, claudeAgent/claude-opus-5-5 medium |
 | `grill` | read-only | grill | review | plan | true | codex/gpt-6-astra medium, claudeAgent/claude-opus-5-5 medium |
 | `execute` | edit | work | implementation | default | false | claudeAgent/claude-opus-5-5 low, codex/gpt-6.1-sol high |
@@ -1314,7 +1352,6 @@ Role descriptions (shown to agents in `omt roles` and in skills):
 
 - `explore`: Search this repository and answer one narrow question with file and line citations.
 - `research`: Answer a question from docs, the web, and code, with cited sources.
-- `plan`: Turn a goal into a plan file whose units have a scope, a done condition, and a verify command.
 - `plan-review`: Check a plan for gaps, ambiguity, and steps that cannot be verified.
 - `grill`: Test a goal before it has a plan: find its edge cases, open questions, and options.
 - `execute`: Implement one planned unit inside its scope and run its verify commands.
@@ -1354,40 +1391,42 @@ Only the user starter has a commented `// "update": "check",` line after the `li
 
 `resolveProfile(config, name)` starts from the merged config. It walks `extends`, then applies the chain from parent to child. A profile without `extends` inherits `normal`, except `normal` itself. Each profile applies its roles, limits, and models through `mergeLayer`. Workflow values start from the merged `normal` profile and merge per group and key. Profile overrides therefore apply after root config overrides. The function does not mutate the input.
 
+When the `--profile` argument or the plan header names a retired profile (section 6.2), `effectiveConfig` selects `normal` and adds the warning `profile "pr-review" is no longer used; normal runs the PR steps` to its `issues`, with the source `--profile` or `plan header`. Commands print this warning on stderr. `omt plan new --profile` and `omt plan profile` write `normal` to the plan header, and `omt brief` writes `--profile normal` in the brief.
+
 `effectiveConfig(loaded, { profile?, planProfile? })` returns the loaded fields plus the resolved `profile`. Its `config` has the selected name and the profile-applied `roles`, `limits`, and `models`. The resolved `profile` contains the full `workflow` and its merge issues. `omt config show` returns the layers before this application. `omt profile show` returns the resolved values.
 
-The following keys are under `profiles.<name>.workflow`. The table shows the resolved preset values. `normal` defines the full workflow. `prototype` and `pr-review` extend `normal` with sparse overrides.
+The following keys are under `profiles.<name>.workflow`. The table shows the resolved preset values. `normal` defines the full workflow. `prototype` extends `normal` with sparse overrides.
 
-| Key | Allowed values | `normal` | `prototype` | `pr-review` |
-| --- | --- | --- | --- | --- |
-| `plan.review` | `two-families`, `one`, `owner` | `two-families` | `one` | `two-families` |
-| `plan.testLayers` | array of `e2e`, `integration`, `unit` | `["e2e"]` | `["e2e"]` | `["e2e"]` |
-| `design.variants` | integer 1 to 5 | 3 | 1 | 3 |
-| `build.review` | `every-round`, `first-round`, `off` | `every-round` | `first-round` | `every-round` |
-| `build.qa` | `planned`, `off` | `planned` | `planned` | `planned` |
-| `build.failureProofs` | `on`, `off` | `on` | `off` | `on` |
-| `build.oracle` | `heavy`, `always`, `off` | `heavy` | `off` | `heavy` |
-| `review.reviewers` | `auto` or integer 1 to 4 | `auto` | 1 | `auto` |
-| `review.families` | `one`, `both` | `one` | `one` | `one` |
-| `review.oracle` | `on`, `off` | `on` | `off` | `on` |
-| `review.fixLoop` | `offer`, `off` | `offer` | `offer` | `offer` |
-| `review.ci` | `off`, `check`, `fix` | `check` | `off` | `fix` |
-| `review.verify` | `off`, `changed-flows` | `off` | `off` | `changed-flows` |
-| `review.tests` | `off`, `offer` | `off` | `off` | `offer` |
-| `review.guardrails` | `off`, `propose` | `off` | `off` | `propose` |
-| `review.crap` | `off`, `report` | `off` | `off` | `report` |
-| `git.branchCommits` | `auto`, `ask` | `auto` | `auto` | `auto` |
-| `git.pullRequests` | `auto`, `ask`, `off` | `auto` | `auto` | `auto` |
-| `git.defaultBranch` | `ask`, `auto` | `ask` | `ask` | `ask` |
-| `git.merge` | `ask`, `auto` | `ask` | `ask` | `ask` |
-| `git.owners` | array of GitHub owners that match `^[A-Za-z0-9][A-Za-z0-9-]{0,38}$` | `[]` | `[]` | `[]` |
-| `git.maxPrFiles` | integer from 0 to 10000; 0 means no limit | `100` | `100` | `100` |
+| Key | Allowed values | `normal` | `prototype` |
+| --- | --- | --- | --- |
+| `plan.review` | `two-families`, `one`, `owner` | `two-families` | `one` |
+| `plan.testLayers` | array of `e2e`, `integration`, `unit` | `["e2e"]` | `["e2e"]` |
+| `design.variants` | integer 1 to 5 | 3 | 1 |
+| `build.review` | `every-round`, `first-round`, `off` | `every-round` | `first-round` |
+| `build.qa` | `planned`, `off` | `planned` | `planned` |
+| `build.failureProofs` | `on`, `off` | `on` | `off` |
+| `build.oracle` | `heavy`, `always`, `off` | `heavy` | `off` |
+| `review.reviewers` | `auto` or integer 1 to 4 | `auto` | 1 |
+| `review.families` | `one`, `both` | `one` | `one` |
+| `review.oracle` | `on`, `off` | `on` | `off` |
+| `review.fixLoop` | `offer`, `off` | `offer` | `offer` |
+| `review.ci` | `off`, `check`, `fix` | `fix` | `off` |
+| `review.verify` | `off`, `changed-flows` | `changed-flows` | `off` |
+| `review.tests` | `off`, `offer` | `offer` | `off` |
+| `review.guardrails` | `off`, `propose` | `propose` | `off` |
+| `review.crap` | `off`, `report` | `report` | `off` |
+| `git.branchCommits` | `auto`, `ask` | `auto` | `auto` |
+| `git.pullRequests` | `auto`, `ask`, `off` | `auto` | `auto` |
+| `git.defaultBranch` | `ask`, `auto` | `ask` | `ask` |
+| `git.merge` | `ask`, `auto` | `ask` | `ask` |
+| `git.owners` | array of GitHub owners that match `^[A-Za-z0-9][A-Za-z0-9-]{0,38}$` | `[]` | `[]` |
+| `git.maxPrFiles` | integer from 0 to 10000; 0 means no limit | `100` | `100` |
 
 `plan.review` sets the plan reviewer of `omt-plan`. `two-families` keeps its name but means 1 `plan-review` child on the family other than the main thread's. `one` means 1 `plan-review` child on any family. `owner` means the owner reviews the plan, with no child. Every value runs at most 2 review rounds. `design.variants` is the number of variants of each screen that `omt-design` draws, in the main thread on Claude Opus or in 1 `design` child otherwise.
 
 The build keys `verify`, `checkpoint`, and `stallMinutes` are retired (section 6.2). A run has no per-unit verify cadence, no owner check-in per layer or unit, and no stall heartbeat: the main thread builds, then one review child and one QA child check the work.
 
-Set `2026-10` has no `git` group, so with that set each `git` key that the config does not set is absent, and `omt git check` gives `ask` for it (section 5.15). `git.owners` lists the owners, such as the user's orgs, whose repos count as the user's own; the user's login always counts. `git.maxPrFiles` is the most changed files in one PR; sets `2026-10` and `2026-11` do not set it, so they have no limit. Over the limit, the skills split the branch into stacked PRs with `gh stack` (section 15.1). The omt default policy is 100 files. This is the file limit of a CodeRabbit review on its free plan for open-source repos, as of 2026-10. `prototype` also sets `limits.maxReviewRounds` to 2. `normal` and `pr-review` set no limits, roles, or models.
+Set `2026-10` has no `git` group, so with that set each `git` key that the config does not set is absent, and `omt git check` gives `ask` for it (section 5.15). `git.owners` lists the owners, such as the user's orgs, whose repos count as the user's own; the user's login always counts. `git.maxPrFiles` is the most changed files in one PR; sets `2026-10` and `2026-11` do not set it, so they have no limit. Over the limit, the skills split the branch into stacked PRs with `gh stack` (section 15.1). The omt default policy is 100 files. This is the file limit of a CodeRabbit review on its free plan for open-source repos, as of 2026-10. `prototype` also sets `limits.maxReviewRounds` to 2. `normal` sets no limits, roles, or models.
 
 The skills apply these switches at the steps in section 15. They reload the profile on wake and after an owner switch. `omt plan profile <slug> <name>` changes the remaining work of a running plan. It does not change completed tasks.
 
@@ -2287,7 +2326,7 @@ User scope and project scope never read or write each other's files, except the 
 
 Rules that the skills must carry:
 
-- `omt-ulw` runs the full build flow for every task. The main thread explores, asks question batches, plans, builds every unit, writes the planned tests, and fixes. Children review and test: one review child (step 8) and one QA child (step 10) check the work. A LIGHT run skips the plan review and the owner approval of the plan, but it still has the review child and the QA child. `omt plan new <slug> --light` creates the LIGHT plan, and `omt-plan` writes and reviews the HEAVY plan, which the owner approves. A large unit with a disjoint scope may go to an `execute` child, or to a `ui` child for a `ui` unit, as an independent track. A `ui` unit is built by the main thread when it runs Claude Opus, and by a `ui` child otherwise, with the configured role fallbacks. An approved design spec is optional. When one exists, the unit follows it. Otherwise it implements the task requirements directly, with Anthropic's optional `frontend-design` skill when available. A design pass runs first only when the user requests one. The main thread records every child dispatch and result in the ledger.
+- `omt-ulw` runs the full build flow for every task. The main thread explores, asks question batches, plans, builds every unit, writes the planned tests, and fixes. Children review and test: one review child (step 8) and one QA child (step 10) check the work. A LIGHT run skips the plan review and the owner approval of the plan, but it still has the review child and the QA child. `omt plan new <slug> --light` creates the LIGHT plan, and `omt-plan` writes and reviews the HEAVY plan, which the owner approves. A large unit with a disjoint scope may go to an `execute` child, to a `ui` child for a `ui` unit, or to a `writing` child for a `writing` unit, as an independent track. A `ui` unit is built by the main thread when it runs Claude Opus, and by a `ui` child otherwise, with the configured role fallbacks. An approved design spec is optional. When one exists, the unit follows it. Otherwise it implements the task requirements directly, with Anthropic's optional `frontend-design` skill when available. A design pass runs first only when the user requests one. The main thread records every child dispatch and result in the ledger.
 - Before each dispatch with a plan file, the main thread runs `omt ledger stats --plan <slug>` and requires `can dispatch: yes`, which compares `active` with `maxParallel`. Without a plan file and with a selected run profile, it compares ledger `active` with that profile's `maxParallel`. `ledger stats` has no `--profile` flag. This comparison also applies to ledger-only review and design ids. Without the CLI, it counts tasks itself. No skill sets or checks a task budget.
 - Only `qa` drives a device, a Simulator UI, a browser, or a computer. The main thread drives no device. Every other child lists each device check, with its steps and expected result, for the main thread to send to `qa`. The default `qa` chain tries Sol at medium effort, then Sonnet at low effort. A local-tool `INCONCLUSIVE` result gets one retry on the next rung of another provider, with a higher attempt. After that retry, the workflow fixes or stops.
 - `omt-ulw` review child (step 8): the `review` role, built with `--against <main thread driver>` from the step 0 `modelSelection`, so it runs on the other family. When `build.oracle` requires the oracle for the run's tier, the review child uses the `oracle` role with unit `F2` instead, also when `build.review` is `off`, so no extra thread runs. Its context is the objective, the done conditions, the plan `## Summary`, and the scope paths, never the main thread's history. It fixes each local finding itself, a clear fix inside the changed files that agrees with the plan Summary, when its Access line allows edits. It reports every other finding, and it lists its fixes with their paths under `FIXES`. The main thread reads the fix diff of those paths before QA starts, and review and QA never run at the same time. `build.review: first-round` runs one review, `every-round` runs one more review after the main thread fixes the reported findings, up to `maxReviewRounds` reviews, and `off` runs none. Open findings after the last review go to the owner.
@@ -2304,7 +2343,7 @@ Rules that the skills must carry:
 - `omt-ulw`, `omt-plan`, `omt-grill`, `omt-design`, `omt-code-review`, and `omt-research` start with a step 0 that calls `t3_thread_configuration` with no `threadId` and reads `interactionMode`. In `plan` mode they dispatch only children in `plan` interaction mode: read-only roles, and `review` or `oracle` tasks with `interactionMode: "plan"` set in `delegateTask` (the defaults makes those two edit roles). They write no files, and deliver the result in the final message, or ask the user to switch to default mode. No skill calls `orchestrator_capabilities` to read its modes, because that result holds the full provider and model catalog.
 - Step 0 of `omt-ulw` and `omt-plan` also links to the branch check in `delegation.md`. It finds the default branch from the repository metadata (`refs/remotes/origin/HEAD`, then `init.defaultBranch` when that branch exists, then `main` or `master`) and keeps its full ref as `<default>` (`refs/remotes/origin/<name>`, or `refs/heads/<name>` for a local result), so that a tag with the same name cannot match. It counts `git rev-list --count HEAD..<default>`. When the count is above 0, `plan` mode only reports it. `default` mode runs `git merge --ff-only <default>` when the worktree is clean and `HEAD` is an ancestor of the default branch; otherwise it reports the count and asks the user. When no default branch is found, the skill skips the check and says so.
 - `omt-plan` finishes independent research and a draft plan before it asks all open owner decisions in one batch, with 2 to 4 options and a recommendation each, and asks the next batch after the answers until no question is open. The first batch includes the proposed `## Tests` lines and reasons for layers outside `plan.testLayers`. Each research question, answer, and source goes under `## Research`. It names shared resources and wraps verify commands with `omt lock run <resource> -- <command>`. It runs `omt plan limit <slug> 1` only for shared build state without `flock` or `lockf`, or for commands that leave processes running after exit. Those commands run outside the lock. Edit and hash the absolute plan path from `omt plan status`. Compute the hash after every edit, including header changes, before the next brief.
-- Every plan has a `## Summary` of at most 15 lines for the owner, in plain words with no `path:line` citations and no code blocks. The `plan` persona writes it last, and `omt-plan` step 3 updates it after each review fix. The `plan-review` persona blocks a summary line that the rest of the plan does not support. `omt-ulw` fills it last in a LIGHT plan too.
+- Every plan has a `## Summary` of at most 15 lines for the owner, in plain words with no `path:line` citations and no code blocks. The planning standard (`skills/omt/references/planning.md`) puts it last, and `omt-plan` step 3 updates it after each review fix. The `plan-review` persona blocks a summary line that the rest of the plan does not support. `omt-ulw` fills it last in a LIGHT plan too.
 - `omt-plan` step 5 shows the plan before it hands off, also when `omt-ulw` called it. The reply holds the `## Summary` text in full, the plan path, the review result, and each open decision.
 - `omt-ulw` selects the slug and effective profile before the first explore brief in step 2. Before a plan exists, it compares ledger `active` with that profile's `maxParallel`.
 - `omt-ulw` step 7 builds the units in the order of the `ready:` line of `omt plan status <slug>`. The role of a unit that the main thread builds is `main`.
@@ -2343,7 +2382,7 @@ Rules that the skills must carry:
 
 ### 15.4 Pull request review
 
-`omt-code-review --profile pr-review <number>` enables all PR steps. Every profile uses the same order. Steps 1, 2, 6, and 10 always run. Other steps use `workflow.review` switches. The skill posts no GitHub comment or review.
+`omt-code-review <number>` with the `normal` profile enables all PR steps. The `prototype` profile turns them off. Every profile uses the same order. Steps 1, 2, 6, and 10 always run. Other steps use `workflow.review` switches. The skill posts no GitHub comment or review.
 
 Reviewers are report-only. The defaults give `review` and `oracle` edit access with `interactionMode: default`, because the `omt-ulw` reviewer fixes local findings. `omt-code-review` keeps its reviewers report-only in every run: each `review` and `oracle` task says `Report every finding with its fix. Change no files, and write none under FIXES.`, and the skill sets `interactionMode: "plan"` in the `delegateTask` of each `review` and `oracle` call, so the child cannot edit. Because the brief of an edit role has no plan-mode line, the task also tells the child to stay in plan mode and put the result block in its final assistant message. The main thread makes every fix, CI fixes included, and writes every approved test. The main thread waits for its children inside its turn and ends a turn only for the owner: a question, an offer, or the report.
 
@@ -2415,7 +2454,7 @@ Required coverage:
 - Schema: the committed schema equals the generated one, and it allows the same keys as the validator.
 - CLI: `--help`, `--version`, an unknown command (exit 2), and an unknown flag (exit 2), run as a child process. `test/cli.test.ts` also checks that `omt help` and `omt help config` print the same text as `omt --help` and `omt config -h`. `test/cli-help.test.ts` runs every command in `COMMANDS` except `hook` with probe arguments from its usage text. It records the options of each `parseArgs` call through `observeParseArgs` in `src/util/args.ts`, and fails when a usage text does not name a flag that its parser accepts, or when no probe of a command reaches a parser.
 - Config explain: `test/e2e/config-explain.test.ts` runs `omt config explain` and `omt config explain --profile fast-proto --json` as a child process with a temp user and project config, and checks a source from the defaults, the user file, the project file, and a profile.
-- Config editor: `test/config/editor-server.test.ts` checks that the server refuses a wrong token, a wrong `Host`, a foreign `Origin`, `Origin: null`, a POST without `Origin`, `Sec-Fetch-Site: cross-site`, an unknown path, a wrong method, a wrong `Content-Type`, and a body over 1 MiB, and that no response has an `Access-Control-*` header. It checks 409 `config_changed` for a stale `base` and for the second of two writes with the same `base`, and 422 `config_invalid` for a new error, each with the file unchanged. It checks that `closed` resolves after a close beacon with no ping, before and after the first ping, and that a ping after the beacon keeps the server open. `test/e2e/config-edit-web.test.ts` runs `omt config edit --web --no-open` as a child process with the `childEnv` helper, reads the URL, loads the page and `api/state`, pings, writes a nested profile value, checks that the file keeps every comment, and sends SIGINT for exit 0.
+- Config editor: `test/config/editor-server.test.ts` checks that the server refuses a wrong token, a wrong `Host`, a foreign `Origin`, `Origin: null`, a POST without `Origin`, `Sec-Fetch-Site: cross-site`, an unknown path, a wrong method, a wrong `Content-Type`, and a body over 1 MiB, and that no response has an `Access-Control-*` header. It checks 409 `config_changed` for a stale `base` and for the second of two writes with the same `base`, and 422 `config_invalid` for a new error, each with the file unchanged. It checks that `closed` resolves after a close beacon with no ping, before and after the first ping, and that a ping after the beacon keeps the server open. `test/e2e/config-edit-web.test.ts` runs `omt config edit --web --no-open` as a child process with the `childEnv` helper, reads the URL, loads the page and `api/state`, pings, writes a nested profile value, checks that the file keeps every comment, and sends SIGINT for exit 0. `test/config/editor-maintainer.test.ts` checks maintainer mode: the empty base, that the user config is not read, the completeness check, a write to the defaults file, the skill file list without a symlink, a skill file save, 409 for a stale `base`, 422 for a changed `SKILL.md` name, 400 for a path outside `references/` or through a symlink, 404 for a new file, and 404 for both skill file routes outside maintainer mode. `test/config/editor-catalog.test.ts` checks the catalog with and without capabilities, the compact option form, the `SKILL.md` reads and the refused names, and that the page renders skill markdown without HTML and with no `javascript:` link.
 - Commands: `roles`, `route`, `brief`, and `doctor` in `test/commands/`, including the `brief --json` payload fields, the title rule, `brief --json --against` with its target and fallbacks, `route --against auto` against a ledger, and the `CROSS` column and `crossFamily` field of `omt roles`.
 - End to end: one child-process flow in a temp `HOME` (`test/e2e.test.ts`) runs `install`, `doctor`, `roles`, `route`, `init`, `plan`, `profile`, `brief`, `ledger`, `hook`, and `uninstall` in a temp git project. It runs the CLI with `process.execPath`, because a version-manager `node` shim can fail when `HOME` is a temp directory. A second flow runs `install --project --hooks --yes` in a temp git project, runs `.omt/bin/omt`, checks that `git status --porcelain` is empty, and uninstalls.
 
@@ -2509,7 +2548,7 @@ The `github` job uses `GH_TOKEN: ${{ github.token }}`. It expects the 6 archives
 
 - Stack: TanStack Start (React) with Vite. The only route, `/`, is prerendered at build time, so `dist/client` holds the whole site as static files. The site runs on the Cloudflare Pages project `oh-my-t3`, at `https://oh-my-t3.pages.dev`. `wrangler.jsonc` names the project and sets `pages_build_output_dir`. `public/404.html` is the page for an unknown path.
 - Scripts: `dev`, `build`, `preview`, `typecheck`, `e2e` (`playwright test`), and `deploy` (`vite build` and `wrangler pages deploy --branch main`, a production deployment).
-- End-to-end tests: `e2e/site.e2e.ts` runs in Chromium and WebKit at 1440 x 1000 and in WebKit as an iPhone 15. `e2e/serve.ts` serves `dist/client` the way Cloudflare Pages does, with `404.html` and status 404 for an unknown path. The tests check that the page renders with no errors and no sideways scroll, the 404 page, the order of the hero runs, the install tabs, the skill tour, and reduced motion.
+- End-to-end tests: `e2e/site.e2e.ts` runs in Chromium and WebKit at 1440 x 1000 and in WebKit as an iPhone 15. `e2e/serve.ts` serves `dist/client` the way Cloudflare Pages does, with `404.html` and status 404 for an unknown path. The tests check that the page renders with no errors and no sideways scroll, the 404 page, the order of the hero runs, the install tabs, the skill tour, the roles block, and reduced motion.
 - `site/AGENTS.md` is the guide for agents that change the site.
 - Design: the existing marketing design in Paper, updated for the `oh-my-t3` brand. [Brand assets and Paper references](design/brand-rename.md) record the file, pages, and exports. The pictures in `site/public/img/` and `site/src/art/` are the design's SVG exports.
 - Copy ownership: website source owns final wording. Paper description slots specify content purpose and approximate length, while brand names, commands, and functional identifiers stay real. Copy-only site edits require no duplicate Paper edit. [The Paper copy policy](design/paper-drift.md) records the slots and embedded banner previews. The site displays the root `package.json` version through `site/src/site.ts`.
@@ -2519,7 +2558,9 @@ The `github` job uses `GH_TOKEN: ${{ github.token }}`. It expects the 6 archives
     - `omt-ulw`: one line, because the main thread builds. It goes from Goal to Plan, through three unit stations at Build, to Review. The review reports a finding: a dashed loop goes back to Build, the second pass to Review draws in yellow, and then the line goes on to QA and Done. The line draws at one speed, so it does not stop at the stations.
     - `omt-swarm`: three tracks leave the plan at Split at different times and speeds. Each track builds and checks in its own thread. All tracks reach one review on the rail, then join at Merge, go through one QA station, and end in one pull request.
   - The state chart shows the states of one change: Planned, Built, In review, Tested, and Done, or Blocked. It plays two trips while the chart is in view. In the first, a review requests changes, the change goes back to Built, its second pass draws in yellow, and the second review approves it. In the second, a review blocks the change. The verdict of each review lights up.
-  - Skills is one list with a pointer: `omt-ulw`, `omt-plan`, `omt-design`, `omt-code-review`, `omt-research`, `omt-swarm`, and `omt`. The last two rows say "by name only". The `omt` picture names the workflows that the `omt` skill lists. The picture of the selected skill plays next to the list (above it on a narrow screen), and then the pointer goes to the next skill. A click or an arrow key selects a skill and stops the tour. `src/components/metro.tsx` draws these pictures and the two hero pictures, and `src/components/scenes.ts` defines them.
+  - Skills is one list with a pointer: `omt-ulw`, `omt-plan`, `omt-grill`, `omt-design`, `omt-code-review`, `omt-research`, `omt-help`, `omt-setup`, `omt-swarm`, and `omt`. The last two rows say "by name only". The `omt-design` caption says that a Claude Opus main thread or one design child draws the variants. The `omt` picture names the workflows that the `omt` skill lists. The picture of the selected skill plays next to the list (above it on a narrow screen), and then the pointer goes to the next skill. A click or an arrow key selects a skill and stops the tour. `src/components/metro.tsx` draws these pictures and the two hero pictures, and `src/components/scenes.ts` defines them.
+  - Under the skill tour, a Roles block says that skills name roles, never models, that each role has an ordered list of models, that review roles run on the other family, and that profiles change switches, limits, and roles. It lists the 12 default roles in three groups: Find, Check, and Build.
+  - The requirements say that design and UI tasks run with either provider.
   - Install has two steps with tabs, side by side, and no Names list. Step 1 gets the `omt` command: Bun (the default), pnpm, mise, or a one-shot run. Step 2 installs the skills for all projects (`omt install --hooks`) or for one project (`omt install --project --hooks`). A one-shot run allows only the project install, because the user install refuses a CLI that runs from a one-shot cache (section 14.2).
   - The page text is short: one line for each step of How it works, one line under the state chart, and one line of notes under Install. The requirements ask for the latest T3 Code release.
   - Text has three steps on the ground, measured with APCA: white for headings and key text, `#c8c8c8` for body copy, and `#9a9a9a` for labels and meta. Rules are `#2a2a2a`. Sections use one rhythm: `--gap-section` between sections, `--gap-block` between the parts of one section, and `--gap-heading` under a section heading.

@@ -140,7 +140,7 @@ The [walkthrough](docs/walkthrough.md) follows two real runs on this repository,
 - Unit: one part of the plan, with a file scope, a done condition, and a verify command. The main thread builds most units itself.
 - Brief: the full task text that a child task gets.
 - Ledger: `.omt/ledger.jsonl`, with one line for each task start and each result.
-- Profile: a named set of workflow switches, limits, and role changes. The built-in profiles are `normal`, `prototype`, and `pr-review`.
+- Profile: a named set of workflow switches, limits, and role changes. The built-in profiles are `normal` and `prototype`.
 - Oracle: a review of the whole change from the other model family, before it counts as done.
 - LIGHT and HEAVY: the two run sizes. A LIGHT run has one or two units in one area of code. Every other run is HEAVY and gets a reviewed plan.
 

@@ -141,7 +141,7 @@ Commit `58a85b0`, "refactor: share command, install, visual, and test helpers", 
 
 ## Run 2: workflow-profiles
 
-This run is larger. It added workflow profiles (`normal`, `prototype`, and `pr-review`), `omt lock`, the `verify`, `qa`, and `guardrail` roles, and `maxParallel` 6. The `code-health` run was its first step: the plan's Log records the hand-off from `code-health`, and the run started after commit `58a85b0`.
+This run is larger. It added workflow profiles (`normal`, `prototype`, and `pr-review`; a later release folded `pr-review` into `normal`), `omt lock`, the `verify`, `qa`, and `guardrail` roles, and `maxParallel` 6. The `code-health` run was its first step: the plan's Log records the hand-off from `code-health`, and the run started after commit `58a85b0`.
 
 The plan has 10 units in 6 dependency layers. U9 (spec, design, and README) depends on all other units. U4 (brief and routing) took the most work: 30 tasks over 9 rounds, because the oracle reopened it twice.
 

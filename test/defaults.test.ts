@@ -2,7 +2,9 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "../src/config/defaults.ts";
+import { isCompleteDefaults } from "../src/config/defaultsState.ts";
 import { loadConfig } from "../src/config/load.ts";
+import { validateLayer } from "../src/config/validate.ts";
 import { PROJECT_STARTER_CONFIG, USER_STARTER_CONFIG } from "../src/config/starter.ts";
 import { EFFORT_LADDER } from "../src/types.ts";
 import { fakeContext, tempDir, writeFile } from "./helpers.ts";
@@ -20,7 +22,6 @@ test("a retired date pin loads with a warning and uses the current defaults", as
 const EXPECTED: Record<string, [access: string, result: string, t3Role: string, mode: string, crossFamily: boolean, chain: string[]]> = {
   explore: ["read-only", "research", "research", "plan", false, ["codex/gpt-6.1-terra/low", "claudeAgent/claude-haiku-5-5/medium"]],
   research: ["read-only", "research", "research", "plan", false, ["codex/gpt-6.1-sol/low", "claudeAgent/claude-sonnet-5-5/medium"]],
-  plan: ["edit", "plan", "design", "default", false, ["claudeAgent/claude-opus-5-5/medium", "codex/gpt-6-astra/high"]],
   "plan-review": ["read-only", "review", "review", "plan", true, ["codex/gpt-6-astra/medium", "claudeAgent/claude-opus-5-5/medium"]],
   grill: ["read-only", "grill", "review", "plan", true, ["codex/gpt-6-astra/medium", "claudeAgent/claude-opus-5-5/medium"]],
   execute: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-opus-5-5/low", "codex/gpt-6.1-sol/high"]],
@@ -33,7 +34,7 @@ const EXPECTED: Record<string, [access: string, result: string, t3Role: string, 
   ui: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-opus-5-5/low", "codex/gpt-6.1-sol/high"]],
 };
 
-test("the defaults hold the 13 roles with the planned values", () => {
+test("the defaults hold the 12 roles with the planned values", () => {
   assert.deepEqual(Object.keys(DEFAULT_CONFIG.roles).sort(), Object.keys(EXPECTED).sort());
   for (const [name, [access, result, t3Role, mode]] of Object.entries(EXPECTED)) {
     const role = DEFAULT_CONFIG.roles[name];
@@ -133,3 +134,9 @@ for (const [name, text] of Object.entries({ USER_STARTER_CONFIG, PROJECT_STARTER
     assert.doesNotMatch(text, /visuals/);
   });
 }
+
+test("defaults.jsonc is a complete config with no validation issues", () => {
+  const { layer, issues } = validateLayer(structuredClone(DEFAULT_CONFIG), "src/config/defaults.jsonc");
+  assert.deepEqual(issues, []);
+  assert.equal(isCompleteDefaults(layer), true);
+});
