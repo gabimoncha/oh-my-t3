@@ -83,6 +83,15 @@ On GitHub:
 
 If another person gets the right to push release tags, add an approval before npm publishes. One way: in **Settings** > **Environments** > `npm`, add yourself as a required reviewer. The `npm` job then waits for your approval. The other way: change `npm publish` to `npm stage publish` in `release.yml`, and approve each version on npmjs.com.
 
+## Rules on `main` and release tags
+
+Two rulesets protect the repository. Each ruleset lists you as an actor who can always bypass it.
+
+- **Release tags** (target: tags `v*`): only you can create, update, or delete a release tag.
+- **Main branch** (target: `refs/heads/main`): nobody can delete `main` or force-push to it. A commit reaches `main` only when the `verify` check of GitHub Actions passed. Because you bypass this ruleset, your direct pushes to `main`, such as doc fixes and release commits, still work.
+
+`.github/CODEOWNERS` names you as the owner of every path, so GitHub asks for your review on each pull request. The `main` ruleset does not require that review. Pull requests are not required either.
+
 ## If a release job fails
 
 To see the failed job and its log, run `gh run list --workflow release.yml` and then `gh run view <run-id> --log-failed`. If the cause is outside the repository, such as a missing trusted publisher, fix it and re-run only the failed jobs:

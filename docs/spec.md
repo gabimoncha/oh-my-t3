@@ -38,6 +38,7 @@ The package is named `oh-my-t3` and is `private`, so nobody publishes the reposi
 
 ```text
 .github/
+  CODEOWNERS             names @gabimoncha as the owner of every path
   workflows/             ci.yml (CI), release.yml (release on a v* tag), and site.yml (checks and deploys site/) (section 17.1)
 assets/                  icon.svg (the omt icon) and banner.png (the README banner); both ship in the npm packages
 mise.toml                pins Bun 1.4.4, Node 24.22.1, and npm 11.21.1
