@@ -7,7 +7,7 @@ import { readFileIfExists, writeFileAtomic } from "../util/fs.ts";
 import { isRecord } from "../util/json.ts";
 import { DEFAULT_CONFIG, diffDefaults, formatValue } from "./defaults.ts";
 import { parseJsonc, setTopLevelValue } from "./jsonc.ts";
-import { validateLayer } from "./validate.ts";
+import { validateLayer, WORKFLOW_RULES } from "./validate.ts";
 
 type Context = Pick<CliContext, "cwd" | "env" | "homedir">;
 type Scope = "user" | "project";
@@ -48,6 +48,12 @@ export function isCompleteDefaults(layer: ConfigLayer): boolean {
     layer.limits.maxDepth === undefined || layer.limits.maxReviewRounds === undefined ||
     layer.profiles.normal?.workflow === undefined || !Object.hasOwn(layer.profiles, layer.profile) ||
     layer.profiles[layer.profile] == null) return false;
+  const workflow: Record<string, Record<string, unknown> | undefined> = layer.profiles.normal.workflow;
+  for (const [group, rules] of Object.entries(WORKFLOW_RULES)) {
+    if (group === "git") continue;
+    const values = workflow[group];
+    if (values == null || Object.keys(rules).some((key) => values[key] === undefined)) return false;
+  }
   for (const role of Object.values(layer.roles)) {
     if (role === null || role.description === undefined || role.access === undefined || role.chain === undefined ||
       role.result === undefined || role.t3Role === undefined || role.interactionMode === undefined || role.runtimeMode === undefined) return false;
