@@ -76,7 +76,7 @@ async function packRelease(source: string, root: string, outdir: string, tool: R
 }
 
 // Build B: a copy of the files that git tracks, plus the files that it would track (the checkout's uncommitted
-// work), committed in a new repository. Its version is A's patch plus 1, and skills/omt-help/SKILL.md has one more
+// work), committed in a new repository. Its version is A's patch plus 1, and skills/omt-setup/SKILL.md has one more
 // line, so an update from A to B changes one skill.
 function nextCheckout(root: string, home: string): { dir: string; version: string } {
   const dir = join(root, "next-src");
@@ -92,7 +92,7 @@ function nextCheckout(root: string, home: string): { dir: string; version: strin
   const [major, minor, patch] = pkg.version.split(".").map(Number);
   const version = `${major}.${minor}.${patch! + 1}`;
   writeFileSync(pkgPath, `${JSON.stringify({ ...pkg, version }, null, 2)}\n`);
-  appendFileSync(join(dir, "skills", "omt-help", "SKILL.md"), `\nThis line exists only in the e2e update build ${version}.\n`);
+  appendFileSync(join(dir, "skills", "omt-setup", "SKILL.md"), `\nThis line exists only in the e2e update build ${version}.\n`);
   const git = (args: string[]) => execFileSync(GIT, args, { cwd: dir, env: gitEnv(home), encoding: "utf8" });
   git(["init", "-q", "-b", "main"]);
   git(["add", "-A"]);

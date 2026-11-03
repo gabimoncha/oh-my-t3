@@ -38,7 +38,33 @@ export interface ChannelInput {
 // `env` holds variables that the command gets in addition to the environment of omt.
 export type RunCommand = (argv: string[], opts: { cwd?: string; inherit?: boolean; toStderr?: boolean; env?: Env }) => Promise<{ code: number; stdout: string }>;
 
-export type UpdateAction = { kind: "run"; argv: string[]; display: string } | { kind: "hint"; text: string } | { kind: "repin" };
+export interface Command {
+  argv: string[];
+  display: string;
+}
+
+// An install of the deprecated oh-my-t3code package moves to oh-my-t3. `commands` lists the displays in the
+// order that they run.
+export interface PackageSwitch {
+  from: typeof LEGACY_PACKAGE;
+  to: typeof PACKAGE_NAME;
+  commands: string[];
+}
+
+// `restore` reinstalls the old package at the version that runs now.
+export interface RunSwitch extends PackageSwitch {
+  removeFirst: boolean;
+  remove: Command;
+  restore: Command;
+  removeNew: Command; // a remove-first switch undoes a broken new install with it before the restore
+}
+
+export type UpdateAction =
+  | { kind: "run"; argv: string[]; display: string; switch?: RunSwitch }
+  | { kind: "hint"; text: string; switch?: PackageSwitch }
+  | { kind: "repin" };
+
+export const LEGACY_PACKAGE = "oh-my-t3code";
 
 const RELEASES_URL = `${REPOSITORY_URL}/releases`;
 // Set by omt update for the new CLI of a global channel: the CLI file that the package manager reported.
@@ -340,6 +366,13 @@ const DEV_COMMANDS: Readonly<Record<NonNullable<Channel["packageManager"]>, stri
   yarn: "yarn add -D",
 };
 
+const DEV_REMOVE_COMMANDS: Readonly<Record<NonNullable<Channel["packageManager"]>, string>> = {
+  npm: "npm uninstall",
+  pnpm: "pnpm remove",
+  bun: "bun remove",
+  yarn: "yarn remove",
+};
+
 // The project's own omt, through its package manager. The shim can still name the old CLI file after the
 // update, such as an old folder of the shared pnpm store, so the sync after a dependency update avoids it.
 const EXEC_COMMANDS: Readonly<Record<NonNullable<Channel["packageManager"]>, string>> = {
@@ -349,8 +382,8 @@ const EXEC_COMMANDS: Readonly<Record<NonNullable<Channel["packageManager"]>, str
   yarn: "yarn omt",
 };
 
-function runAction(channel: Channel, version: string): { argv: string[]; display: string } | undefined {
-  const spec = `${channel.packageName}@${version}`;
+function runAction(channel: Channel, version: string, packageName: string = channel.packageName): Command | undefined {
+  const spec = `${packageName}@${version}`;
   switch (channel.kind) {
     case "npm-global":
       return { argv: ["npm", "install", "-g", spec], display: `npm install -g ${spec}` };
@@ -368,13 +401,66 @@ function runAction(channel: Channel, version: string): { argv: string[]; display
   }
 }
 
+// The command that removes a package from a global channel.
+function removeAction(channel: Channel, name: string = LEGACY_PACKAGE): Command | undefined {
+  switch (channel.kind) {
+    case "npm-global":
+      return { argv: ["npm", "uninstall", "-g", name], display: `npm uninstall -g ${name}` };
+    case "pnpm-global":
+      return { argv: ["pnpm", "remove", "-g", name], display: `pnpm remove -g ${name}` };
+    case "bun-global":
+      return { argv: ["bun", "remove", "-g", name], display: `bun remove -g ${name}` };
+    case "mise-npm": {
+      const tool = `npm:${name}`;
+      return { argv: ["mise", "unuse", "-g", tool], display: `mise unuse -g ${tool} (removes ${tool} from your global mise config)` };
+    }
+    default:
+      return undefined;
+  }
+}
+
+// Both packages ship the bins omt, omt3, oh-my-t3code, and oh-my-t3. npm refuses to install a package whose bin
+// another global package owns (EEXIST), and its uninstall of the old package removes those bin links even after
+// --force pointed them at the new package. pnpm refuses with ERR_PNPM_GLOBAL_BIN_CONFLICT. So npm and pnpm remove
+// the old package first, and omt reinstalls it when the new install fails. Bun and mise keep both packages side
+// by side, so they install the new package first and remove the old one after the new CLI starts.
+const REMOVE_FIRST: ReadonlySet<ChannelKind> = new Set(["npm-global", "pnpm-global"]);
+
+// In a project, npm uninstall removes the .bin links that the new package took over, so npm removes the old
+// package first. pnpm and Bun keep the new links. yarn takes the npm order, which works with any manager.
+const DEV_REMOVE_FIRST: ReadonlySet<NonNullable<Channel["packageManager"]>> = new Set(["npm", "yarn"]);
+
+function runSwitch(channel: Channel, install: Command, current: string): RunSwitch | undefined {
+  const remove = removeAction(channel);
+  const removeNew = removeAction(channel, PACKAGE_NAME);
+  const restore = runAction(channel, current, LEGACY_PACKAGE);
+  if (channel.packageName !== LEGACY_PACKAGE || remove === undefined || removeNew === undefined || restore === undefined) return undefined;
+  const removeFirst = REMOVE_FIRST.has(channel.kind);
+  const commands = removeFirst ? [remove.display, install.display] : [install.display, remove.display];
+  return { from: LEGACY_PACKAGE, to: PACKAGE_NAME, commands, removeFirst, remove, restore, removeNew };
+}
+
+function devSwitch(channel: Channel, version: string): PackageSwitch | undefined {
+  if (channel.kind !== "dev-dependency" || channel.packageName !== LEGACY_PACKAGE) return undefined;
+  const manager = channel.packageManager ?? "npm";
+  const add = `${DEV_COMMANDS[manager]} ${PACKAGE_NAME}@${version}`;
+  const remove = `${DEV_REMOVE_COMMANDS[manager]} ${LEGACY_PACKAGE}`;
+  return { from: LEGACY_PACKAGE, to: PACKAGE_NAME, commands: DEV_REMOVE_FIRST.has(manager) ? [remove, add] : [add, remove] };
+}
+
+// The channel after the update: a switch installs oh-my-t3, so newCliCommand looks for that package.
+export function updatedChannel(channel: Channel, action: UpdateAction): Channel {
+  return action.kind === "run" && action.switch !== undefined ? { ...channel, packageName: action.switch.to } : channel;
+}
+
 function hintText(channel: Channel, version: string, cliPath: string): string {
   switch (channel.kind) {
     case "source":
       return "update the clone with git pull and bun install, then run omt update --skills-only";
     case "dev-dependency": {
       const manager = channel.packageManager ?? "npm";
-      return `run ${DEV_COMMANDS[manager]} ${channel.packageName}@${version} in ${channel.projectRoot}, then run ${EXEC_COMMANDS[manager]} update --skills-only --project there`;
+      const commands = devSwitch(channel, version)?.commands ?? [`${DEV_COMMANDS[manager]} ${channel.packageName}@${version}`];
+      return `run ${commands.join(", then ")} in ${channel.projectRoot}, then run ${EXEC_COMMANDS[manager]} update --skills-only --project there`;
     }
     case "binary":
       return `download the release binary from ${RELEASES_URL}, or install with mise use -g ${MISE_GITHUB_TOOL}@${version}`;
@@ -383,16 +469,27 @@ function hintText(channel: Channel, version: string, cliPath: string): string {
   }
 }
 
-export function updateAction(channel: Channel, version: string): UpdateAction {
-  const run = runAction(channel, version);
+// `current` is the version that runs now; a switch reinstalls it when the new package fails to install.
+export function updateAction(channel: Channel, version: string, current: string = version): UpdateAction {
+  const legacy = channel.packageName === LEGACY_PACKAGE && removeAction(channel) !== undefined;
+  const run = runAction(channel, version, legacy ? PACKAGE_NAME : channel.packageName);
   const windows = process.platform === "win32";
-  if (run !== undefined) return windows ? { kind: "hint", text: `run ${run.display}` } : { kind: "run", ...run };
+  if (run !== undefined) {
+    const moved = runSwitch(channel, run, current);
+    if (windows) {
+      const text = `run ${moved?.commands.join(", then ") ?? run.display}`;
+      return moved === undefined ? { kind: "hint", text } : { kind: "hint", text, switch: { from: moved.from, to: moved.to, commands: moved.commands } };
+    }
+    return moved === undefined ? { kind: "run", ...run } : { kind: "run", ...run, switch: moved };
+  }
   if (channel.kind === "one-shot") {
     if (!windows) return { kind: "repin" };
     const command = runnerCommand(channel.runner ?? "npx", version);
     return { kind: "hint", text: `run ${command} install --project in ${channel.projectRoot}` };
   }
-  return { kind: "hint", text: hintText(channel, version, channel.key.slice(channel.key.indexOf(":") + 1)) };
+  const text = hintText(channel, version, channel.key.slice(channel.key.indexOf(":") + 1));
+  const moved = devSwitch(channel, version);
+  return moved === undefined ? { kind: "hint", text } : { kind: "hint", text, switch: moved };
 }
 
 // The argv prefix that runs the CLI after the update. The global kinds run the bundle with the runtime that

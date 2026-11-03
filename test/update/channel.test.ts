@@ -48,7 +48,11 @@ for (const packageName of ["omt3", "oh-my-t3code", "oh-my-t3"]) {
       if (["npm-global", "pnpm-global", "bun-global", "mise-npm"].includes(found.kind)) {
         const action = updateAction(found, "0.3.0");
         assert.equal(action.kind, "run");
-        if (action.kind === "run") assert.ok(action.argv.some((arg) => arg === `${packageName}@0.3.0` || arg === `npm:${packageName}@0.3.0`));
+        const installed = packageName === "oh-my-t3code" ? "oh-my-t3" : packageName;
+        if (action.kind === "run") {
+          assert.ok(action.argv.some((arg) => arg === `${installed}@0.3.0` || arg === `npm:${installed}@0.3.0`));
+          assert.equal(action.switch?.from, packageName === "oh-my-t3code" ? "oh-my-t3code" : undefined);
+        }
       }
       if (shape.runner !== undefined) {
         assert.equal(found.runner, shape.runner);

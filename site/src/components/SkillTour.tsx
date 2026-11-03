@@ -3,12 +3,12 @@ import { useInView } from "./inView";
 import { Metro } from "./metro";
 import { SKILL_SCENES } from "./scenes";
 
-type Skill = { name: string; note: string; shows: string };
+type Skill = { name: string; note: string; shows: string; tag?: string };
 
 const AGENT_SKILLS: Skill[] = [
   {
     name: "omt-ulw",
-    note: "You want a task built, fixed, or shipped from start to end. The ulw and ultrawork keywords start it.",
+    note: "You want a task built, fixed, or shipped from start to end. Type $omt-ulw and the task, or say start ulw.",
     shows:
       "The agent asks its questions, plans, and builds the change in its own thread. Then one review child fixes small findings and reports the rest, and one QA child runs the checks.",
   },
@@ -17,12 +17,6 @@ const AGENT_SKILLS: Skill[] = [
     note: "You want a reviewed plan before any code changes.",
     shows:
       "The agent explores the code, asks its questions in batches, and writes a plan. One model of the other family reviews it, for at most 2 rounds. The plan goes to .omt/plans/.",
-  },
-  {
-    name: "omt-grill",
-    note: "Your goal is vague, or you want to stress-test it before a plan.",
-    shows:
-      "The agent finds the facts, and one model of the other family gives a second opinion. You answer question batches until none is open. The grill file goes to omt-plan.",
   },
   {
     name: "omt-design",
@@ -43,20 +37,17 @@ const AGENT_SKILLS: Skill[] = [
       "The agent answers a narrow question itself. For a broad one, it searches the repository, library docs, and the web at the same time, checks each claim, and writes an answer with sources.",
   },
   {
-    name: "omt-help",
-    note: "You want to know what omt can do, or which skill or command to use.",
-    shows: "The agent answers from the output of the omt CLI and links the docs. It changes nothing.",
-  },
-  {
     name: "omt-setup",
-    note: "You want to set up, configure, or update omt.",
-    shows: "The agent shows each command or edit first, runs a dry run where it can, and writes only after you agree.",
+    note: "You want to set up, configure, or update omt, or ask what it can do.",
+    shows:
+      "The agent answers from the omt CLI output and links the docs. For a change, it shows each command or edit first, runs a dry run where it can, and writes only after you agree.",
   },
 ];
 
 const NAMED_SKILLS: Skill[] = [
   {
     name: "omt-swarm",
+    tag: "opt-in",
     note: "You have a plan with independent tracks, and each needs its own worktree thread.",
     shows:
       "Each track builds and checks in its own T3 worktree thread. Then one review covers all tracks, the tracks merge, one QA run checks the result, and one pull request ships it.",
@@ -73,7 +64,7 @@ const ALL = [...AGENT_SKILLS, ...NAMED_SKILLS];
 // After a picture ends, the tour holds the last frame for this long, then goes to the next skill.
 const HOLD = 2200;
 
-// The agent starts the first nine by itself; you start the last two by name. A pointer goes down
+// The agent starts the first six by itself; you start the last two by name. A pointer goes down
 // the list of skills, and the picture of each skill plays next to it. A click or
 // the arrow keys select a skill and stop the tour. Out of view, the tour pauses.
 export function SkillTour() {
@@ -125,7 +116,7 @@ export function SkillTour() {
     >
       <span className="skill-name">
         <code>{item.name}</code>
-        {index >= AGENT_SKILLS.length ? <span className="skill-tag">by name only</span> : null}
+        {index >= AGENT_SKILLS.length ? <span className="skill-tag">{item.tag ?? "by name only"}</span> : null}
       </span>
       <span className="skill-note">{item.note}</span>
       {index === active ? (

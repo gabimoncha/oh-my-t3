@@ -50,7 +50,7 @@ import {
   withoutExcludeBlocks,
 } from "./project.ts";
 import type { Runner } from "./project.ts";
-import { classifySkill, isManagedDir, listBundledSkills, readMarker } from "./skills.ts";
+import { classifySkill, isManagedDir, listBundledSkills, OPT_IN_SKILLS, readMarker, selectedSkills } from "./skills.ts";
 
 export type TargetName = "agents" | LinkRootName;
 export const TARGET_NAMES: readonly TargetName[] = ["agents", "claude", "gemini"];
@@ -67,7 +67,7 @@ export interface SkillStep {
   reason?: string;
   backup?: boolean; // uninstall --force: move a locally modified skill to the backups before removal
   existed?: boolean; // uninstall --project: kept, because it was in place before the install
-  retired?: boolean; // install: a managed skill that the bundle no longer ships
+  retired?: boolean; // install: a managed skill that the bundle no longer ships, or an opt-in skill that the scope did not select
 }
 
 export interface LinkStep {
@@ -207,6 +207,7 @@ export interface InstallPlan {
   harnesses?: HarnessStep;
   hook?: HookStep;
   previous?: Manifest;
+  optIn: string[]; // the opt-in skills that this scope selected, with --with now or in an earlier install
   project?: ProjectInstallSteps;
   scratch: string[]; // scratch directories that an interrupted run left next to the agents root
 }
@@ -272,6 +273,7 @@ export interface InstallOptions {
   gitExclude?: boolean; // project scope only; default true
   capabilities?: Capabilities | undefined; // for the harness detection
   sync?: boolean; // omt update: keep each conflict, create no config, detect no harness, ignore force
+  with?: string[]; // opt-in skills to install; the scope's recorded opt-in skills stay selected without it
 }
 
 async function isRegularFile(path: string): Promise<boolean> {
@@ -575,8 +577,11 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
         : shimHookCommand(projectShimPath(paths.root));
   }
   const bundled = await listBundledSkills(ctx.packageRoot);
+  const { manifest: previous, from } = await loadScopeManifest(paths);
+  const optIn = selectOptIn(previous, options.with ?? [], bundled.map((skill) => skill.name));
+  const selected = selectedSkills(bundled, optIn);
   const skills: SkillStep[] = [];
-  for (const skill of bundled) {
+  for (const skill of selected) {
     const path = join(paths.agentsRoot, skill.name);
     const result = await classifySkill(skill.dir, path);
     const step: SkillStep = { name: skill.name, source: skill.dir, path, ...result };
@@ -594,11 +599,10 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
   const linkPlan = await planLinks(
     paths.agentsRoot,
     linkRoots,
-    bundled.map((skill) => skill.name),
+    selected.map((skill) => skill.name),
   );
   const links: LinkStep[] = linkPlan.links.map(({ canonical: _canonical, ...link }) => link);
-  const { manifest: previous, from } = await loadScopeManifest(paths);
-  await planRetired(paths, previous, bundled, skills, links);
+  await planRetired(paths, previous, bundled, optIn, skills, links);
   const sync = options.sync === true;
   const config: ConfigStep = { path: paths.configPath, action: (await pathExists(paths.configPath)) ? "unchanged" : "create" };
   if (sync && config.action === "create") {
@@ -617,6 +621,7 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
     links,
     skippedRoots: linkPlan.skipped,
     config,
+    optIn,
     scratch: paths.root === undefined ? [] : await listScratch(paths.agentsRoot),
   };
   if (previous !== undefined) plan.previous = previous;
@@ -648,7 +653,7 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
         step.reason !== "locally modified"
           ? "not managed by omt"
           : (step as SkillStep).retired === true
-            ? "locally modified; no longer shipped; omt install --force backs it up and removes it"
+            ? `locally modified; ${retiredReason(step.path)}; omt install --force backs it up and removes it`
             : "locally modified; omt install --force replaces it";
     }
   } else if (options.force) {
@@ -667,11 +672,38 @@ export function removesRetired(step: { retired?: boolean; action: PlanAction }):
   return step.retired === true && (step.action === "remove" || step.action === "replace");
 }
 
-// The names of the skills that an earlier install of this scope wrote and that the bundle no longer
-// ships. Ownership is tied to the recorded root. Missing folders still count so install can remove
-// their recorded dangling links. A folder in place before a project install stays the user's.
-export async function retiredSkills(agentsRoot: string, manifest: Manifest | undefined, shipped: readonly string[]): Promise<string[]> {
+// The opt-in skills that a scope selects: the names that its manifest records and the names of --with.
+// A name of --with must be an opt-in skill; any other name is a usage error.
+function selectOptIn(previous: Manifest | undefined, requested: readonly string[], bundled: readonly string[]): string[] {
+  for (const name of requested) {
+    if (OPT_IN_SKILLS.includes(name)) continue;
+    const known = bundled.includes(name);
+    throw usageError(
+      known ? `--with ${name}: ${name} is installed by default; --with takes only an opt-in skill` : `--with ${name}: unknown skill`,
+      `the opt-in skills are ${OPT_IN_SKILLS.join(", ")}`,
+    );
+  }
+  return OPT_IN_SKILLS.filter((name) => requested.includes(name) || previous?.optIn?.includes(name) === true);
+}
+
+// The reason of a retired step: an opt-in skill that the scope did not select, or a skill that the bundle no longer ships.
+function retiredReason(path: string): string {
+  return OPT_IN_SKILLS.includes(basename(path)) ? "opt-in, not selected" : "no longer shipped";
+}
+
+// The names of the skills that an earlier install of this scope wrote and that the scope no longer
+// installs: the bundle no longer ships them, or they are opt-in skills that `optIn` does not select
+// (default: the manifest's own `optIn`). Ownership is tied to the recorded root. Missing folders still
+// count so install can remove their recorded dangling links. A folder in place before a project install
+// stays the user's.
+export async function retiredSkills(
+  agentsRoot: string,
+  manifest: Manifest | undefined,
+  bundled: readonly string[],
+  optIn: readonly string[] = manifest?.optIn ?? [],
+): Promise<string[]> {
   if (manifest === undefined || manifest.skillsRoot === "" || await resolveReal(manifest.skillsRoot) !== await resolveReal(agentsRoot)) return [];
+  const shipped = selectedSkills(bundled, optIn);
   const existing = manifest?.project?.existing?.skills ?? [];
   const names: string[] = [];
   for (const name of manifest?.skills ?? []) {
@@ -684,14 +716,22 @@ export async function retiredSkills(agentsRoot: string, manifest: Manifest | und
 
 // Adds a remove step for each retired skill, and for each link in a link root of the scope that resolves
 // to it. An edited retired skill is a conflict, as an edited bundled skill is.
-async function planRetired(paths: ScopePaths, manifest: Manifest | undefined, bundled: { name: string }[], skills: SkillStep[], links: LinkStep[]): Promise<void> {
-  const names = await retiredSkills(paths.agentsRoot, manifest, bundled.map((skill) => skill.name));
+async function planRetired(
+  paths: ScopePaths,
+  manifest: Manifest | undefined,
+  bundled: { name: string }[],
+  optIn: readonly string[],
+  skills: SkillStep[],
+  links: LinkStep[],
+): Promise<void> {
+  const names = await retiredSkills(paths.agentsRoot, manifest, bundled.map((skill) => skill.name), optIn);
   const existingLinks = manifest?.project?.existing?.links ?? [];
   const linkRoots = Object.entries(paths.linkRoots) as [LinkRootName, string][];
   for (const name of names) {
     const path = join(paths.agentsRoot, name);
     const missing = await lstatIfExists(path) === undefined;
-    const step: SkillStep = { name, source: "", path, sourceHash: "", action: "remove", reason: "no longer shipped", retired: true };
+    const reason = retiredReason(path);
+    const step: SkillStep = { name, source: "", path, sourceHash: "", action: "remove", reason, retired: true };
     if (!missing && await isLocallyModified(path)) {
       step.action = "conflict";
       step.reason = "locally modified";
@@ -712,7 +752,7 @@ async function planRetired(paths: ScopePaths, manifest: Manifest | undefined, bu
       seen.add(key);
       if (missing && !manifest?.links.some((link) => link.path === linkPath)) continue;
       if ((await classifyLink(linkPath, path)).action !== "unchanged") continue;
-      links.push({ root, name, path: linkPath, target: await readlink(linkPath), action: "remove", reason: "no longer shipped", retired: true });
+      links.push({ root, name, path: linkPath, target: await readlink(linkPath), action: "remove", reason, retired: true });
     }
   }
 }

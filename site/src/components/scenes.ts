@@ -233,60 +233,6 @@ function swarm(): Scene {
   return g.scene();
 }
 
-// The main thread finds the facts, one grill child on the other family gives a second opinion, and you
-// answer question batches until no question is open.
-function grill(): Scene {
-  const g = new Draw(W, H, "s", SKILL_SPEED);
-  g.rail("M300 0 L300 256");
-  g.station(40, MID, "goal", 0);
-  g.text(40, MID + 36, "Goal", 0);
-  let t = g.line([[0, MID], [40, MID]], 0);
-  t = g.line([[40, MID], [120, MID]], t + 150);
-  g.station(120, MID, "work", t);
-  g.text(120, MID + 36, "Facts", t);
-  const facts = t;
-  const opinion = g.line(branch(120, MID, LANES[2]!, 300), facts);
-  g.station(300, LANES[2]!, "review", opinion);
-  g.text(308, LANES[2]! + 36, "Second opinion", opinion, { anchor: "start" });
-  t = g.line([[120, MID], [220, MID]], facts + 200);
-  g.station(220, MID, "plan", t);
-  g.text(220, MID + 36, "Ask", t);
-  t = Math.max(t, opinion) + PAUSE;
-  g.verdict(140, 80, "answers", "steer", t);
-  t = g.line(loopBack(120, 220, MID, 24), t, { dash: true }) + 150;
-  t = g.line([[120, MID], [220, MID]], t, { tone: "yellow" });
-  t = g.line([[220, MID], [420, MID]], t + 150);
-  g.station(420, MID, "done", t);
-  g.text(420, MID + 36, "Grill file", t);
-  return g.scene();
-}
-
-// Read-only: the question maps to a skill, a command, or a config change. A change goes to omt-setup.
-function help(): Scene {
-  const g = new Draw(W, H, "s", SKILL_SPEED);
-  g.station(40, MID, "goal", 0);
-  g.text(40, MID + 36, "Question", 0);
-  let t = g.line([[0, MID], [40, MID]], 0);
-  t = g.line([[40, MID], [112, MID]], t + 150);
-  g.station(112, MID, "plan", t);
-  g.text(112, MID + 36, "Map", t);
-  const split = t;
-  const kinds = ["skill", "command", "config"];
-  const arrivals = LANES.map((lane, i) => {
-    let at = g.line(branch(112, MID, lane, 240), split + i * 120);
-    g.station(240, lane, "verify", at);
-    g.text(240, lane - 24, kinds[i]!, at, { style: "code", size: 14 });
-    at += PAUSE;
-    return i === 2 ? g.line([[240, lane], [440, lane]], at, { dash: true }) : g.line(join(240, lane, MID, 352), at);
-  });
-  t = Math.max(arrivals[0]!, arrivals[1]!);
-  g.station(352, MID, "done", t);
-  g.text(352, MID + 36, "Answer", t);
-  g.bar(440, LANES[2]!, arrivals[2]!);
-  g.text(440, LANES[2]! + 36, "omt-setup", arrivals[2]!, { style: "code", size: 14, anchor: "end" });
-  return g.scene();
-}
-
 // Each change shows first, runs as a dry run where it can, and writes only after you agree.
 function setup(): Scene {
   const g = new Draw(W, H, "s", SKILL_SPEED);
@@ -317,9 +263,9 @@ function router(): Scene {
   g.text(48, MID + 36, "omt", 0, { style: "code", size: 14 });
   let t = g.line([[0, MID], [48, MID]], 0);
   t = g.line([[48, MID], [120, MID]], t + 150);
-  const names = ["ulw", "plan", "grill", "design", "code-review", "research", "swarm", "help", "setup"];
+  const names = ["ulw", "plan", "design", "code-review", "research", "setup", "swarm"];
   names.forEach((name, i) => {
-    const lane = 24 + i * 26;
+    const lane = MID + (i - (names.length - 1) / 2) * 26;
     const end = g.line(branch(120, MID, lane, 300), t + i * 90, { radius: 10 });
     g.bar(300, lane, end, { length: 20 });
     g.text(316, lane + 5, `omt-${name}`, end, { style: "code", size: 14, anchor: "start" });
@@ -330,11 +276,9 @@ function router(): Scene {
 export const SKILL_SCENES: Record<string, Scene> = {
   "omt-ulw": ulw(),
   "omt-plan": plan(),
-  "omt-grill": grill(),
   "omt-design": design(),
   "omt-code-review": codeReview(),
   "omt-research": research(),
-  "omt-help": help(),
   "omt-setup": setup(),
   "omt-swarm": swarm(),
   omt: router(),

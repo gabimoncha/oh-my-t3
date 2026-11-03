@@ -61,6 +61,7 @@ export interface Manifest {
   installedAt: string;
   skillsRoot: string;
   skills: string[];
+  optIn?: string[]; // the opt-in skills that an install of this scope selected with --with
   links: ManifestLink[];
   config?: { path: string; created: boolean };
   hooks: ManifestHook[];
@@ -136,6 +137,7 @@ export async function readManifest(path: string): Promise<Manifest | undefined> 
     ...(value.acceptedDefaults === undefined ? {} : { acceptedDefaults: parseDefaultsSnapshot(JSON.stringify(value.acceptedDefaults), path) }),
     skillsRoot: typeof value.skillsRoot === "string" ? value.skillsRoot : "",
     skills: strings(value.skills),
+    ...(Array.isArray(value.optIn) ? { optIn: strings(value.optIn) } : {}),
     links,
     ...(isRecord(config) && typeof config.path === "string"
       ? { config: { path: config.path, created: config.created === true } }

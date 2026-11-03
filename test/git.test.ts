@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "bun:test";
 import { DEFAULT_CONFIG } from "../src/config/defaults.ts";
 import { run } from "../src/commands/git.ts";
 import { findDefaultBranch } from "../src/git/branch.ts";
+import { fakeHost } from "./fixtures/fake-gh/setup.ts";
 import { fakeContext, gitEnv, gitRepo, tempDir, writeFile } from "./helpers.ts";
 
 function project() {
@@ -131,4 +133,47 @@ test("git check asks when maxPrFiles is out of range", async () => {
   assert.equal(await run(ctx), 0);
   assert.match(ctx.err(), /maxPrFiles: must be an integer from 0 to 10000, got 10001/);
   assert.equal(JSON.parse(ctx.out()).decision, "ask");
+});
+
+function behindRepo() {
+  const host = fakeHost({ origin: false });
+  host.git(["checkout", "-q", "-b", "feat/x"]);
+  host.git(["checkout", "-q", "main"]);
+  writeFile(join(host.cwd, "later.txt"), "later\n");
+  host.git(["add", "later.txt"]);
+  host.git(["commit", "-q", "-m", "later"]);
+  host.git(["checkout", "-q", "feat/x"]);
+  return host;
+}
+
+test("git behind --ff fast-forwards a clean tree", () => {
+  const host = behindRepo();
+  const result = host.omt(["git", "behind", "--ff"]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, "fast-forwarded 1 commit from main\n");
+  assert.equal(host.git(["rev-parse", "HEAD"]), host.git(["rev-parse", "main"]));
+  assert.equal(host.omt(["git", "behind"]).stdout, "up to date with main\n");
+});
+
+test("git behind --ff asks on a dirty tree and leaves HEAD", () => {
+  const host = behindRepo();
+  const before = host.git(["rev-parse", "HEAD"]);
+  writeFile(join(host.cwd, "README.md"), "# edited\n");
+  const result = host.omt(["git", "behind", "--ff"]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, "ask: 1 commit behind main; the tree has uncommitted changes\n");
+  assert.equal(host.git(["rev-parse", "HEAD"]), before);
+  assert.equal(readFileSync(join(host.cwd, "README.md"), "utf8"), "# edited\n");
+});
+
+test("git behind asks without --ff, asks on a diverged branch, and skips with no default branch", () => {
+  const host = behindRepo();
+  assert.equal(host.omt(["git", "behind"]).stdout, "ask: 1 commit behind main; pass --ff to fast-forward\n");
+  writeFile(join(host.cwd, "mine.txt"), "mine\n");
+  host.git(["add", "mine.txt"]);
+  host.git(["commit", "-q", "-m", "mine"]);
+  assert.equal(host.omt(["git", "behind", "--ff"]).stdout, "ask: 1 commit behind main; the branch has commits that main does not have\n");
+  host.git(["branch", "-m", "main", "trunk"]);
+  assert.equal(host.omt(["git", "behind", "--ff"]).stdout, "skipped: no default branch found\n");
+  assert.equal(host.gitLog().length, 0);
 });

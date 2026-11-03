@@ -28,13 +28,13 @@ function setup() {
   return { root, project, configDir, userPath, projectPath, ctx, write: writeFile };
 }
 
-test("config show --defaults prints the 12 default roles as JSON", async () => {
+test("config show --defaults prints the 11 default roles as JSON", async () => {
   const { ctx } = setup();
   const c = ctx(["show", "--defaults"]);
   assert.equal(await config(c), 0);
   const printed = JSON.parse(c.out());
   assert.deepEqual(printed, DEFAULT_CONFIG);
-  assert.equal(Object.keys(printed.roles).length, 12);
+  assert.equal(Object.keys(printed.roles).length, 11);
   assert.equal("visuals" in printed, false);
 });
 

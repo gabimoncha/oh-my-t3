@@ -4,6 +4,17 @@ import { errorCode, hashDir, lstatIfExists, MANAGED_MARKER, pathExists, readFile
 
 export const PACKAGE_NAME = "oh-my-t3code";
 
+// Bundled skills that an install writes only after `omt install --with <name>`.
+export const OPT_IN_SKILLS: readonly string[] = ["omt-swarm"];
+
+// The bundled names that a scope installs: every skill that is not opt-in, and the opt-in skills in `optIn`.
+export function selectedSkills<T extends string | { name: string }>(bundled: readonly T[], optIn: readonly string[]): T[] {
+  return bundled.filter((skill) => {
+    const name = typeof skill === "string" ? skill : skill.name;
+    return !OPT_IN_SKILLS.includes(name) || optIn.includes(name);
+  });
+}
+
 export interface BundledSkill {
   name: string;
   dir: string;

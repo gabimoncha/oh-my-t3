@@ -37,14 +37,23 @@ function symbolicRef(ctx: Pick<CliContext, "cwd" | "env">, ref: string, prefix: 
   return full?.startsWith(prefix) ? full.slice(prefix.length) : undefined;
 }
 
+export interface DefaultRef {
+  name: string; // the short branch name, for output
+  ref: string; // the full ref, for every git command
+}
+
 // The same order as the branch check in skills/omt/references/delegation.md.
 // Full refs, because `--short` gives `heads/main` when a tag `main` also exists.
-export function findDefaultBranch(ctx: Pick<CliContext, "cwd" | "env">): string | undefined {
+export function findDefaultRef(ctx: Pick<CliContext, "cwd" | "env">): DefaultRef | undefined {
   const remote = symbolicRef(ctx, "refs/remotes/origin/HEAD", "refs/remotes/origin/");
-  if (remote !== undefined) return remote;
+  if (remote !== undefined) return { name: remote, ref: `refs/remotes/origin/${remote}` };
   const init = git(ctx, ["config", "init.defaultBranch"]);
-  if (init !== undefined && branchExists(ctx, init)) return init;
-  return ["main", "master"].find((name) => branchExists(ctx, name));
+  const local = init !== undefined && branchExists(ctx, init) ? init : ["main", "master"].find((name) => branchExists(ctx, name));
+  return local === undefined ? undefined : { name: local, ref: `refs/heads/${local}` };
+}
+
+export function findDefaultBranch(ctx: Pick<CliContext, "cwd" | "env">): string | undefined {
+  return findDefaultRef(ctx)?.name;
 }
 
 export function readBranchState(ctx: Pick<CliContext, "cwd" | "env">): BranchState {

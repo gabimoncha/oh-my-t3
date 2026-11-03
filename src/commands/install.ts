@@ -17,7 +17,7 @@ import { readCapabilities } from "./shared.ts";
 
 export const summary = "Install the omt skills, links, starter config, and optional Claude hook.";
 
-export const usage = `Usage: omt install [--project [--no-git-exclude]] [--targets <list>] [--hooks] [--capabilities <file>] [--yes] [--dry-run] [--force]
+export const usage = `Usage: omt install [--project [--no-git-exclude]] [--targets <list>] [--with <skill>]... [--hooks] [--capabilities <file>] [--yes] [--dry-run] [--force]
 
 Install the bundled skills into ~/.agents/skills and link them into the
 selected agent skill roots. Shows the plan first, then asks to apply it.
@@ -28,6 +28,10 @@ from npx, pnpm dlx, or bunx, a user install is refused. Use --project, and
 the shim calls that runner. --project also prints the T3 worktree setup
 state of the current checkout (omt worktree check).
 
+An opt-in skill (omt-swarm) installs only with --with. The install records
+the choice, so later installs and omt update keep it. An unedited opt-in
+skill that the scope did not select is removed.
+
 Options:
   --project         install into the project root, not the home directory
   --no-git-exclude  with --project, write no block to the repository's
@@ -36,6 +40,8 @@ Options:
                     (default: agents,claude, plus gemini when ~/.gemini exists;
                     agents is always included; gemini is not available
                     with --project)
+  --with <skill>    also install this opt-in skill (omt-swarm); repeat the
+                    flag for more skills
   --hooks           also add the Claude Code UserPromptSubmit ultrawork hook
   --capabilities <file>
                     orchestrator_capabilities output (- for stdin) for the
@@ -66,6 +72,7 @@ export async function run(ctx: CliContext, seams: UpdateCheckSeams = {}): Promis
     project: { type: "boolean" },
     "no-git-exclude": { type: "boolean" },
     capabilities: { type: "string" },
+    with: { type: "string", multiple: true },
   }, { maxPositionals: 0 });
   const scope = values.project === true ? "project" : "user";
   if (values["no-git-exclude"] === true && scope !== "project") throw usageError("--no-git-exclude needs --project");
@@ -77,6 +84,7 @@ export async function run(ctx: CliContext, seams: UpdateCheckSeams = {}): Promis
     scope,
     gitExclude: values["no-git-exclude"] !== true,
     capabilities: await readCapabilities(ctx, values.capabilities),
+    with: values.with ?? [],
   });
 
   ctx.stdout(renderInstallPlan(plan));

@@ -1,4 +1,4 @@
-import { type AnimationEvent, type CSSProperties, useState } from "react";
+import { type AnimationEvent, type CSSProperties, type ReactNode, useState } from "react";
 import { useInView } from "./inView";
 import { Metro } from "./metro";
 import { SKILL_SCENES } from "./scenes";
@@ -9,12 +9,12 @@ const HOLD = 1200;
 type Run = "ulw" | "swarm";
 type Phase = Run | "done";
 
-const RUNS: { id: Run; skill: string; label: string; goal: string; note: string }[] = [
+const RUNS: { id: Run; skill: string; label: string; goal: string; note: ReactNode }[] = [
   {
     id: "ulw",
     skill: "omt-ulw",
     label: "One goal, one change",
-    goal: "ulw add OAuth to the API",
+    goal: "start ulw add OAuth to the API",
     note: "The agent plans and builds three units in its own thread. A Codex child reviews Claude's change, and a QA child runs the checks. A finding goes back for a fix, and the second pass shows in yellow.",
   },
   {
@@ -22,7 +22,13 @@ const RUNS: { id: Run; skill: string; label: string; goal: string; note: string 
     skill: "omt-swarm",
     label: "One plan, many tracks",
     goal: "omt-swarm build the API plan",
-    note: "Three tracks from one plan. Each builds and checks in its own T3 worktree thread, at its own speed. Then one review, one merge, one QA run, and one pull request.",
+    note: (
+      <>
+        Three tracks from one plan. Each builds and checks in its own T3 worktree thread, at its own speed. Then one
+        review, one merge, one QA run, and one pull request. Opt in with{" "}
+        <code className="no-ligatures">omt install --with omt-swarm</code>.
+      </>
+    ),
   },
 ];
 

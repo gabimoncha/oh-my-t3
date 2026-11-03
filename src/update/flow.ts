@@ -11,8 +11,8 @@ import { OmtError } from "../util/errors.ts";
 import { readFileIfExists, realOrSelf, writeFileAtomic } from "../util/fs.ts";
 import { isRecord } from "../util/json.ts";
 import { formatJson } from "../util/output.ts";
-import { confirmChannel, confirmedGlobalEnv, detectChannel, linksProjectCli, newCliCommand, offlineChannel, updateAction } from "./channel.ts";
-import type { Channel, ChannelInput, RunCommand, UpdateAction } from "./channel.ts";
+import { confirmChannel, confirmedGlobalEnv, detectChannel, linksProjectCli, newCliCommand, offlineChannel, updateAction, updatedChannel } from "./channel.ts";
+import type { Channel, ChannelInput, PackageSwitch, RunCommand, RunSwitch, UpdateAction } from "./channel.ts";
 import { compareVersions, fetchLatest } from "./check.ts";
 import { applySync, pathShimChannel, planSync, readProjectShim, renderSyncPlan, syncHasChanges } from "./sync.ts";
 import type { ProjectShim, ScopeResult, SyncEntry, SyncOptions } from "./sync.ts";
@@ -185,7 +185,7 @@ async function latestVersion(ctx: CliContext, seams: UpdateSeams): Promise<strin
 
 // A repin needs a runner shim to rewrite; without one the user runs the runner at the new version.
 function actionFor(resolved: Resolved, latest: string): UpdateAction {
-  const action = updateAction(resolved.channel, latest);
+  const action = updateAction(resolved.channel, latest, resolved.current);
   if (action.kind !== "repin" || resolved.repin !== undefined) return action;
   const root = resolved.channel.projectRoot ?? "the project";
   return { kind: "hint", text: `run ${runnerCommand(resolved.channel.runner ?? "npx", latest)} install --project in ${root}` };
@@ -198,11 +198,19 @@ function commandOf(action: UpdateAction, resolved: Resolved, latest: string): st
 }
 
 function actionLine(action: UpdateAction, resolved: Resolved, latest: string): string {
+  if (action.kind === "run" && action.switch !== undefined) {
+    return `switch: ${action.switch.from} -> ${action.switch.to} (${action.switch.from} is deprecated)\n${action.switch.commands.map((command) => `run: ${command}\n`).join("")}`;
+  }
   if (action.kind === "run") return `run: ${action.display}\n`;
   if (action.kind === "repin" && resolved.repin !== undefined) {
     return `pin: ${resolved.repin.shim} -> ${runnerCommand(resolved.repin.runner, latest)}\n`;
   }
   return action.kind === "hint" ? `hint: ${action.text}\n` : "";
+}
+
+function switchJson(action: UpdateAction): PackageSwitch | null {
+  if (action.kind === "repin" || action.switch === undefined) return null;
+  return { from: action.switch.from, to: action.switch.to, commands: action.switch.commands };
 }
 
 function channelJson(channel: Channel) {
@@ -233,6 +241,26 @@ async function writeState(ctx: CliContext, latest: string): Promise<void> {
   } catch {
     // The state only saves a request in the daily check.
   }
+}
+
+type Stdio = { inherit: boolean; toStderr: boolean };
+
+async function removeOld(moved: RunSwitch, run: RunCommand, stdio: Stdio): Promise<void> {
+  const done = await run(moved.remove.argv, stdio);
+  if (done.code !== 0) {
+    throw new OmtError("update_command", `${moved.remove.display} exited ${done.code}; ${moved.from} is still installed, and nothing else changed`);
+  }
+}
+
+// A remove-first switch removed the old package before the new install failed, so omt installs the old one again.
+async function restoreOld(moved: RunSwitch, message: string, run: RunCommand, stdio: Stdio, lag: string | undefined): Promise<OmtError> {
+  const restored = await run(moved.restore.argv, stdio).catch(() => ({ code: 127, stdout: "" }));
+  if (restored.code === 0) {
+    return new OmtError("update_command", `${message}; omt reinstalled ${moved.from} with ${moved.restore.display}`, lag === undefined ? {} : { hint: lag });
+  }
+  return new OmtError("update_command", `${message}, and ${moved.restore.display} exited ${restored.code}; omt is not installed now`, {
+    hint: `run ${moved.restore.display} to restore the old install`,
+  });
 }
 
 // The pin moves only after the runner starts the new version, so a failed download keeps the old pin.
@@ -336,6 +364,7 @@ interface Report {
   action: "run" | "repin" | "hint" | "none";
   command: string | null;
   hint: string | null;
+  switch: PackageSwitch | null;
   updated: boolean;
   scopes: ScopeResult[];
   defaults: DefaultsResult[];
@@ -422,6 +451,7 @@ async function skillsOnly(ctx: CliContext, options: UpdateOptions, say: Say, run
     action: "none",
     command: null,
     hint: null,
+    switch: null,
     updated: false,
     scopes: [],
     defaults: [],
@@ -460,6 +490,7 @@ async function check(ctx: CliContext, options: UpdateOptions, seams: UpdateSeams
       action: outdated ? action.kind : "none",
       command: outdated ? commandOf(action, resolved, latest) : null,
       hint: outdated && action.kind === "hint" ? action.text : null,
+      switch: outdated ? switchJson(action) : null,
     }));
   }
   return 0;
@@ -474,6 +505,7 @@ async function update(ctx: CliContext, options: UpdateOptions, seams: UpdateSeam
     action: "none",
     command: null,
     hint: null,
+    switch: null,
     updated: false,
     scopes: [],
     defaults: [],
@@ -490,6 +522,7 @@ async function update(ctx: CliContext, options: UpdateOptions, seams: UpdateSeam
     if (newer && action.kind === "hint") {
       report.action = "hint";
       report.hint = action.text;
+      report.switch = switchJson(action);
       say(`hint: ${action.text}\n`);
     } else {
       say(`omt ${resolved.current} is the latest\n`);
@@ -507,6 +540,7 @@ async function update(ctx: CliContext, options: UpdateOptions, seams: UpdateSeam
 
   report.action = action.kind;
   report.command = commandOf(action, resolved, latest);
+  report.switch = switchJson(action);
   say(actionLine(action, resolved, latest));
   const entries = await planSync(ctx, resolved.running, { projectOnly: options.project, runners: "delegate", targetVersion: latest, run });
   for (const entry of entries) say(`sync: ${entry.header}\n`);
@@ -520,29 +554,51 @@ async function update(ctx: CliContext, options: UpdateOptions, seams: UpdateSeam
   if (!(await confirmApply(ctx, options.yes))) return 1;
   await writeState(ctx, latest);
 
+  const moved = action.kind === "run" ? action.switch : undefined;
   if (action.kind === "run") {
-    const done = await run(action.argv, { inherit: true, toStderr: options.json });
+    const stdio = { inherit: true, toStderr: options.json };
+    if (moved?.removeFirst === true) await removeOld(moved, run, stdio);
+    const done = await run(action.argv, stdio);
     if (done.code !== 0) {
       const hint = lagHint(resolved.channel);
-      throw new OmtError("update_command", `${action.display} exited ${done.code}`, hint === undefined ? {} : { hint });
+      const message = `${action.display} exited ${done.code}`;
+      if (moved?.removeFirst === true) throw await restoreOld(moved, message, run, stdio, hint);
+      throw new OmtError("update_command", message, hint === undefined ? {} : { hint });
     }
   } else if (resolved.repin !== undefined) {
     await applyRepin(resolved.repin, latest, run);
   }
   report.updated = true;
 
-  const cli = await newCliCommand(resolved.channel, latest, run);
-  const version = await run([...cli, "--version"], { cwd: ctx.cwd });
-  const printed = lastLine(version.stdout);
-  if (version.code !== 0 || printed !== latest) {
-    throw new OmtError("update_version", `the update finished, but the new omt prints ${printed === "" ? "nothing" : printed}`);
+  let cli: string[];
+  try {
+    cli = await newCliCommand(updatedChannel(resolved.channel, action), latest, run);
+    const version = await run([...cli, "--version"], { cwd: ctx.cwd });
+    const printed = lastLine(version.stdout);
+    if (version.code !== 0 || printed !== latest) {
+      throw new OmtError("update_version", `the update finished, but the new omt prints ${printed === "" ? "nothing" : printed}`);
+    }
+  } catch (error) {
+    // A remove-first switch already removed the old package, so a new CLI that does not start must not stay alone.
+    if (!(moved?.removeFirst === true && error instanceof OmtError)) throw error;
+    const stdio = { inherit: true, toStderr: options.json };
+    await run(moved.removeNew.argv, stdio).catch(() => undefined);
+    throw await restoreOld(moved, error.message, run, stdio, undefined);
+  }
+  let failed = false;
+  if (moved !== undefined && !moved.removeFirst) {
+    const removed = await run(moved.remove.argv, { inherit: true, toStderr: options.json });
+    if (removed.code !== 0) {
+      failed = true;
+      ctx.stderr(`warning: ${moved.remove.display} exited ${removed.code}; ${moved.to} works, and ${moved.from} is still installed; run that command to finish the switch\n`);
+    }
   }
   const child = [...cli, "update", "--skills-only", "--yes", ...(options.project ? ["--project"] : []), "--json"];
   // offlineChannel of the new CLI cannot confirm a shared pnpm store path by itself.
   const env = { ...confirmedGlobalEnv(resolved.channel, cli), OMT_UPDATE_DEFER_DEFAULTS: "1" };
   const synced = await run(child, { cwd: ctx.cwd, env });
   const scopes = childScopes(synced.stdout);
-  let failed = synced.code !== 0;
+  if (synced.code !== 0) failed = true;
   if (scopes === undefined) {
     failed = true;
     ctx.stderr(`warning: ${child.join(" ")} exited ${synced.code}; invalid JSON output\n`);

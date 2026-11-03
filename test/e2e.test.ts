@@ -33,12 +33,9 @@ test("end to end: install, use every command in a project, then uninstall", () =
     "omt",
     "omt-code-review",
     "omt-design",
-    "omt-grill",
-    "omt-help",
     "omt-plan",
     "omt-research",
     "omt-setup",
-    "omt-swarm",
     "omt-ulw",
   ]);
 
@@ -86,7 +83,7 @@ test("end to end: install, use every command in a project, then uninstall", () =
   assert.deepEqual(omtEntries(join(home, ".claude", "skills")), []);
 });
 
-test("end to end: a grill session initializes shared paths and routes against each family", () => {
+test("end to end: the shared grills path works from a worktree, and plan-review routes against each family", () => {
   const p = gitProject({ "README.md": "demo\n" });
 
   assert.match(p.omt("init"), /^create .*\.omt[/\\]config\.jsonc$/m);
@@ -104,7 +101,7 @@ test("end to end: a grill session initializes shared paths and routes against ea
     ["codex", "claudeAgent", "claude-opus-5-5"],
     ["claudeAgent", "codex", "gpt-6-astra"],
   ] as const) {
-    const brief = JSON.parse(p.omt("brief", "grill", "--task", "Test this goal before planning.", "--against", against, "--json")) as BriefJsonOutput;
+    const brief = JSON.parse(p.omt("brief", "plan-review", "--task", "Review this plan.", "--against", against, "--json")) as BriefJsonOutput;
     assert.equal(brief.delegateTask.target.providerInstanceId, provider);
     assert.equal(brief.delegateTask.target.model, model);
   }

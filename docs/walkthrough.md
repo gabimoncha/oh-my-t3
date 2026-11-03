@@ -81,7 +81,7 @@ The U4 round 2 test is worth a look. The test task returned `NOT VERIFIED` on on
 
 ### What the ledger holds
 
-Each child task gets a `dispatched` entry and a terminal entry, such as `completed` or `verified`. Here are two entries from `omt ledger list --plan code-health --json`, with the `taskId`, `clientRequestId`, `provider`, and `model` fields cut:
+Each child task gets a `dispatched` entry and a terminal entry, such as `completed` or `verified`. In these runs the conductor wrote both with `omt ledger add`. Today `omt brief --save --json` writes the `dispatched` entry, and `omt ledger done` writes the terminal entry. Here are two entries from `omt ledger list --plan code-health --json`, with the `taskId`, `clientRequestId`, `provider`, and `model` fields cut:
 
 ```json
 {

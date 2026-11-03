@@ -10,7 +10,7 @@ omt --version
 npx oh-my-t3 --version
 ```
 
-The `omt` command stays the same. `oh-my-t3code` and `omt3` remain npm package aliases. Keep their releases at the same version. The npm name `omt` belongs to another author.
+The `omt` command stays the same. `omt3` remains an npm package alias. `oh-my-t3code` is deprecated: `omt update` moves each install of it to `oh-my-t3`, and a later release stops publishing it ([Retire the oh-my-t3code package](releasing.md#retire-the-oh-my-t3code-package)). Until then, keep the releases of all three packages at the same version. The npm name `omt` belongs to another author.
 
 The website uses the Cloudflare Pages project `oh-my-t3`, at `https://oh-my-t3.pages.dev`. The previous project, `oh-my-t3code`, redirects to the new site with HTTP 301 and preserves paths for links in published packages.
 
@@ -24,7 +24,7 @@ These strings identify existing installations. They retain their original values
 - One-shot project shims continue to pin `omt3@<version>`. Public one-shot examples use `npx oh-my-t3`.
 - Release archives keep the prefix `oh-my-t3code-v`. Their executable is `omt`.
 - mise detection accepts both the old and new repository install directories. New commands use `github:gabimoncha/oh-my-t3`.
-- Updates keep the installed npm package name. Version discovery uses the primary `oh-my-t3` package.
+- Updates keep the installed npm package name, except `oh-my-t3code`: `omt update` installs `oh-my-t3` and removes `oh-my-t3code`. Version discovery uses the primary `oh-my-t3` package.
 
 ## Prevent drift
 

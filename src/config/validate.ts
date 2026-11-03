@@ -230,6 +230,7 @@ function validateRole(value: unknown, path: string, out: Collector): Partial<Rol
       out.error(keyPath, `unknown role key "${key}"; allowed keys: ${ROLE_KEYS.join(", ")}`);
     } else if (allowed !== undefined) {
       if (typeof item === "string" && allowed.includes(item)) role[key] = item;
+      else if (key === "result" && item === "grill") out.error(keyPath, 'the result kind "grill" is no longer used; use "review"');
       else out.error(keyPath, `must be one of ${oneOf(allowed)}, got ${describe(item)}`);
     } else if (key === "description") {
       if (typeof item === "string" && item.length > 0 && codePointLength(item) <= DESCRIPTION_MAX) role[key] = item;

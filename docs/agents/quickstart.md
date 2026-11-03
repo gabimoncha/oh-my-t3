@@ -4,7 +4,7 @@ Read this page when your user asks you to evaluate, install, or use oh-my-t3 (`o
 
 ## What omt is
 
-omt is a set of skills and a small CLI for agents that run in [T3 Code](https://t3.codes). A T3 thread that runs an omt skill becomes the main thread: it reads the code, asks the user its open questions, writes a plan, and builds the change itself. Then one role-routed T3 child task from the other model family reviews the change, and one child task runs every check. The CLI has no runtime dependencies and sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor` after you set `update` in the user config. `omt update` runs the package manager or mise command of the channel that installed omt.
+omt is a set of skills and a small CLI for agents that run in [T3 Code](https://t3.codes). A T3 thread that runs an omt skill becomes the main thread: it reads the code, asks the user its open questions, writes a plan, and builds the change itself. Then one role-routed T3 child task from the other model family reviews the change, and one child task runs every check. The CLI has no runtime dependencies and sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor` after you set `update` in the user config. `omt update` runs the package manager or mise command of the channel that installed omt. `omt git commit`, `omt git pr`, and `omt git stack` run `gh`, and `omt git pr` and `omt git stack` run `git push`, so they contact the git host of the `origin` remote.
 
 ## 1. Check the fit
 
@@ -112,7 +112,7 @@ Use the install command of the channel from step 3:
 
 The commands below use `omt`. Replace `omt` with the command before `install` in the table, for example `npx oh-my-t3`.
 
-Add `--hooks` only when the user runs Claude Code. The hook lets the user start ultrawork with the bare `ulw` keyword. Codex gets no hook. Codex users type `$omt-ulw`. With a one-shot install, the hook calls the runner on each prompt. If the runner's cache is cleared and the network is down, the hook can pass its 10-second timeout.
+Add `--hooks` only when the user runs Claude Code. The hook lets the user start ultrawork with the phrase `start ulw` or `start ultrawork`. The bare words do not start it. Codex gets no hook. Codex users type `$omt-ulw`. With a one-shot install, the hook calls the runner on each prompt. If the runner's cache is cleared and the network is down, the hook can pass its 10-second timeout.
 
 If you run in a T3 thread (step 2), give the install the live provider list. Call `orchestrator_capabilities` with no arguments, save the result to a temp file outside the repository, such as `/tmp/t3-capabilities.json`, and add `--capabilities <file>` to both install commands below. Outside a T3 thread, leave the flag out. The install then reads the T3 settings file and `PATH`.
 
@@ -142,11 +142,11 @@ Expect these lines, with paths in the user's project:
 
 ```text
 PASS  runtime    <runtime>
-PASS  config     13 roles
+PASS  config     11 roles
 PASS  defaults   current defaults
 PASS  harnesses  claudeAgent, codex
-PASS  skills     10 skills installed in <project>/.agents/skills
-PASS  links      10 links in <project>/.claude/skills
+PASS  skills     7 skills installed in <project>/.agents/skills
+PASS  links      7 links in <project>/.claude/skills
 PASS  hooks      Claude UserPromptSubmit hook in <project>/.claude/settings.local.json
 PASS  shim       <project>/.omt/bin/omt
 PASS  exclude    omt block in <project>/.git/info/exclude
@@ -164,7 +164,7 @@ An `INFO  harnesses` line, such as `codex only; cross-family review: the same fa
 
 A `WARN  t3` line means doctor found no T3 settings file: `... settings.json does not exist; is T3 Code installed?`. The install itself is fine. Ask the user if T3 Code is installed. If T3 Code keeps its data in another place, set `T3CODE_HOME` to that directory and run doctor again.
 
-A `WARN  skills` line means the installed skills do not match the CLI. Doctor still exits 0, so read the line. Run the install with `--yes` again. If the line says `no longer shipped:`, an old omt left a skill that this version removed, such as `omt-loop`, `omt-review`, or `omt-show`. The install with `--yes` removes it. If the line says `modified:`, the user edited an installed skill. Ask the user before you add `--force`, which backs up the edited skill and installs over it.
+A `WARN  skills` line means the installed skills do not match the CLI. Doctor still exits 0, so read the line. Run the install with `--yes` again. If the line says `no longer shipped:`, an old omt left a skill that this version removed, such as `omt-grill`, `omt-help`, or `omt-loop`. The install with `--yes` removes it. If the line says `modified:`, the user edited an installed skill. Ask the user before you add `--force`, which backs up the edited skill and installs over it.
 
 Check: this command prints the `PASS  skills` line:
 
@@ -186,7 +186,7 @@ Check: the effective T3 setup runs a dependency install, or you told the user th
 
 ### Check the frontend design skill
 
-Follow [Check availability](../../skills/omt/references/frontend-design.md#check-availability) to look for Anthropic's optional `frontend-design` skill in the user's harness. When it is missing, recommend the official skill, and install it only when the user asks. It helps during design and direct UI implementation without a spec. A missing skill does not block setup.
+Look for Anthropic's optional [frontend-design skill](https://github.com/anthropics/skills/tree/main/skills/frontend-design) in the skill list of the user's harness, plugin-prefixed names included. When the list has no entry, look in the project and user skill folders of that harness. When it is missing, recommend the official skill, and install it only when the user asks. It helps during design and direct UI implementation without a spec. A missing skill does not block setup.
 
 Check: the user knows whether the skill is available and has the recommendation when it is missing.
 
@@ -224,17 +224,13 @@ Suggest these tasks, in this order. Each runs in a T3 thread of the project.
 
 `$omt-ulw` is the T3 composer mention. T3 turns it into each provider's form: `/omt-ulw` for Claude Code and `$omt-ulw` for Codex.
 
-The user starts two skills by name. An agent does not pick them on its own:
+The user starts `$omt` by name. An agent does not pick it on its own. It lists the workflows and when to use each.
 
-- `$omt-swarm` builds a plan from `omt-plan` as independent tracks. Each track runs in its own T3 worktree thread. Then one review child checks all track diffs, the main thread merges the tracks, one QA child runs the checks, and the run ends in one pull request. The thread must run in `full-access` runtime mode and `default` interaction mode.
-- `$omt` lists the workflows, the CLI commands, and the shared references.
+`$omt-setup` helps with omt itself. The agent can start it on its own when the user asks for help or for a change. It answers questions such as "what can omt do", "what do I do next", or "which skill do I use", from the output of read commands. It also sets up, configures, or updates omt: the harnesses, the defaults, models, roles, profiles, and the worktree setup. It shows each change first and asks before it writes.
 
-Two more skills help with omt itself. The agent can start both on its own when the user asks for help or for a change:
+`$omt-swarm` is opt-in, and a default install leaves it out. It builds a plan from `omt-plan` as independent tracks, each in its own T3 worktree thread, and ends in one draft pull request. The user starts it by name. To add it, run the install command of step 4 with `--with omt-swarm`, after the user agrees.
 
-- `$omt-help` answers questions such as "what can omt do", "what do I do next", or "which skill do I use", and gives a tour of at most 5 steps. It only reads.
-- `$omt-setup` sets up, configures, or updates omt: the harnesses, the defaults, models, roles, profiles, and the worktree setup. It shows each change first and asks before it writes.
-
-Check: the user knows the three first tasks, how to start the two user-started skills, and that `$omt-help` and `$omt-setup` exist.
+Check: the user knows the three first tasks, how to start `$omt`, that `$omt-setup` exists, and that `$omt-swarm` needs `--with omt-swarm`.
 
 ## 7. Show the user how to customize roles and profiles
 
@@ -252,7 +248,7 @@ Tell the user how to change them:
 
 - Pick a profile for one run: `$omt-ulw --profile prototype <task>`. Pick a default: set `"profile": "<name>"` in `.omt/config.jsonc`. Switch a running plan: `.omt/bin/omt plan profile <slug> <name>`.
 - Write a profile: add it under `profiles` in `.omt/config.jsonc` (this project) or `~/.config/oh-my-t3code/config.jsonc` (all projects). A profile `extends` a preset and can switch workflow steps and override roles, models, and limits. A profile without `extends` inherits `normal`. [Configure roles and profiles](../configuration.md#write-a-custom-profile) has an example.
-- Add a custom role: add it under `roles` in the same config files. A new role needs `description`, `access`, and `chain`. Its `result` field picks the result block: `work`, `review`, `test`, `research`, `plan`, `guardrail`, or `grill`.
+- Add a custom role: add it under `roles` in the same config files. A new role needs `description`, `access`, and `chain`. Its `result` field picks the result block: `work`, `review`, `test`, `research`, `plan`, or `guardrail`.
 - Add a persona: write `.omt/roles/<role>.md`. Its content is the persona and rules for that role, and it replaces the bundled persona. The lookup order is `.omt/roles/`, then `~/.config/oh-my-t3code/roles/`, then the bundled personas.
 - Fit the harnesses: `.omt/bin/omt detect` prints which harnesses can run and the `"harnesses"` value that fits them. `.omt/bin/omt detect --write --dry-run` shows the change, and `--yes` instead of `--dry-run` writes it. In a T3 thread, add `--capabilities <file>` from step 4 to each of these commands.
 - Let an agent do it: the user can ask `$omt-setup` for any of these changes.
@@ -304,7 +300,7 @@ In these steps, `omt` means the command of the install. With a project install, 
    omt doctor --project | grep -E '^PASS +skills '
    ```
 
-   Check: the command prints `PASS  skills     10 skills installed in <folder>`. If it prints nothing, run the doctor command without the pipe, and do the fix that its `skills` line prints.
+   Check: the command prints `PASS  skills     7 skills installed in <folder>`, or 8 with `omt-swarm`. If it prints nothing, run the doctor command without the pipe, and do the fix that its `skills` line prints.
 
 4. Review the defaults changes. `omt update` and `--skills-only` show the difference and ask before accepting it. `--yes` also accepts the current defaults, so get approval for that before you pass it.
 

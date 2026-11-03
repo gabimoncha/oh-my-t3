@@ -35,7 +35,8 @@ test("compiled host binary installs matching skills and hooks, passes doctor, an
   run(process.execPath, [join(PACKAGE_ROOT, "scripts", "build.ts"), "--binary", "--outdir", build], PACKAGE_ROOT, 90_000);
   const binary = join(build, "bin", "omt");
   assert.ok(statSync(binary).isFile(), "the build must write the host binary");
-  run(binary, ["install", "--project", "--hooks", "--yes"]);
+  // --with selects every opt-in skill, so the install holds every bundled skill.
+  run(binary, ["install", "--project", "--hooks", "--with", "omt-swarm", "--yes"]);
 
   const bundled = join(PACKAGE_ROOT, "skills");
   const installed = join(project, ".agents", "skills");

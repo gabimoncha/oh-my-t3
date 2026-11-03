@@ -54,8 +54,6 @@ test("the bundled skills are all present", () => {
     "omt",
     "omt-code-review",
     "omt-design",
-    "omt-grill",
-    "omt-help",
     "omt-plan",
     "omt-research",
     "omt-setup",

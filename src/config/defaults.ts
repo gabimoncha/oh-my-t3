@@ -5,7 +5,7 @@ import { parseJsonc } from "./jsonc.ts";
 
 export const RETIRED_BUILD_KEYS: readonly string[] = ["verify", "checkpoint", "stallMinutes"];
 export const RETIRED_LIMIT_KEYS: readonly string[] = ["maxTasksPerRun"];
-export const RETIRED_ROLES: readonly string[] = ["verify", "quick", "deep", "plan"];
+export const RETIRED_ROLES: readonly string[] = ["verify", "quick", "deep", "plan", "grill"];
 // A selection of a retired profile resolves to normal, which now runs the PR review steps.
 export const RETIRED_PROFILES: readonly string[] = ["pr-review"];
 
