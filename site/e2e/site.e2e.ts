@@ -23,6 +23,7 @@ test("the page renders with no errors and no sideways scroll", async ({ page }) 
   for (const name of ["Install", "How it works", "Skills", "Who it is for"]) {
     await expect(page.getByRole("heading", { level: 2, name, exact: true })).toBeVisible();
   }
+  await expect(page.locator("#skills")).toContainText("plan-review, grill, review, oracle");
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   expect(errors).toEqual([]);
@@ -74,9 +75,12 @@ test("the skill tour moves the pointer by itself and stops on a click", async ({
   await expect(rows.locator(".skill-name code")).toHaveText([
     "omt-ulw",
     "omt-plan",
+    "omt-grill",
     "omt-design",
     "omt-code-review",
     "omt-research",
+    "omt-help",
+    "omt-setup",
     "omt-swarm",
     "omt",
   ]);
@@ -86,15 +90,15 @@ test("the skill tour moves the pointer by itself and stops on a click", async ({
   await finishAnimations(page, ".skill-tour");
   await expect(rows.nth(1)).toHaveAttribute("aria-selected", "true");
 
-  await rows.nth(4).click();
-  await expect(rows.nth(4)).toHaveAttribute("aria-selected", "true");
+  await rows.nth(5).click();
+  await expect(rows.nth(5)).toHaveAttribute("aria-selected", "true");
   await expect(page.locator(".skill-stage figcaption")).toContainText("searches the repository");
   await finishAnimations(page, ".skill-tour");
-  await expect(rows.nth(4)).toHaveAttribute("aria-selected", "true");
+  await expect(rows.nth(5)).toHaveAttribute("aria-selected", "true");
 
   await page.keyboard.press("ArrowDown");
-  await expect(rows.nth(5)).toBeFocused();
-  await expect(rows.nth(5)).toHaveAttribute("aria-selected", "true");
+  await expect(rows.nth(6)).toBeFocused();
+  await expect(rows.nth(6)).toHaveAttribute("aria-selected", "true");
 });
 
 test.describe("with reduced motion", () => {

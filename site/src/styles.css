@@ -1801,3 +1801,18 @@ html:not(.js) .m-dim {
     gap: 32px;
   }
 }
+
+/* Roles, under the skill tour */
+
+.roles {
+  margin-top: var(--gap-block);
+}
+
+.roles-list li {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+}
+
+.roles-list li + li {
+  margin-top: 8px;
+}
