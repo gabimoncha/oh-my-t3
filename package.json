@@ -1,6 +1,6 @@
 {
   "name": "oh-my-t3",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "private": true,
   "description": "Roles, briefs, plans, and review loops for agents that run in T3 Code.",
   "type": "module",
