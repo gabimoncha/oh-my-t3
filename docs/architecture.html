@@ -349,8 +349,8 @@ footer.page-footer ul { columns: 2 300px; }
   <text class="b" x="407" y="178" text-anchor="middle">Skills (judgment)</text>
   <text class="m" x="407" y="200" text-anchor="middle">omt-ulw  omt-plan  omt-design</text>
   <text class="m" x="407" y="218" text-anchor="middle">omt-code-review  omt-research</text>
-  <text class="m" x="407" y="236" text-anchor="middle">omt-grill  omt-swarm</text>
-  <text class="m" x="407" y="254" text-anchor="middle">omt-help  omt-setup  omt</text>
+  <text class="m" x="407" y="236" text-anchor="middle">omt-setup  omt</text>
+  <text class="m" x="407" y="254" text-anchor="middle">omt-swarm (opt-in)</text>
   <text class="s" x="407" y="276" text-anchor="middle">plan, build, read results,</text>
   <text class="s" x="407" y="294" text-anchor="middle">choose the next step</text>
   <rect class="box-a" x="598" y="156" width="230" height="148" rx="8"/>
@@ -358,7 +358,7 @@ footer.page-footer ul { columns: 2 300px; }
   <text class="m" x="713" y="200" text-anchor="middle">omt roles / omt route</text>
   <text class="m" x="713" y="218" text-anchor="middle">omt brief --json</text>
   <text class="m" x="713" y="236" text-anchor="middle">omt plan new|mark|status</text>
-  <text class="m" x="713" y="254" text-anchor="middle">omt ledger add|stats|list</text>
+  <text class="m" x="713" y="254" text-anchor="middle">omt ledger done|stats|list</text>
   <text class="s" x="713" y="280" text-anchor="middle">merge config, map effort, count</text>
   <path class="ln" d="M522,214 L596,214" marker-end="url(#ah)"/>
   <text class="s halo" x="560" y="206" text-anchor="middle">shell</text>
@@ -445,9 +445,6 @@ footer.page-footer ul { columns: 2 300px; }
   <text class="s halo" x="120" y="70" text-anchor="middle">prompt</text>
   <path class="ln" d="M170,106 L288,106" marker-end="url(#ah)"/>
   <text class="s halo" x="230" y="100" text-anchor="middle">pointer</text>
-  <!-- banner -->
-  <rect class="box-a" x="296" y="125" width="430" height="22" rx="4"/>
-  <text class="m" x="304" y="140">omt ultrawork: explore, ask, plan, build, review, test.</text>
   <!-- step 0 -->
   <text class="b" x="18" y="170" text-anchor="middle">0</text>
   <path class="ln" d="M290,166 L738,166" marker-end="url(#ah)"/>
@@ -524,11 +521,11 @@ footer.page-footer ul { columns: 2 300px; }
   <text class="s halo" x="180" y="850" text-anchor="middle">report with evidence</text>
 </svg>
     </div>
-    <figcaption>Figure 2. One ulw request, from prompt to report. Each child dispatch follows the same pattern: <code>omt brief --json</code>, <code>delegate_task</code>, <code>omt ledger add</code> for the dispatch, the wait inside the turn, <code>task_status</code>, and <code>omt ledger add</code> for the result. The figure draws only the arrows that matter for each step. The review brief uses <code>--against</code> with the main thread's own driver from step 0, because the ledger has no work dispatch for the units that the main thread built. The turn ends only at step 4, at the HEAVY plan approval, and at the report.</figcaption>
+    <figcaption>Figure 2. One ulw request, from prompt to report. Each child dispatch follows the same pattern: <code>omt brief --save --json</code>, which checks the parallel limit and records the start, <code>delegate_task</code>, <code>task_status</code>, and <code>omt ledger done</code>, which closes the start. The figure draws only the arrows that matter for each step. The review brief uses <code>--against</code> with the main thread's own driver from step 0, because the ledger has no work dispatch for the units that the main thread built. The turn ends only at step 4, at the HEAVY plan approval, and at the report.</figcaption>
   </figure>
 
   <h3>The steps of <code>omt-ulw</code></h3>
-  <p>The main thread prints the banner <code>omt ultrawork: explore, ask, plan, build, review, test.</code> as its first line. Then it runs these steps in order.</p>
+  <p>The main thread runs these steps in order.</p>
   <ol class="steps">
     <li><span class="n">0</span><p><strong>Check your mode.</strong> Call <code>t3_thread_configure</code> with no arguments and read <code>interactionMode</code> and <code>modelSelection</code>. Keep the driver as your family for step 8. In <code>plan</code> mode, ask the user to switch to default mode, or offer <code>omt-plan</code>. Then run the branch check in <code>delegation.md</code>: it checks whether the current branch is behind the default branch.</p></li>
     <li><span class="n">1</span><p><strong>Question or goal.</strong> When the message asks a question and names no change, run <code>omt-research</code> instead and stop.</p></li>
@@ -593,7 +590,6 @@ footer.page-footer ul { columns: 2 300px; }
         <tr><th scope="row"><code>research</code></th><td class="nw">read-only</td><td>research</td><td>plan</td><td>no</td><td><span class="fam x"><span class="nw">codex</span> / <span class="nw">gpt-6.1-sol</span> / <span class="nw">low</span></span></td><td><span class="fam c"><span class="nw">claudeAgent</span> / <span class="nw">claude-opus-5-5</span> / <span class="nw">low</span></span></td></tr>
         <tr><th scope="row"><code>plan</code></th><td>edit</td><td>plan</td><td>default</td><td>no</td><td><span class="fam c"><span class="nw">claudeAgent</span> / <span class="nw">claude-opus-5-5</span> / <span class="nw">xhigh</span></span></td><td><span class="fam x"><span class="nw">codex</span> / <span class="nw">gpt-6-astra</span> / <span class="nw">xhigh</span></span></td></tr>
         <tr><th scope="row"><code>plan-review</code></th><td class="nw">read-only</td><td>review</td><td>plan</td><td><strong>yes</strong></td><td><span class="fam x"><span class="nw">codex</span> / <span class="nw">gpt-6-astra</span> / <span class="nw">high</span></span></td><td><span class="fam c"><span class="nw">claudeAgent</span> / <span class="nw">claude-opus-5-5</span> / <span class="nw">high</span></span></td></tr>
-        <tr><th scope="row"><code>grill</code></th><td class="nw">read-only</td><td>grill</td><td>plan</td><td><strong>yes</strong></td><td><span class="fam x"><span class="nw">codex</span> / <span class="nw">gpt-6-astra</span> / <span class="nw">high</span></span></td><td><span class="fam c"><span class="nw">claudeAgent</span> / <span class="nw">claude-opus-5-5</span> / <span class="nw">high</span></span></td></tr>
         <tr><th scope="row"><code>execute</code></th><td>edit</td><td>work</td><td>default</td><td>no</td><td><span class="fam c"><span class="nw">claudeAgent</span> / <span class="nw">claude-opus-5-5</span> / <span class="nw">medium</span></span></td><td><span class="fam x"><span class="nw">codex</span> / <span class="nw">gpt-6.1-sol</span> / <span class="nw">xhigh</span></span></td></tr>
         <tr><th scope="row"><code>review</code></th><td>edit</td><td>review</td><td>default</td><td><strong>yes</strong></td><td><span class="fam x"><span class="nw">codex</span> / <span class="nw">gpt-6-astra</span> / <span class="nw">high</span></span></td><td><span class="fam c"><span class="nw">claudeAgent</span> / <span class="nw">claude-opus-5-5</span> / <span class="nw">high</span></span></td></tr>
         <tr><th scope="row"><code>oracle</code></th><td>edit</td><td>review</td><td>default</td><td><strong>yes</strong></td><td><span class="fam x"><span class="nw">codex</span> / <span class="nw">gpt-6-astra</span> / <span class="nw">high</span></span></td><td><span class="fam c"><span class="nw">claudeAgent</span> / <span class="nw">claude-opus-5-5</span> / <span class="nw">high</span></span></td></tr>
@@ -612,7 +608,7 @@ footer.page-footer ul { columns: 2 300px; }
   <p>Every default rung sets <code>provider</code> equal to <code>driver</code> (<code>claudeAgent</code> or <code>codex</code>). These are the ids of the T3 built-in provider instances. So a default target names <code>providerInstanceId</code>, not only <code>driverKind</code>. The reason is observed T3 behavior. T3 checks a named provider instance again before it refuses it. T3 picks a <code>driverKind</code>-only target from a cached provider snapshot, and that snapshot can be stale.</p>
 
   <h3>Cross-family roles and <code>--against</code></h3>
-  <p><code>plan-review</code>, <code>grill</code>, <code>review</code>, and <code>oracle</code> have <code>crossFamily: true</code>. The reviewer of these roles comes from the family other than the worker's. The family is the driver (<code>claudeAgent</code> or <code>codex</code>), not the model.</p>
+  <p><code>plan-review</code>, <code>review</code>, and <code>oracle</code> have <code>crossFamily: true</code>. The <code>grill</code> role is retired. The reviewer of these roles comes from the family other than the worker's. The family is the driver (<code>claudeAgent</code> or <code>codex</code>), not the model.</p>
   <p><code>omt route</code> and <code>omt brief</code> take <code>--against &lt;provider|driver|auto&gt;</code>. The value names the worker whose change the task reviews. For a cross-family role, the CLI moves the rungs of the other family to the front. Each group keeps its configured order. So when Opus wrote the change, the review runs on <code>codex/gpt-6-astra</code> first. This is already the configured order, so no rung moves. When Luna, Sol, or Astra wrote it, the CLI moves <code>claudeAgent/claude-opus-5-5</code> (configured rung 2) to the front (Figure 3). When the other family cannot run, the same family reviews. With <code>--capabilities</code>, the CLI finds this before dispatch and a note says so. Without it, T3 refuses the other-family target at dispatch, and the skill sends the same-family fallback.</p>
   <ul>
     <li><code>--against auto</code> reads <code>.omt/ledger.jsonl</code> and needs <code>--plan</code>. With <code>--unit</code>, when the unit has a work or plan dispatch with a provider, the worker is the provider of the last one. In all other cases, the worker is the provider of most units in the plan. This includes no <code>--unit</code>, and a unit with no such dispatch, such as the oracle unit F2. A tie goes to the tied provider with the latest dispatch. When the plan has no dispatch with a provider, the configured order applies.</li>
@@ -1105,16 +1101,16 @@ can dispatch: yes</code></pre>
 <!-- 7. Skills -->
 <section id="skills" aria-labelledby="skills-h">
   <h2 id="skills-h">7. The skills</h2>
-  <p>Ten <code>SKILL.md</code> files share one reference folder, <code>skills/omt/references/</code>. All T3 rules live in <code>delegation.md</code>. Skill names work as composer mentions. <code>$omt-ulw</code> becomes <code>/omt-ulw</code> in Claude and Cursor and <code>/skill:omt-ulw</code> in Pi. It stays <code>$omt-ulw</code> in Codex. Every skill that calls <code>delegate_task</code> records <code>--provider</code> and <code>--model</code> on each dispatch, so <code>--against auto</code> can find the worker later.</p>
+  <p>Eight <code>SKILL.md</code> files share one reference folder, <code>skills/omt/references/</code>. All T3 rules live in <code>delegation.md</code>. Skill names work as composer mentions. <code>$omt-ulw</code> becomes <code>/omt-ulw</code> in Claude and Cursor and <code>/skill:omt-ulw</code> in Pi. It stays <code>$omt-ulw</code> in Codex. Every skill that calls <code>delegate_task</code> records <code>--provider</code> and <code>--model</code> on each dispatch, so <code>--against auto</code> can find the worker later.</p>
   <div class="cards">
     <article class="card">
       <h3>omt</h3>
       <p class="kind">user-invoked router</p>
       <dl>
         <dt>Trigger</dt><dd>The user picks a workflow.</dd>
-        <dt>Does</dt><dd>Lists the seven workflow skills, <code>omt-help</code> for questions about omt, <code>omt-setup</code> for setup and config changes, and a CLI cheat sheet. Names <code>omt-ulw</code> as the default.</dd>
+        <dt>Does</dt><dd>Lists the six workflow skills, with <code>omt-setup</code> for questions about omt and for setup and config changes, and names <code>omt-swarm</code> as opt-in. Points to <code>omt help</code> for the CLI. Names <code>omt-ulw</code> as the default.</dd>
         <dt>Dispatches</dt><dd>No roles.</dd>
-        <dt>Hands off to</dt><dd>Any of the seven workflow skills, <code>omt-help</code>, or <code>omt-setup</code>.</dd>
+        <dt>Hands off to</dt><dd>Any of the workflow skills.</dd>
       </dl>
     </article>
     <article class="card">
@@ -1132,19 +1128,9 @@ can dispatch: yes</code></pre>
       <p class="kind">model-invoked planner</p>
       <dl>
         <dt>Trigger</dt><dd>A plan, spec, or design before code. ulw HEAVY step 5.</dd>
-        <dt>Does</dt><dd>Plans only. The main thread explores, asks question batches until no question is open, and writes the plan file itself, with <code>## Summary</code> last. Then it applies <code>plan.review</code>. With <code>owner</code>, the owner approves the plan and no <code>plan-review</code> task runs. With <code>two-families</code>, 1 <code>plan-review</code> child runs with <code>--against</code> the main thread's driver, on the other family. With <code>one</code>, 1 <code>plan-review</code> child runs on any family. Round 1 freezes the blockers. The main thread fixes them, and one re-review checks only those blockers: at most 2 rounds.</dd>
+        <dt>Does</dt><dd>Plans only. The main thread explores, asks question batches until no question is open, offers a stress test of a vague goal (step 2a, in the main thread, which replaces the retired <code>omt-grill</code>), and writes the plan file itself, with <code>## Summary</code> last. Then it applies <code>plan.review</code>. With <code>owner</code>, the owner approves the plan and no <code>plan-review</code> task runs. With <code>two-families</code>, 1 <code>plan-review</code> child runs with <code>--against</code> the main thread's driver, on the other family. With <code>one</code>, 1 <code>plan-review</code> child runs on any family. Round 1 freezes the blockers. The main thread fixes them, and one re-review checks only those blockers: at most 2 rounds.</dd>
         <dt>Dispatches</dt><dd><code>explore</code> for broad reads, <code>plan-review</code>.</dd>
         <dt>Hands off to</dt><dd>The reply holds the plan summary in full. Called by ulw, back to ulw step 5. Called alone, it stops. Blockers still open after round 2 go to the owner.</dd>
-      </dl>
-    </article>
-    <article class="card">
-      <h3>omt-grill</h3>
-      <p class="kind">model-invoked goal test</p>
-      <dl>
-        <dt>Trigger</dt><dd>A vague goal, edge cases, or a stress test before a plan.</dd>
-        <dt>Does</dt><dd>Finds the facts first in the main thread. Gets one second opinion from 1 <code>grill</code> child on the other family, once per grill, with no fallback to the main thread's family. Asks question batches, and checks each answer against the facts. Repeats until no question is open. Writes the grill file at <code>$(omt paths --grills)/&lt;slug&gt;.md</code>, no plan and no code.</dd>
-        <dt>Dispatches</dt><dd><code>explore</code> and <code>research</code> (units <code>GX&lt;k&gt;</code>) for broad checks, and one <code>grill</code>.</dd>
-        <dt>Hands off to</dt><dd>Offers <code>omt-plan</code>, which reads the grill file.</dd>
       </dl>
     </article>
     <article class="card">
@@ -1193,7 +1179,7 @@ can dispatch: yes</code></pre>
     <div class="fig-scroll" tabindex="0" role="region" aria-label="Skill hand-offs">
 <svg class="diagram" role="img" aria-labelledby="fig8-t fig8-d" width="1150" height="470" viewBox="0 0 1150 470">
   <title id="fig8-t">Skill hand-offs</title>
-  <desc id="fig8-d">The omt router points to the seven workflow skills. The ulw hook points to omt-ulw. omt-ulw runs omt-research at step 1 when the message is a question. omt-ulw hands HEAVY planning to omt-plan, which returns to step 5 after approval. omt-ulw runs omt-design at step 6 when the plan has a design step. omt-design draws variants in Paper, in the main thread on Opus or in one design child, the owner picks and approves them, and the main thread writes a design spec for the UI units. omt-grill finds facts, gets one grill second opinion, and writes no plan and no code; it offers omt-plan. omt-swarm takes a plan, launches track threads with t3_thread_launch, and waits for them with t3_thread_wait. Each track runs ulw steps 7 to 12 and commits. Then one review child, the merge, and one qa child run, and omt-swarm opens one PR. omt-research answers narrow questions itself and sends broad ones to 2 to 4 read-only children. omt-code-review runs 1 reviewer for a small diff, or 2 to 4 grouped reviewers and 1 oracle for a large diff, all report-only.</desc>
+  <desc id="fig8-d">The omt router points to the workflow skills. The ulw hook points to omt-ulw. omt-ulw runs omt-research at step 1 when the message is a question. omt-ulw hands HEAVY planning to omt-plan, which returns to step 5 after approval. omt-ulw runs omt-design at step 6 when the plan has a design step. omt-design draws variants in Paper, in the main thread on Opus or in one design child, the owner picks and approves them, and the main thread writes a design spec for the UI units. omt-setup answers questions about omt and changes the setup after the user agrees. omt-swarm takes a plan, launches track threads with t3_thread_launch, and waits for them with t3_thread_wait. Each track runs ulw steps 7 to 12 and commits. Then one review child, the merge, and one qa child run, and omt-swarm opens one PR. omt-research answers narrow questions itself and sends broad ones to 2 to 4 read-only children. omt-code-review runs 1 reviewer for a small diff, or 2 to 4 grouped reviewers and 1 oracle for a large diff, all report-only.</desc>
   <rect class="box-w" x="16" y="20" width="210" height="44" rx="8"/>
   <text class="b" x="121" y="39" text-anchor="middle">ulw hook pointer</text>
   <text class="s" x="121" y="56" text-anchor="middle">Claude Code only</text>
@@ -1214,7 +1200,7 @@ can dispatch: yes</code></pre>
   <rect class="box-a" x="442" y="140" width="124" height="44" rx="8"/><text class="m b" x="504" y="167" text-anchor="middle">omt-design</text>
   <rect class="box-a" x="584" y="140" width="124" height="44" rx="8"/><text class="m b" x="646" y="167" text-anchor="middle">omt-code-review</text>
   <rect class="box-a" x="726" y="140" width="124" height="44" rx="8"/><text class="m b" x="788" y="167" text-anchor="middle">omt-research</text>
-  <rect class="box-a" x="868" y="140" width="124" height="44" rx="8"/><text class="m b" x="930" y="167" text-anchor="middle">omt-grill</text>
+  <rect class="box-a" x="868" y="140" width="124" height="44" rx="8"/><text class="m b" x="930" y="167" text-anchor="middle">omt-setup</text>
   <rect class="box-a" x="1010" y="140" width="124" height="44" rx="8"/><text class="m b" x="1072" y="167" text-anchor="middle">omt-swarm</text>
   <path class="ln" d="M220,184 Q291,250 362,184" marker-start="url(#ah)" marker-end="url(#ah)"/>
   <text class="s halo" x="291" y="238" text-anchor="middle">step 5 HEAVY: plan</text>
@@ -1232,9 +1218,9 @@ can dispatch: yes</code></pre>
   <text class="s" x="788" y="208" text-anchor="middle">narrow: main thread</text>
   <text class="s" x="788" y="224" text-anchor="middle">broad: 2 to 4 children</text>
   <text class="s" x="788" y="240" text-anchor="middle">cited answer</text>
-  <text class="s" x="930" y="208" text-anchor="middle">facts first</text>
-  <text class="s" x="930" y="224" text-anchor="middle">one grill opinion</text>
-  <text class="s" x="930" y="240" text-anchor="middle">no plan, no code</text>
+  <text class="s" x="930" y="208" text-anchor="middle">answers questions</text>
+  <text class="s" x="930" y="224" text-anchor="middle">setup and config</text>
+  <text class="s" x="930" y="240" text-anchor="middle">asks before writes</text>
   <path class="ln" d="M1110,184 L1110,378" marker-end="url(#ah)"/>
   <text class="m halo" x="1102" y="300" text-anchor="end">t3_thread_launch</text>
   <path class="ln-d" d="M1000,378 L1000,186" marker-end="url(#ah)"/>
@@ -1249,7 +1235,7 @@ can dispatch: yes</code></pre>
   <text class="s" x="810" y="438" text-anchor="middle">one PR</text>
 </svg>
     </div>
-    <figcaption>Figure 8. Hand-offs between the skills. Dotted lines show what the <code>omt</code> router lists. In plan mode, ulw step 0 also offers <code>omt-plan</code>. <code>omt-help</code> and <code>omt-setup</code> are left out.</figcaption>
+    <figcaption>Figure 8. Hand-offs between the skills. Dotted lines show what the <code>omt</code> router lists. In plan mode, ulw step 0 also offers <code>omt-plan</code>. <code>omt-swarm</code> is opt-in.</figcaption>
   </figure>
   <h3>The waiting model</h3>
   <p>Every write tool, <code>delegate_task</code> included, needs the caller's active turn. After the turn ends, writes fail with <code>parent_not_active</code>, and a later wake names only task ids. So the main thread waits for its children inside its turn.</p>
@@ -1284,7 +1270,7 @@ can dispatch: yes</code></pre>
     <li><strong>A plan-mode thread dispatches only read-only roles.</strong> It dispatches only read-only roles such as <code>explore</code>, <code>research</code>, and <code>plan-review</code>, and <code>review</code> or <code>oracle</code> tasks with <code>interactionMode: "plan"</code> set, writes no files, and gives the result in its final message. It runs no <code>omt init</code>, <code>plan new</code>, <code>plan mark</code>, or <code>ledger add</code>.</li>
     <li><strong>Children share the checkout.</strong> T3 Code v0.1.0 can isolate a child in a worktree, but omt does not use that yet. Every unit has an explicit scope. A unit that an <code>execute</code> child builds runs in parallel only when its scope does not overlap other edits. Every brief tells the child never to break and restore files in the shared checkout. The main thread makes each failure proof in a private copy.</li>
     <li><strong>Review and QA never overlap.</strong> The reviewer edits files, so QA starts only after the main thread read the reviewer's fix diff. QA edits nothing.</li>
-    <li><strong>Reviewers come from the other family.</strong> <code>plan-review</code>, <code>grill</code>, <code>review</code>, and <code>oracle</code> are cross-family relative to the author of the change. When the other family is not available, the same family reviews.</li>
+    <li><strong>Reviewers come from the other family.</strong> <code>plan-review</code>, <code>review</code>, and <code>oracle</code> are cross-family relative to the author of the change. When the other family is not available, the same family reviews.</li>
     <li><strong>Modes only narrow.</strong> Runtime rank is <code>approval-required</code> &lt; <code>auto-accept-edits</code> &lt; <code>auto</code> &lt; <code>full-access</code>. Interaction rank is <code>plan</code> &lt; <code>default</code>.</li>
     <li><strong>Skills read modes with <code>t3_thread_configure</code>.</strong> They must not call <code>orchestrator_capabilities</code> to read modes.</li>
   </ul>
@@ -1557,7 +1543,7 @@ can dispatch: yes</code></pre>
     <dt>rung</dt><dd>One entry in a role chain. It names a provider or driver, a model, an effort, and optional raw options. The skill tries the rungs in order. A later rung is a backup that runs only when T3 refuses the earlier one. It is not a second opinion. For a cross-family role, <code>--against</code> can put a later rung first.</dd>
     <dt>chain</dt><dd>An ordered list of 1 to 10 rungs. The first ok rung wins.</dd>
     <dt>fallbacks</dt><dd>The targets of the later ok rungs, in the order tried. The skill uses them on typed T3 errors.</dd>
-    <dt><code>crossFamily</code></dt><dd>A role flag. For a role with <code>crossFamily: true</code>, <code>--against</code> puts the rungs of the family other than the worker's first. The defaults set it for <code>plan-review</code>, <code>grill</code>, <code>review</code>, and <code>oracle</code>. <code>omt roles</code> shows it in the <code>CROSS</code> column.</dd>
+    <dt><code>crossFamily</code></dt><dd>A role flag. For a role with <code>crossFamily: true</code>, <code>--against</code> puts the rungs of the family other than the worker's first. The defaults set it for <code>plan-review</code>, <code>review</code>, and <code>oracle</code>. <code>omt roles</code> shows it in the <code>CROSS</code> column.</dd>
     <dt><code>--against</code></dt><dd>A flag of <code>omt route</code> and <code>omt brief</code>. Its value is a provider instance id, a driver kind, or <code>auto</code>. It names the worker whose change the task reviews. <code>auto</code> reads the worker from the ledger.</dd>
     <dt>worker family</dt><dd>The driver of the worker, such as <code>claudeAgent</code> or <code>codex</code>. The family is the driver, not the model vendor.</dd>
     <dt>effort ladder</dt><dd><code>off</code> &lt; <code>minimal</code> &lt; <code>low</code> &lt; <code>medium</code> &lt; <code>high</code> &lt; <code>xhigh</code> &lt; <code>max</code>, mapped onto each driver's option.</dd>

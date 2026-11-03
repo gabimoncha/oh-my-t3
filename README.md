@@ -11,7 +11,7 @@ oh-my-t3 adds plans, roles, task briefs, and review loops to the agents that you
 | Name | What it is |
 | --- | --- |
 | `oh-my-t3` | The project, GitHub repository, and primary npm package. Install it with `npm i -g oh-my-t3` or run it with `npx oh-my-t3`. |
-| `oh-my-t3code` | The previous project name and a compatible npm package alias. |
+| `oh-my-t3code` | The previous project name and a deprecated npm package. `omt update` moves an install of it to `oh-my-t3`, and a later release stops publishing it. |
 | `omt` | The command that every install gives you. |
 | `omt3` | The same npm package under a short name, for one-shot runs: `npx omt3` or `bunx omt3`. Another project owns the npm name `omt`, so `npx omt` runs that project. |
 | `omt-ulw`, `omt-plan`, and the other `omt-*` names | The skills that the agent runs. |
@@ -91,24 +91,25 @@ The agent reads the code, asks its open questions in one batch, writes a plan in
 
 After an install for all projects, run `omt init` in the project first.
 
-If you do not know what to do next, type `$omt-help`. To change the setup, type `$omt-setup`.
+If you do not know what to do next, or you want to change the setup, type `$omt-setup`.
 
 ## Skills
 
 | Skill | Use it when |
 | --- | --- |
-| `omt-ulw` | You want a task built, fixed, or shipped from start to end. The main thread builds, and one review task and one qa task check the work. The `ulw` and `ultrawork` keywords start it. |
-| `omt-plan` | You want a reviewed plan before any code changes. |
-| `omt-grill` | Your goal is vague, or you want its edge cases and open questions found before a plan. |
+| `omt-ulw` | You want a task built, fixed, or shipped from start to end. The main thread builds, and one review task and one qa task check the work. With the Claude Code hook, the phrase `start ulw` starts it. |
+| `omt-plan` | You want a reviewed plan before any code changes. For a vague goal, it first finds the edge cases and open questions. |
 | `omt-design` | You want designs or mockups before UI work. |
 | `omt-code-review` | You want a review of uncommitted changes, a branch, a commit, or a pull request. It replaces `omt-review`. |
 | `omt-research` | You need an answer with sources from the repository, library docs, or the web. |
-| `omt-help` | You want to know what omt can do, what to do next, or how to do something. It only reads and changes nothing. |
-| `omt-setup` | You want omt set up, configured, or updated: the harnesses, the defaults, models, roles, or profiles. It asks before each write. |
-| `omt-swarm` | You have a plan whose units split into independent tracks, each built in its own worktree thread, then merged into one pull request. |
-| `omt` | You want the list of workflows and CLI commands. |
+| `omt-setup` | You want to know what omt can do or what to do next, or you want omt set up, configured, or updated: the harnesses, the defaults, models, roles, or profiles. It asks before each write. |
+| `omt` | You want the list of workflows. |
 
-The agent can start the first eight skills itself. You start `omt-swarm` and `omt` by name. `omt-loop` and `omt-show` were removed, and `omt install` and `omt update` remove their old folders.
+The agent can start the first six skills itself. You start `omt` by name.
+
+`omt-swarm` is opt-in. It builds a plan whose units split into independent tracks, each in its own worktree thread, then merges them into one draft pull request. Install it with `omt install --with omt-swarm`, and start it by name.
+
+`omt-grill`, `omt-help`, `omt-loop`, and `omt-show` were removed. `omt-plan` runs the stress test of `omt-grill`, and `omt-setup` answers the questions of `omt-help`. `omt install` and `omt update` remove the old folders.
 
 A plan and its ledger stay in `.omt/` after context compaction and across sessions, so one plan can run for days. A profile in `.omt/config.jsonc` can change the models, the checks, and the limits. See [Configure roles and profiles](docs/configuration.md), or ask `$omt-setup` to make the change.
 
@@ -126,7 +127,7 @@ The setup works with Bun and pnpm, and never overwrites a file. Commit the new f
 
 ## How it works
 
-omt has two parts. The skills tell the agent how to plan, build, review, and test. The `omt` CLI does the steps that must give the same result each time: it merges the config, picks a model for each role, writes the task briefs, and counts the tasks in the ledger. The CLI has no runtime dependencies and sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor` after you set `update` in the user config. `omt update` runs the package manager or mise command of the channel that installed omt.
+omt has two parts. The skills tell the agent how to plan, build, review, and test. The `omt` CLI does the steps that must give the same result each time: it merges the config, picks a model for each role, writes the task briefs, records each task start and result in the ledger, and commits and opens draft PRs within your git policy. The CLI has no runtime dependencies and sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor` after you set `update` in the user config. `omt update` runs the package manager or mise command of the channel that installed omt. `omt git commit`, `omt git pr`, and `omt git stack` run `gh`, and `omt git pr` and `omt git stack` run `git push`, so they contact the git host of the `origin` remote.
 
 T3 gives each agent session tools to start, check, and cancel child tasks on any provider and model. Each child task is a T3 thread, so you can watch it in T3. omt adds roles, model routing, briefs, review loops, and limits. It does not change T3.
 

@@ -5,7 +5,7 @@ You install omt in two parts. First, install the `omt` CLI from a package regist
 - The project install puts omt into one repository. It does not change `~/.agents/skills`, `~/.claude`, or your `PATH`. Start here.
 - The global install installs the skills for your user, so every project gets them.
 
-Both modes install the same 10 skills, including `omt-help`, which answers questions about omt, and `omt-setup`, which changes the setup for you. After either install, restart your agent sessions in T3 Code. A running session does not load new skills.
+Both modes install the same 7 skills: `omt`, `omt-ulw`, `omt-plan`, `omt-design`, `omt-code-review`, `omt-research`, and `omt-setup`. `omt-setup` answers questions about omt and changes the setup for you. An eighth skill, `omt-swarm`, installs only when you ask for it ([Add the omt-swarm skill](#add-the-omt-swarm-skill)). After either install, restart your agent sessions in T3 Code. A running session does not load new skills.
 
 If you are a coding agent, follow the [agent quick start](agents/quickstart.md) instead. It has the same project install as steps with checks.
 
@@ -297,7 +297,7 @@ Restart your agent sessions in T3 Code after the install. A running session does
 
 Each installed skill directory holds a `.omt-managed.json` marker. The install never overwrites a path that it does not manage, unless you pass `--force`. With `--force`, it moves the old path to the backups directory first.
 
-When the bundle no longer ships a skill that an earlier install wrote, such as `omt-loop`, `omt-review`, or `omt-show`, `omt install` removes that skill folder and the links to it. The plan shows `remove <name> (no longer shipped)`. The install removes only a folder that its manifest lists and that has the marker. A folder that omt did not install stays. When you edited the retired skill, the install stops. `--force` backs up the folder and removes it. Until a retired skill is gone, `omt doctor` prints `WARN` on its `skills` line: `no longer shipped: <names> in <agents root>; run omt install`.
+When the bundle no longer ships a skill that an earlier install wrote, such as `omt-grill`, `omt-help`, or `omt-loop`, `omt install` removes that skill folder and the links to it. The plan shows `remove <name> (no longer shipped)`. An `omt-swarm` folder from an earlier install goes the same way when you did not select it, with `(opt-in, not selected)`. The install removes only a folder that its manifest lists and that has the marker. A folder that omt did not install stays. When you edited the retired skill, the install stops. `--force` backs up the folder and removes it. Until a retired skill is gone, `omt doctor` prints `WARN` on its `skills` line: `no longer shipped: <names> in <agents root>; run omt install`.
 
 ### Remove the global install
 
@@ -308,6 +308,19 @@ omt uninstall
 `omt uninstall` removes the managed skill copies, the links that point at them, the hook entry, and the manifest. It keeps your config. Add `--purge` to remove the config too. It never removes a path that it does not manage. Project `.omt/` directories stay in place.
 
 `omt uninstall` does not remove the CLI. To remove it, use the command of its channel, such as `mise unuse -g github:gabimoncha/oh-my-t3`, `npm rm -g oh-my-t3`, `pnpm rm -g oh-my-t3`, or `bun rm -g oh-my-t3`.
+
+## Add the omt-swarm skill
+
+`omt-swarm` builds one plan as parallel tracks in separate T3 worktree threads ([Build parallel tracks](workflows.md#build-parallel-tracks)). A default install leaves it out. To add it, pass `--with omt-swarm` to the install of your mode:
+
+```sh
+omt install --project --with omt-swarm
+omt install --with omt-swarm
+```
+
+The install records the choice in its manifest, so a later `omt install` or `omt update` keeps the skill without the flag. `--with` takes only an opt-in skill. Another name exits with code 2 and writes nothing.
+
+An install from before this release wrote `omt-swarm` by default. The next `omt install` or `omt update` removes it when you did not edit it. Run the install with `--with omt-swarm` to keep it. An edited copy is handled as an edited retired skill: `omt install` stops on it, and `omt update` keeps it.
 
 ## Update omt
 

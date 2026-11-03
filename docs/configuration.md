@@ -9,7 +9,7 @@ omt reads two config files:
 
 Run `omt config validate` after each change. It checks every key of both files and every profile, including the profiles that you do not select. It exits 1 on an error. The [spec](spec.md#62-layer-validation) has the full schema and the merge rules.
 
-To let omt make a change for you, ask the agent in a T3 thread to set up omt. The `omt-setup` skill runs the commands on this page, shows each change, and asks before it writes. For help with a question, ask `$omt-help`.
+To let omt make a change for you, ask the agent in a T3 thread to set up omt. The `omt-setup` skill runs the commands on this page, shows each change, and asks before it writes. The same skill answers questions about omt: ask `$omt-setup`.
 
 ## Get autocomplete in your editor
 
@@ -30,10 +30,9 @@ A role, such as `execute` or `review`, maps to an ordered chain of provider, mod
 
 | Role | Use | Used by | First choice | Fallback |
 | --- | --- | --- | --- | --- |
-| `explore` | Answer one narrow question about this repository | `omt-research`, `omt-plan`, `omt-grill` | GPT-6.1-Terra, low | Claude Haiku 5.5, medium |
+| `explore` | Answer one narrow question about this repository | `omt-research`, `omt-plan`, `omt-ulw` | GPT-6.1-Terra, low | Claude Haiku 5.5, medium |
 | `research` | Answer a question from docs, the web, and code | `omt-research` | GPT-6.1-Sol, low | Claude Sonnet 5.5, medium |
 | `plan-review` | Check a plan for gaps | `omt-plan` | GPT-6-Astra, medium | Claude Opus 5.5, medium |
-| `grill` | Test a goal before it has a plan: edge cases, questions, and options | `omt-grill` | GPT-6-Astra, medium | Claude Opus 5.5, medium |
 | `execute` | Implement one planned unit that the main thread hands off as an independent track | `omt-ulw` | Claude Opus 5.5, low | GPT-6.1-Sol, high |
 | `review` | Review a diff against its brief, fix local findings, and report the rest | `omt-ulw`, `omt-code-review`, `omt-swarm` | GPT-6-Astra, medium | Claude Opus 5.5, medium |
 | `oracle` | Attack the finished change before it counts as done, fix local findings, and report the rest | `omt-ulw`, `omt-code-review` | GPT-6-Astra, medium | Claude Opus 5.5, medium |
@@ -45,13 +44,13 @@ A role, such as `execute` or `review`, maps to an ordered chain of provider, mod
 
 The table shows the current defaults. The fallback runs when T3 refuses the first choice. You review the designs.
 
-The `plan` role was removed, because the main thread writes every plan itself. A config file that still sets `roles.plan` loads with the warning `roles.plan is no longer used; remove it`.
+The `plan` role was removed, because the main thread writes every plan itself. The `grill` role was removed, because `omt-plan` now runs the stress test of a goal in the main thread. A config file that still sets `roles.plan` or `roles.grill` loads with the warning `roles.<name> is no longer used; remove it`.
 
-`plan-review`, `grill`, `review`, and `oracle` are cross-family roles. The reviewer comes from the model family that did not do the work. GPT-6-Astra reviews Claude work, and Claude Opus 5.5 reviews GPT work. The skills pass the worker to `omt brief --against`, and the CLI puts the rungs of the other family first. When the other family is not available, the same family reviews. A build oracle uses the family that did not do most of the implementation. A review oracle uses the family that did not do most of the reviews.
+`plan-review`, `review`, and `oracle` are cross-family roles. The reviewer comes from the model family that did not do the work. GPT-6-Astra reviews Claude work, and Claude Opus 5.5 reviews GPT work. The skills pass the worker to `omt brief --against`, and the CLI puts the rungs of the other family first. When the other family is not available, the same family reviews. A build oracle uses the family that did not do most of the implementation. A review oracle uses the family that did not do most of the reviews.
 
 Claude models run on the `claudeAgent` driver, and GPT models run on the `codex` driver. Each default rung also names the T3 built-in provider instance of its driver. T3 checks a named instance again before it refuses it. A target with only a driver can fail because of an old provider snapshot.
 
-The read-only roles are `explore`, `research`, `plan-review`, `grill`, and `guardrail`. They run in T3 plan mode. On Claude, Codex, Cursor, and OpenCode, plan mode stops the child from editing files. T3 has no plan mode for Pi, so only its brief stops a Pi child in a read-only role. No default role uses Pi.
+The read-only roles are `explore`, `research`, `plan-review`, and `guardrail`. They run in T3 plan mode. On Claude, Codex, Cursor, and OpenCode, plan mode stops the child from editing files. T3 has no plan mode for Pi, so only its brief stops a Pi child in a read-only role. No default role uses Pi.
 
 `review` and `oracle` can edit files. In an `omt-ulw` build, the reviewer fixes each local finding itself: a clear fix inside the changed files that agrees with the plan summary. It reports every other finding. `omt-code-review` still runs its reviewers in plan mode, so they only report. `qa` has edit access only to run commands and write logs. Its brief forbids edits in the repository, and it writes no tests. `qa` tries GPT-6.1-Sol first, then Claude Sonnet. If a local tool is unreachable, the workflow retries once on the other provider. Only `qa` drives a device, a simulator, a browser, or a computer.
 
@@ -110,7 +109,7 @@ Add the role under `roles` in either config file. A new role needs `description`
 | `description` | Text of at most 300 characters. Agents read it in `omt roles` and in the skills. | Required. |
 | `access` | `read-only` or `edit`. | Required. |
 | `chain` | 1 to 10 rungs. | Required. |
-| `result` | The result block that the child ends with: `work`, `review`, `test`, `research`, `plan`, `guardrail`, or `grill`. | `work` for `edit`, `research` for `read-only`. |
+| `result` | The result block that the child ends with: `work`, `review`, `test`, `research`, `plan`, or `guardrail`. The retired kind `grill` is an error that says to use `review`. | `work` for `edit`, `research` for `read-only`. |
 | `t3Role` | The `role` value that omt passes to the T3 `delegate_task` tool: `implementation`, `research`, `review`, `design`, `test`, or `general`. | `implementation` for `edit`, `research` for `read-only`. |
 | `interactionMode` | The T3 interaction mode of the child: `inherit`, `default`, or `plan`. `plan` stops the child from editing files. | `default` for `edit`, `plan` for `read-only`. |
 | `runtimeMode` | The T3 runtime mode of the child: `inherit`, `approval-required`, `auto-accept-edits`, `auto`, or `full-access`. A child cannot get a broader mode than its parent thread. | `inherit`. |
@@ -139,8 +138,10 @@ To give a role its own persona, write `.omt/roles/<role>.md`. The file content i
 
 A profile is a named set of workflow switches, limits, and role overrides. omt has two presets:
 
-- `normal` reviews the build again after each round of fixes, and the reviewer of a HEAVY run is the oracle. The main thread proves that each new test can fail. A pull request review runs all PR steps: CI fixes, verification of changed flows, CRAP reports, test offers, and guardrail proposals.
-- `prototype` reviews the build once, with one plan reviewer on any family. It skips the oracle and the failure proofs, allows 2 review rounds, and draws 1 design variant per screen. It turns off the CI check and the other PR steps.
+- `normal` reviews the build again after each round of fixes, and the reviewer of a HEAVY run is the oracle. The main thread proves that each new test can fail. A design pass draws 3 variants per screen.
+- `prototype` reviews the build once, with one plan reviewer on any family. It skips the oracle and the failure proofs, allows 2 review rounds, and draws 1 design variant per screen.
+
+Both presets turn off the five PR extras of `omt-code-review`: `review.ci`, `review.verify`, `review.tests`, `review.guardrails`, and `review.crap`. [Turn on the PR extras](#turn-on-the-pr-extras) shows how to get them back.
 
 Run `omt profile list` to see the presets and your custom profiles. Run `omt profile show prototype --json` to see the resolved workflow, limits, roles, and models of one profile.
 
@@ -188,6 +189,40 @@ This profile builds like `prototype`, with failure proofs, fast `execute` and `u
 ```
 
 The role `fast` wins over the model `fast`. So in `execute`, the GPT-6.1-Sol fallback still gets `serviceTier: "priority"`. In `qa` and `research`, which do not set `fast`, GPT-6.1-Sol runs without fast mode. `omt route execute --profile hackathon` prints the targets.
+
+### Turn on the PR extras
+
+A pull request review runs the five PR extras only when a profile turns them on. In the user config, this profile turns on all five for every project, with the values that `normal` had before this release:
+
+```jsonc
+{
+  "profile": "full-review",
+  "profiles": {
+    "full-review": {
+      "description": "Run every PR review extra.",
+      "workflow": {
+        "review": { "ci": "fix", "verify": "changed-flows", "tests": "offer", "guardrails": "propose", "crap": "report" }
+      }
+    }
+  }
+}
+```
+
+[Turn on the PR extras](workflows.md#turn-on-the-pr-extras) says what each extra adds. To use the profile for one review only, leave out the `profile` key and type `omt-code-review <number> --profile full-review`.
+
+### Pick the design tool
+
+`workflow.design.tool` picks the tool that `omt-design` draws with. `paper`, the default, draws in a new Paper file when the Paper tools load in the thread, and in self-contained HTML mockups otherwise. `html` always draws HTML mockups:
+
+```jsonc
+{
+  "profiles": {
+    "normal": { "workflow": { "design": { "tool": "html" } } }
+  }
+}
+```
+
+### What a profile cannot change
 
 A profile can turn steps on or off and change their settings. It cannot add a step or change the order of the steps. A profile applies after the root keys of the config files, so its `roles`, `limits`, and `models` win over the root values. `omt profile show <name> --json` prints the result.
 
