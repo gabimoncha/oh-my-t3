@@ -49,10 +49,10 @@ test("global npm oh-my-t3 install of A updates to B with --yes: CLI, user skills
 
   const line = () => `This line exists only in the e2e update build ${B}.`;
   const skillFiles = [
-    join(env.HOME!, ".agents", "skills", "omt-help", "SKILL.md"),
-    join(env.CLAUDE_CONFIG_DIR!, "skills", "omt-help", "SKILL.md"),
-    join(project, ".agents", "skills", "omt-help", "SKILL.md"),
-    join(project, ".claude", "skills", "omt-help", "SKILL.md"),
+    join(env.HOME!, ".agents", "skills", "omt-setup", "SKILL.md"),
+    join(env.CLAUDE_CONFIG_DIR!, "skills", "omt-setup", "SKILL.md"),
+    join(project, ".agents", "skills", "omt-setup", "SKILL.md"),
+    join(project, ".claude", "skills", "omt-setup", "SKILL.md"),
   ];
   for (const file of skillFiles) assert.ok(!readFileSync(file, "utf8").includes(line()), `${file} must not have the B line yet`);
 
@@ -62,7 +62,7 @@ test("global npm oh-my-t3 install of A updates to B with --yes: CLI, user skills
   for (const file of skillFiles) assert.ok(readFileSync(file, "utf8").includes(line()), `${file} must have the B line`);
   assert.equal(JSON.parse(readFileSync(manifestPath(env, env.HOME!), "utf8")).version, B, "user manifest must record B");
   assert.equal(JSON.parse(readFileSync(projectManifestPath(project), "utf8")).version, B, "project manifest must record B");
-  assert.match(out, /changed\s+omt-help/, "output must name the changed skill");
+  assert.match(out, /changed\s+omt-setup/, "output must name the changed skill");
   assert.ok(out.includes(RESTART), "output must print the restart line");
   for (const file of [userCfg, projCfg]) {
     const text = readFileSync(file, "utf8");
@@ -87,7 +87,7 @@ test("npx omt3@A install --project, then .omt/bin/omt update --yes pins the shim
   const text = readFileSync(shim, "utf8");
   assert.ok(text.split("\n").includes(`exec npx --yes omt3@${B} "$@"`), `shim must pin B; shim is:\n${text}`);
   assert.equal(lastLine(await run(shim, ["--version"], project, env)), B, "shim --version must print B");
-  for (const file of [join(project, ".agents", "skills", "omt-help", "SKILL.md"), join(project, ".claude", "skills", "omt-help", "SKILL.md")]) {
+  for (const file of [join(project, ".agents", "skills", "omt-setup", "SKILL.md"), join(project, ".claude", "skills", "omt-setup", "SKILL.md")]) {
     assert.ok(readFileSync(file, "utf8").includes(`This line exists only in the e2e update build ${B}.`), `${file} must have the B line`);
   }
   assert.ok(out.includes(RESTART), "output must print the restart line");

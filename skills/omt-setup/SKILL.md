@@ -1,116 +1,95 @@
 ---
 name: omt-setup
-description: Set up, configure, or update omt in T3 Code. Use when the user asks to set up omt, configure omt, update omt, change the models or roles, add or change a profile, pick the harnesses (Claude Code, Codex), or review new defaults. Runs the omt CLI, shows each change first, and asks before each write.
+description: Set up, configure, update, or explain omt in T3 Code. Use when the user asks to set up, configure, or update omt, change models, roles, or profiles, pick the harnesses (Claude Code, Codex), or review new defaults, or asks for help, what omt can do, what to do next, which skill to use, or what a command means. Asks before each write.
 ---
 
-# Setup
+# Setup and help
 
-You configure omt for the user through the omt CLI. You write only through an omt command or a config file edit that the user approved. T3 tools appear here by base name. Your harness may add a prefix, such as `mcp__t3-code__orchestrator_capabilities`.
-
-The CLI and the skills serve people and agents. Each command prints text for a person, and the report commands also print JSON with `--json`. Show the user the text form. Read the `--json` form when you need one field.
+You answer questions about omt and configure it through the omt CLI. Show the text output of each command.
 
 ## Write rules
 
-Every step that writes follows these rules:
-
 1. Show the command, or the planned edit, before you run it.
-2. When the command has `--dry-run`, run it with `--dry-run` first and show the output.
-3. Ask the user. Pass `--yes`, or make the edit, only after the user agrees.
+2. When the command has `--dry-run`, run that first and show the output.
+3. Ask. Pass `--yes`, or make the edit, only after the user agrees.
 4. After the write, run the check of the step.
 
 ## Steps
 
-Run steps 1 and 2 first. Then run the steps that the request names. For a plain "set up omt", run steps 3, 4, 5, and 5a in order. End with step 8.
+Run step 1 first. For a question, run step 3. For a change, run step 2, then the steps that it names. For a plain "set up omt", run steps 2, 4, 5, and 6, then check for Anthropic's optional `frontend-design` skill and recommend it for UI work when it is missing. End with step 9 when you proposed a write.
 
 ### 1. Find the CLI and your mode
 
-Follow [The CLI](../omt/references/delegation.md#the-cli). Below, `omt` means the command that you found, such as `.omt/bin/omt`. When no CLI exists, the user installs it first: follow the [agent quick start](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/agents/quickstart.md), which asks the user for a channel.
-
-When you have the T3 tools, call `t3_thread_configure` with no arguments and read your `interactionMode`. In `plan` mode, run only the read commands, list the write commands for the user, and ask the user to switch the thread to default mode.
+Follow [The CLI](../omt/references/delegation.md#the-cli). Call `t3_thread_configure` with no arguments and read `interactionMode`. In `plan` mode, run only read commands, list the writes for the user, and ask the user to switch to default mode.
 
 Done when: `omt --version` prints a version, and you know your mode.
 
 ### 2. Read the doctor
 
-Run `omt doctor --project --dry-run` for a project install, or `omt doctor --dry-run` for a global install. Read each line. Map each line that is not `PASS` to a step:
+Run `omt doctor --project --dry-run`, or `omt doctor --dry-run` for a global install. Map each line that is not `PASS`: `harnesses` to step 4, `defaults` to step 5, `worktree` to step 6, `config` to step 7, and `skills` with `outdated`, `hooks`, or `update` with `is out` to step 8. For another line, give the user its printed fix.
 
-| Line | Step |
-| --- | --- |
-| `harnesses` | 3 |
-| `defaults` | 4 |
-| `worktree` | 5 |
-| `config` | 6 |
-| `skills` with `outdated`, `hooks`, or `update` with `is out` | 7 |
+Done when: each line that is not `PASS` has a step or a fix, and the user knows your proposed steps.
 
-For another `WARN` or `FAIL` line, tell the user the fix that the line prints.
+### 3. Answer a question
 
-Done when: each line that is not `PASS` has a step or a fix, and you told the user which steps you propose.
+This step writes nothing. Sort the question, and run its commands first:
 
-### 3. Fit the roles to the harnesses
+- Which skill to use, or what omt can do: the workflow list of the [router](../omt/SKILL.md).
+- What a command means: `omt help <command>`.
+- A config question: `omt config show`, `omt config explain`, `omt profile list`, `omt profile show <name>`, `omt roles`, or `omt detect`.
+- What to do next: the doctor command of step 2, and `omt update --check` for a new version.
 
-The commands below use `--project`, which targets the project config. For the user config of a global install, put `--user` in its place. Pass the same flag to every detect command of this step, the reads included, so that each command reads and writes the same file.
+Answer first, in one to three sentences. For a skill, give its composer form, such as `$omt-ulw <task>`. For a change, name the key and the file, and offer the write steps. Link one doc as `https://github.com/gabimoncha/oh-my-t3/blob/main/docs/<file>.md`: `install`, `configuration`, `commands`, `workflows`, `walkthrough`, or `design`.
 
-When you have the T3 tools, call `orchestrator_capabilities` and save its full JSON result to one temp file, such as a path that `mktemp` prints. Pass that file to every detect command of this step:
+Done when: every fact in the answer comes from a command that you ran in this turn, the router, or the linked doc.
 
-1. `omt detect --capabilities <file> --project`. Read the line of each driver and the effect lines for the active defaults.
-2. When the output recommends a change: `omt detect --capabilities <file> --write --project --dry-run`. Show the output and ask.
-3. After the user agrees: `omt detect --capabilities <file> --write --project --yes`.
-4. The check: `omt detect --capabilities <file> --project`, then `omt roles --capabilities <file>`.
+### 4. Fit the roles to the harnesses
 
-Without the T3 tools, run the same four commands without `--capabilities <file>`. Tell the user that this detection reads the T3 settings file and `PATH`, and does not see a provider that T3 enables for one project only.
+Pass `--project`, or `--user` for a global install, to each command of this step. With the T3 tools, save the full JSON result of `orchestrator_capabilities` to a temp file, and also pass `--capabilities <file>`.
 
-When `omt detect` exits 1 because it detects no driver, ask the user to sign in to Claude Code or Codex and enable it in T3 Settings, Providers. Then run this step again.
+1. Run `omt detect`, and read the driver and effect lines.
+2. When it recommends a change, run `omt detect --write --dry-run`, and ask.
+3. After the user agrees, run `omt detect --write --yes`.
+4. The check: `omt detect`, then `omt roles`.
 
-Done when: step 1 recommends no change, or the check recommends no further change after the write; and `omt roles` shows each role as the effect lines said.
+Without the T3 tools, say that detection sees only the T3 settings file and `PATH`. When `omt detect` finds no driver, ask the user to sign in to Claude Code or Codex and enable it in T3 Settings, then run this step again.
 
-### 4. Review current defaults
+Done when: the check recommends no further change, and `omt roles` shows each role as the effect lines said.
 
-1. Run `omt doctor --project --dry-run`. For a user install, leave out `--project`.
-2. Explain each `<path>: <from> -> <to>` line. A line marked `(overridden by <file>)` has no effect because that file sets the value. On the first review of an older install, show the current role choices because no baseline is saved.
-3. Ask whether to accept the current defaults. After approval, run the same command with `--yes` instead of `--dry-run`. Declining keeps the last accepted defaults.
+### 5. Review current defaults
 
-Acceptance stores one snapshot in the install record and removes the retired `defaults` config key. It preserves the other config values and comments.
+Run the doctor command of step 2, and explain each `<path>: <from> -> <to>` line. A line marked `(overridden by <file>)` has no effect. On the first review of an older install, show the current role choices, since no baseline exists. After the user accepts, run the same command with `--yes` in place of `--dry-run`. Declining keeps the last accepted defaults.
 
 Done when: the user accepted or declined, and `omt config validate` exits 0 after acceptance.
 
-### 5. Set up worktrees
+### 6. Set up worktrees
 
-Follow [worktrees.md](../omt/references/worktrees.md) on the first omt run in a project, or when the doctor prints a `worktree` line that is not `PASS`.
+Follow [worktrees.md](../omt/references/worktrees.md) on the first run in a project, or for a `worktree` line that is not `PASS`.
 
-Done when: you finished each step of worktrees.md that applies to this checkout.
+Done when: you finished each step of worktrees.md that applies.
 
-### 5a. Check the frontend design skill
+### 7. Change a profile or a role
 
-Follow [Check availability](../omt/references/roles.md#main-thread-or-child). Check for Anthropic's `frontend-design` skill and recommend installing it when missing. Explain that it helps during design and direct UI implementation without a design spec. It is optional.
+1. Run `omt config path`. Pick the project file for one project, or the user file for all. When it is absent, propose `omt init` or `omt config init`.
+2. Read the file and `omt config show --defaults`. Write the JSONC edit with its key path by the [configuration guide](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/configuration.md). A new role needs `description`, `access`, and `chain`. A `chain` replaces the old chain, and `null` removes a role.
+3. Show the edit and ask. After yes, make it, and keep every other byte of the file.
+4. The check: `omt config validate`, then `omt profile show <name>`.
 
-Done when: the user knows whether the skill is available, and has the installation recommendation when it is missing.
-
-### 6. Change a profile or a role
-
-1. Run `omt config path`. Use the project file for one project, and the user file for all projects. When the file is absent, propose `omt init` (project) or `omt config init` (user), and ask.
-2. Read the file and `omt config show --defaults`. Write the planned JSONC edit as the new block, with its key path. Keep the rules of the [configuration guide](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/configuration.md):
-   - A new role needs `description`, `access`, and `chain`. A new profile needs `description`.
-   - A `chain` replaces the old chain as a whole. `null` removes a role.
-   - `"profile": "<name>"` selects the default profile.
-   - `workflow.git.owners` lists the GitHub orgs whose repos count as the user's own for the git policy. The default is none.
-3. Show the edit and ask. After the user agrees, make the edit and keep every other byte of the file, comments included.
-4. The check: `omt config validate`, then `omt profile show <name>` for the profile that the change affects.
-
-When the user wants to edit in a browser page, run `omt config edit --web --capabilities <file>` in the background, and give the user the URL that it prints. Use the capabilities file of step 3. When step 3 did not run, call `orchestrator_capabilities` first and save its full JSON result to a temp file, such as a path that `mktemp` prints. Without the T3 tools, omit `--capabilities <file>`. The page writes the files itself, so skip items 2 and 3, and run item 4 after the user says that they are done.
+For a browser editor, run `omt config edit --web` in the background, with `--capabilities <file>` as in step 4, and give the user its URL. The page writes the files, so run only item 4, after the user is done.
 
 Done when: `omt config validate` exits 0, and `omt profile show <name>` shows the new values.
 
-### 7. Update omt
+### 8. Update omt
 
-1. Run `omt update --dry-run` and show the output. It names the channel and its update command (`run:`), the new shim pin of a one-shot install (`pin:`), or a `hint:`, and it lists each scope that the skills sync reaches. For a dev dependency, the hint names the package manager command. Run it only after the user agrees.
-2. After the user agrees, run `omt update --yes`. Tell the user each `kept <skill>  (<reason>)` line: that skill stays as the user edited it. When it fails with `cannot reach the npm registry`, update by hand as [Update omt](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/agents/quickstart.md#update-omt) says.
-3. `--yes` also accepts current defaults. Include this in the approval request. When the new CLI has not yet been installed, its defaults diff is not available in the dry run. To let the user review that diff first, run `omt update` interactively after approval for the CLI update. Answer its defaults question only after the user decides.
-4. The check: `omt doctor --project --dry-run` for a project install, or `omt doctor --dry-run` for a global install, as in step 2. When any skill changed, tell the user to close the T3 threads of this project and start new ones, because a running session keeps the old skills.
+1. Run `omt update --dry-run`, and show its update command, pin, hint, or package switch.
+2. When you ask, say that `--yes` also accepts the current defaults. When the user wants to see a defaults diff that the dry run cannot show, run `omt update` interactively instead.
+3. After the user agrees, run `omt update --yes`. Tell the user each `kept <skill>` line: that skill keeps the user's edits. When the npm registry is out of reach, follow [Update omt](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/agents/quickstart.md#update-omt).
+4. The check: the doctor command of step 2. When a skill changed, tell the user to start new threads, because a running session keeps the old skills.
 
-Done when: the doctor command of item 4, with the scope of the install, prints a `PASS` line for `skills`, and the user knows to start new threads.
+Done when: the doctor prints `PASS` for `skills`, and the user knows to start new threads.
 
-### 8. Report
+### 9. Report
 
-Tell the user each file and key that changed, each command that wrote, the result of its check, and each proposed step that the user declined.
+The report contains each changed file and key, each write command with its check result, each declined step, and each open `WARN` or `FAIL` line.
 
 Done when: each write of this run is in the report with its check result.

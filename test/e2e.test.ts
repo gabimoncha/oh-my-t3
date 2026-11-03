@@ -34,7 +34,6 @@ test("end to end: install, use every command in a project, then uninstall", () =
     "omt-code-review",
     "omt-design",
     "omt-grill",
-    "omt-help",
     "omt-plan",
     "omt-research",
     "omt-setup",
