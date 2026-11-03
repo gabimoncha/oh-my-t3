@@ -54,7 +54,7 @@ export const GIT_OWNER_PATTERN = "^[A-Za-z0-9][A-Za-z0-9-]{0,38}$";
 export const WORKFLOW_RULES = {
   plan: {
     review: { values: ["two-families", "one", "owner"] },
-    testLayers: { items: ["e2e", "integration", "unit"] },
+    testLayers: { items: ["integration", "e2e", "unit"] },
   },
   design: { variants: { minimum: 1, maximum: 5 } },
   build: {

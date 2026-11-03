@@ -148,7 +148,7 @@ export interface Limits {
 export interface Workflow {
   plan: {
     review: "two-families" | "one" | "owner";
-    testLayers: ("e2e" | "integration" | "unit")[];
+    testLayers: ("integration" | "e2e" | "unit")[];
   };
   design: {
     variants: number;
@@ -1277,7 +1277,7 @@ A missing file is not an error. Each file is JSONC (section 7). Profile selectio
 - Retired profiles. `RETIRED_PROFILES` in `src/config/defaults.ts` lists `pr-review`, because `normal` now runs all PR review steps. A layer that declares `profiles.pr-review`, with any value including `null`, gets the warning `profiles.pr-review is no longer used; remove it`, and validation drops the declaration. A root `profile` or a profile `extends` that names a retired profile gets the warning `profile "pr-review" is no longer used; normal runs the PR steps`, and validation replaces the name with `normal`.
 - `profile` and each profile name match the role-name pattern. A profile value is `null` or an object. Allowed fields are `description`, `extends`, `workflow`, `limits`, `roles`, and `models`. `visuals` is an unknown profile field, so it is an error.
 - Profile `description` is a non-empty string of at most 300 Unicode code points. An invalid description drops the whole profile override. Other invalid profile fields are dropped individually. `extends` matches the profile-name pattern.
-- Profile `roles` and `limits` use the root validation rules. Each workflow group and key follows section 6.7. An unknown group, key, or value is an error. Valid fields remain. `plan.testLayers` can be empty and can contain only `e2e`, `integration`, and `unit`.
+- Profile `roles` and `limits` use the root validation rules. Each workflow group and key follows section 6.7. An unknown group, key, or value is an error. Valid fields remain. `plan.testLayers` can be empty and can contain only `integration`, `e2e`, and `unit`.
 - A model id is a non-empty string of at most 200 Unicode code points. Each `models.<id>` value is an object with only an optional boolean `fast`. Invalid model fields are dropped individually.
 - Role descriptions and rung model ids use the same code-point limits as profile descriptions and model ids.
 - A `roles.test` key, at root or inside a profile, warns: `role "test" was renamed to "qa"; rename it`. It remains a custom role with no special behavior. A partial legacy override can fail the new-role requirements in section 6.3.
@@ -1400,7 +1400,7 @@ The following keys are under `profiles.<name>.workflow`. The table shows the res
 | Key | Allowed values | `normal` | `prototype` |
 | --- | --- | --- | --- |
 | `plan.review` | `two-families`, `one`, `owner` | `two-families` | `one` |
-| `plan.testLayers` | array of `e2e`, `integration`, `unit` | `["e2e"]` | `["e2e"]` |
+| `plan.testLayers` | array of `integration`, `e2e`, `unit` | `["integration"]` | `["integration"]` |
 | `design.variants` | integer 1 to 5 | 3 | 1 |
 | `build.review` | `every-round`, `first-round`, `off` | `every-round` | `first-round` |
 | `build.qa` | `planned`, `off` | `planned` | `planned` |
@@ -2421,8 +2421,8 @@ Every review round is a fresh delegated task. A round after fixes runs 1 `review
 
 - Children `execute`, `ui`, and `writing` add no test files or cases and make no failure proofs. They can update an existing test broken by their change and report that update under `NOTES`. The `omt-ulw` main thread writes the planned tests, including tests for units built by an independent child. After that child finishes, the main thread writes its tests, makes the configured failure proofs, and reruns verification before marking the unit done.
 - Every plan has `## Tests`. The owner approves its lines with the plan. Each line is `- <layer> <unit>: <flow or case>. File: <path>. Reason: <why>.`. An empty section means no new tests. `build.qa: off` leaves the section empty.
-- The planner proposes only `plan.testLayers` without a request. Other layers need a reason and owner approval. Proposals start with e2e main flows of each vertical slice that qa can also run. Integration cases cover what e2e skips, followed by unit cases. Other test kinds require an owner request. Use one e2e test per main flow, without edge cases as e2e lines.
-- `qa` runs verify commands, final checks, and device flows against the running artifact. It writes no tests and edits no files. The `omt-ulw` main thread writes only the approved lines, in e2e, integration, then unit order, and maps each new test file or case to a line.
+- The planner proposes only `plan.testLayers` without a request. Other layers need a reason and owner approval. Integration tests are the default layer: real code through the interface that production uses, with only external services faked. e2e tests cover only core user journeys and failures that need the client, server, and backend together, with no edge cases as e2e lines. Unit tests cover only pure logic with real branching. Other test kinds require an owner request. The reason of each line names the bug or regression that the test catches.
+- `qa` runs verify commands, final checks, and device flows against the running artifact. It writes no tests and edits no files. The `omt-ulw` main thread writes only the approved lines, in integration, e2e, then unit order, and maps each new test file or case to a line.
 - With `build.failureProofs: on`, the `omt-ulw` main thread proves that each new test fails when the tested product behavior is broken. It uses a private copy of tracked and untracked working-tree files, not `HEAD`. It never changes the shared checkout for a failure proof. It breaks product behavior, not a fixture, mock, or helper. The copy is removed on every exit path. With `off`, it skips proofs.
 - A missing test is a review finding only when the plan or task names it. The relevance check drops other missing-test findings. It still keeps missing real-data checks for code that reads outside data. PR review reports uncovered verified flows and requested CRAP findings, and offers exact test lines under `review.tests`.
 

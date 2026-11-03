@@ -33,7 +33,7 @@ test("the presets store a full normal workflow with the PR steps and sparse prot
   assert.equal(DEFAULT_CONFIG.profile, "normal");
   assert.deepEqual(Object.keys(normal).sort(), ["description", "workflow"]);
   assert.deepEqual(normal.workflow, {
-    plan: { review: "two-families", testLayers: ["e2e"] },
+    plan: { review: "two-families", testLayers: ["integration"] },
     design: { variants: 3 },
     build: { review: "every-round", qa: "planned", failureProofs: "on", oracle: "heavy" },
     review: {

@@ -171,13 +171,15 @@ test("review cites written rules and computes requested CRAP findings (personas)
 
 test("plan writes the test list top-down with owner approval (personas)", () => {
   const persona = readFileSync(join(SKILLS_DIR, "omt", "references", "planning.md"), "utf8");
-  assert.match(persona, /Fill `## Tests` top-down: e2e tests of the main user flows, then integration cases that e2e skips, then unit cases, then other kinds only when the owner asks\./);
-  assert.match(persona, /Use main flows of each vertical slice that `qa` can also walk\./);
+  assert.match(persona, /Fill `## Tests` top-down: integration tests, then e2e tests, then unit tests, then other kinds only when the owner asks\./);
+  assert.match(persona, /Integration is the default layer: real code through the interface that production uses, with only external services faked\./);
+  assert.match(persona, /Use e2e only for a core user journey, or for a failure that needs the client, server, and backend together\./);
+  assert.match(persona, /Use unit only for pure logic with real branching\./);
   assert.match(persona, /Propose only the layers in `plan\.testLayers` without being asked\./);
   assert.match(persona, /Give a reason for a line in another layer, and keep it only when the owner approves it\./);
-  assert.match(persona, /Use one e2e test per main flow\./);
   assert.match(persona, /Keep edge cases out of the e2e lines\./);
   assert.match(persona, /Write each `## Tests` line as `- <layer> <unit>: <flow or case>\. File: <path>\. Reason: <why>\.`/);
+  assert.match(persona, /The reason names the bug or regression that the test catches\./);
   assert.match(persona, /The owner approves the test list with the plan\./);
   assert.match(persona, /An empty section means no new tests\./);
 });
@@ -185,13 +187,15 @@ test("plan writes the test list top-down with owner approval (personas)", () => 
 test("plan-review checks the test list against the approved layers (personas)", () => {
   const persona = readFileSync(join(SKILLS_DIR, "omt", "references", "roles", "plan-review.md"), "utf8");
   assert.match(persona, /7\. A `## Tests` list that breaks the test policy below\. Cite the line and the policy it breaks\./);
-  assert.match(persona, /Check `## Tests` top-down: e2e tests of the main user flows, then integration cases that e2e skips, then unit cases, then other kinds only when the owner asks\./);
-  assert.match(persona, /Check that the main flows of each vertical slice are flows that `qa` can also walk\./);
+  assert.match(persona, /Check `## Tests` top-down: integration tests, then e2e tests, then unit tests, then other kinds only when the owner asks\./);
+  assert.match(persona, /Check that each integration line runs real code through the interface that production uses, with only external services faked\./);
+  assert.match(persona, /Check that each e2e line covers a core user journey, or a failure that needs the client, server, and backend together\./);
+  assert.match(persona, /Check that each unit line covers pure logic with real branching\./);
   assert.match(persona, /Allow only the layers in `plan\.testLayers` without an owner request\./);
   assert.match(persona, /Require a reason and owner approval for a line in another layer\./);
-  assert.match(persona, /Require one e2e test per main flow\./);
   assert.match(persona, /Keep edge cases out of the e2e lines\./);
   assert.match(persona, /Require each `## Tests` line to use `- <layer> <unit>: <flow or case>\. File: <path>\. Reason: <why>\.`/);
+  assert.match(persona, /Require each reason to name the bug or regression that the test catches\./);
   assert.match(persona, /The owner approves the test list with the plan\./);
   assert.match(persona, /An empty section means no new tests\./);
 });

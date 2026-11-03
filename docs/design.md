@@ -138,7 +138,7 @@ The main thread writes the approved tests while it builds, and it makes the requ
 
 ### New tests need a plan line
 
-Each new test maps to an owner-approved `## Tests` line. This makes the test's flow, file, and reason reviewable before the main thread writes it. The default proposal is one e2e test per main flow. Other layers need a reason and owner approval. An empty list means no new tests, while verification still checks the artifact.
+Each new test maps to an owner-approved `## Tests` line. This makes the test's flow, file, and reason reviewable before the main thread writes it. The default layer is integration: real code through the interface that production uses, with only external services faked. It runs the code that production runs, so it catches regressions that a unit test with mocks misses, without the setup of a full e2e run. e2e tests cover only core user journeys and failures that need the client, server, and backend together, and unit tests cover pure logic with real branching. Other layers need a reason and owner approval. Each line names the bug or regression that the test catches. An empty list means no new tests, while verification still checks the artifact.
 
 ### Build locks follow open files
 
