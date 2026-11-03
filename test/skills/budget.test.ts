@@ -44,8 +44,6 @@ const BANNED: RegExp[] = [
 const PENDING: ReadonlySet<string> = new Set([
   "omt-plan/SKILL.md",
   "omt-research/SKILL.md",
-  "omt-code-review/SKILL.md",
-  "omt-code-review/pr-extras.md",
   "omt-design/SKILL.md",
   "omt-setup/SKILL.md",
   "omt-swarm/SKILL.md",
