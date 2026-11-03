@@ -134,6 +134,20 @@ test("the mode check calls t3_thread_configure with no arguments, so it cannot s
   assert.deepEqual(offenders, []);
 });
 
+test("the router and delegation.md say that the user's instructions win over omt defaults", () => {
+  const rule = [
+    /On git actions, reply style, tests, and model choice, the user's own instructions win over omt defaults\./,
+    /Their message comes first, then their `AGENTS\.md` or `CLAUDE\.md`\./,
+    /omt owns the workflow steps\b/,
+  ];
+  const delegation = readFileSync(join(SKILLS_DIR, "omt", "references", "delegation.md"), "utf8");
+  const section = delegation.slice(delegation.indexOf("\n## User instructions win\n"), delegation.indexOf("\n## The CLI\n"));
+  for (const line of rule) assert.match(section, line, "delegation.md");
+  const router = readFileSync(join(SKILLS_DIR, "omt", "SKILL.md"), "utf8");
+  for (const line of rule) assert.match(router, line, "omt/SKILL.md");
+  assert.match(router, /\(references\/delegation\.md#user-instructions-win\)/);
+});
+
 test("no skill text says that review runs on the same family as execute", () => {
   const offenders = walk(SKILLS_DIR)
     .filter((path) => path.endsWith(".md"))

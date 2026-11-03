@@ -2,6 +2,10 @@
 
 The T3 rules for every omt skill. The T3 MCP server key is `t3-code`. Skills name its tools by base name (`delegate_task`, `task_status`). Your harness may add a prefix, such as `mcp__t3-code__delegate_task` or `mcp__t3_code__delegate_task`: call the tool under the name your tool list shows.
 
+## User instructions win
+
+On git actions, reply style, tests, and model choice, the user's own instructions win over omt defaults. Their message comes first, then their `AGENTS.md` or `CLAUDE.md`. omt owns the workflow steps.
+
 ## The CLI
 
 Look up the CLI in this order, and use the first one that exists:

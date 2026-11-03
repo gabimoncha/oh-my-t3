@@ -8,6 +8,8 @@ disable-model-invocation: true
 
 omt runs workflows in this T3 thread: the main thread explores, plans, and builds, and role-routed subagents started with the T3 `delegate_task` tool review and test the work. Pick the workflow that matches the request, then load that skill.
 
+On git actions, reply style, tests, and model choice, the user's own instructions win over omt defaults. Their message comes first, then their `AGENTS.md` or `CLAUDE.md`. omt owns the workflow steps ([User instructions win](references/delegation.md#user-instructions-win)).
+
 ## Workflows
 
 | Skill | Use it when |
