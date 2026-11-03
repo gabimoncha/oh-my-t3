@@ -22,7 +22,7 @@ Options:
   --dry-run         print the plan and write nothing
   --purge           also remove the user config, and the config directory
                     when it is then empty; with --project, also remove an
-                    edited .omt/config.jsonc that the install created
+                    edited .omt3/config.jsonc that the install created
   --force           back up locally modified skills, then remove them
   -h, --help        print this help
 `;

@@ -11,7 +11,7 @@ import { fakeContext, tempDir, writeFile } from "./helpers.ts";
 
 test("a retired date pin loads with a warning and uses the current defaults", async () => {
   const ctx = fakeContext({ root: tempDir("omt-retired-defaults-") });
-  writeFile(join(ctx.cwd, ".omt", "config.jsonc"), JSON.stringify({ defaults: "2026-10" }));
+  writeFile(join(ctx.cwd, ".omt3", "config.jsonc"), JSON.stringify({ defaults: "2026-10" }));
   const loaded = await loadConfig(ctx);
   assert.deepEqual(loaded.config, DEFAULT_CONFIG);
   assert.equal(loaded.issues.length, 1);

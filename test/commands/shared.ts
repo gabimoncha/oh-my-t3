@@ -22,7 +22,7 @@ export function makeProject(): Project {
   const cwd = join(root, "project");
   mkdirSync(join(cwd, ".git"), { recursive: true });
   mkdirSync(home, { recursive: true });
-  const writeOmt = (name: string, text: string) => writeFile(join(cwd, ".omt", name), text);
+  const writeOmt = (name: string, text: string) => writeFile(join(cwd, ".omt3", name), text);
   return {
     root,
     home,

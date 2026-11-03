@@ -86,7 +86,7 @@ Five PR extras are off in both presets, `normal` and `prototype`. Turn on the on
 | `review.crap` | `report` | Runs the coverage command once and reports CRAP for the changed functions. CRAP combines complexity and test coverage. A value above 30 is a P2 finding. |
 | `review.verify` | `changed-flows` | One qa task runs the changed screens, CLI commands, and API routes, and names the tests that cover them. A flow that fails is a P1 finding. |
 | `review.tests` | `offer` | Offers one e2e test for each verified flow that no test covers. After your yes, the main thread writes the tests and a qa task runs them. |
-| `review.guardrails` | `propose` | Proposes checks, rule fixes, or new rules for the findings, and saves them in `.omt/guardrails.md`, which git ignores. |
+| `review.guardrails` | `propose` | Proposes checks, rule fixes, or new rules for the findings, and saves them in `.omt3/guardrails.md`, which git ignores. |
 
 The [spec](spec.md#154-pull-request-review) lists the steps and the extras.
 

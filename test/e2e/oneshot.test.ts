@@ -13,7 +13,7 @@ test("npx oh-my-t3 installs a pinned omt3 runner shim that runs roles", async ()
   const project = join(registry.root, "project");
   gitRepo(env.HOME!, project);
   await run(tool.npx, ["--yes", `oh-my-t3@${registry.version}`, "install", "--project", "--yes"], project, env);
-  const shim = join(project, ".omt", "bin", "omt");
+  const shim = join(project, ".omt3", "bin", "omt");
   assert.ok(readFileSync(shim, "utf8").split("\n").includes(`exec npx --yes omt3@${registry.version} "$@"`), "the shim must call npx with the release version");
   const roles = await run(shim, ["roles"], project, env);
   assert.match(roles, /^ROLE\s+STATUS\s+TARGET\s+ACCESS\s+MODE\s+CROSS$/m);

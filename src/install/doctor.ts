@@ -1,3 +1,4 @@
+import { legacyHint } from "../migrate/hint.ts";
 import { constants } from "node:fs";
 import { access, realpath, stat } from "node:fs/promises";
 import { delimiter, join } from "node:path";
@@ -288,7 +289,7 @@ async function checkPath(ctx: CliContext): Promise<DoctorCheck> {
   return check(
     "path",
     "WARN",
-    `omt is not on PATH; skills use .omt/bin/omt from a project install (omt install --project), and they need the CLI; install omt with one of: ${INSTALL_CHANNELS.join(", ")}`,
+    `omt is not on PATH; skills use .omt3/bin/omt from a project install (omt install --project), and they need the CLI; install omt with one of: ${INSTALL_CHANNELS.join(", ")}`,
   );
 }
 
@@ -420,6 +421,12 @@ export interface DoctorRun {
   daily: DailyResult | undefined;
 }
 
+// A WARN line only while a legacy folder is in use or sits beside the current one.
+function checkFolders(ctx: CliContext): DoctorCheck[] {
+  const hint = legacyHint(ctx);
+  return hint === undefined ? [] : [check("folders", "WARN", hint.replace(/^hint: /, "").trimEnd())];
+}
+
 export async function runDoctor(
   ctx: CliContext,
   caps?: Capabilities,
@@ -436,6 +443,7 @@ export async function runDoctor(
     checkDefaults(loadedConfig),
     ...(daily === undefined ? [] : [checkUpdate(daily)]),
     checkHarnesses(loadedConfig),
+    ...checkFolders(ctx),
   ];
   let loaded: ScopeManifest;
   try {

@@ -1,6 +1,6 @@
 import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, extname, isAbsolute, join } from "node:path";
+import { basename, dirname, extname, isAbsolute, join } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import pkg from "../package.json" with { type: "json" };
@@ -14,6 +14,7 @@ import * as init from "./commands/init.ts";
 import * as install from "./commands/install.ts";
 import * as ledger from "./commands/ledger.ts";
 import * as lock from "./commands/lock.ts";
+import * as migrate from "./commands/migrate.ts";
 import * as paths from "./commands/paths.ts";
 import * as plan from "./commands/plan.ts";
 import * as profile from "./commands/profile.ts";
@@ -23,6 +24,7 @@ import * as uninstall from "./commands/uninstall.ts";
 import * as update from "./commands/update.ts";
 import * as worktree from "./commands/worktree.ts";
 import type { CliBuild, CliContext, CommandRun } from "./types.ts";
+import { legacyHint } from "./migrate/hint.ts";
 import { findProjectRoot, hasProjectMarker, omtDir, shadowedWorktreeState } from "./paths.ts";
 import { errorMessage, OmtError, usageError } from "./util/errors.ts";
 
@@ -36,6 +38,7 @@ export const COMMANDS: Readonly<Record<string, CommandModule>> = {
   install,
   uninstall,
   update,
+  migrate,
   doctor,
   init,
   config,
@@ -54,6 +57,8 @@ export const COMMANDS: Readonly<Record<string, CommandModule>> = {
 };
 
 const STATE_COMMANDS = new Set(["plan", "ledger", "brief", "route", "init"]);
+// hook runs on each prompt, and update and migrate report legacy folders themselves.
+const NO_LEGACY_HINT = new Set(["hook", "update", "migrate"]);
 // Run from a folder outside any project, these commands would write plans, ledger entries, or evidence paths there.
 const PROJECT_COMMANDS = new Set(["plan", "profile", "ledger", "brief", "lock"]);
 
@@ -190,10 +195,9 @@ function reportError(ctx: CliContext, error: unknown): number {
 function warnShadowedState(ctx: CliContext): void {
   const shadowed = shadowedWorktreeState(ctx.cwd);
   if (shadowed === undefined) return;
-  ctx.stderr(
-    `warning: ${omtDir(shadowed.worktree)} holds plans or a ledger that omt no longer reads; move them to ${omtDir(shadowed.main)}\n`,
-  );
-  ctx.stderr(`hint: if git tracks them, untrack them with "git rm --cached" and commit; .omt/.gitignore keeps plans out of git\n`);
+  const main = omtDir(shadowed.main);
+  ctx.stderr(`warning: ${shadowed.dir} holds plans or a ledger that omt no longer reads; move them to ${main}\n`);
+  ctx.stderr(`hint: if git tracks them, untrack them with "git rm --cached" and commit; ${basename(main)}/.gitignore keeps plans out of git\n`);
 }
 
 export async function main(argv: string[], overrides: Partial<CliContext> = {}): Promise<number> {
@@ -220,7 +224,11 @@ export async function main(argv: string[], overrides: Partial<CliContext> = {}):
     }
     if (STATE_COMMANDS.has(first)) warnShadowedState(ctx);
     if (PROJECT_COMMANDS.has(first) && !hasProjectMarker(ctx.cwd)) {
-      ctx.stderr(`warning: no .omt or .git found above ${ctx.cwd}; omt uses it as the project root. Run omt from the project or worktree folder.\n`);
+      ctx.stderr(`warning: no .omt3, .omt, or .git found above ${ctx.cwd}; omt uses it as the project root. Run omt from the project or worktree folder.\n`);
+    }
+    if (!NO_LEGACY_HINT.has(first)) {
+      const hint = legacyHint(ctx);
+      if (hint !== undefined) ctx.stderr(hint);
     }
     return await command.run({ ...ctx, argv: rest });
   } catch (error) {

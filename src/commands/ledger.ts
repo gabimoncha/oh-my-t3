@@ -20,7 +20,7 @@ import { readFileIfExists } from "../util/fs.ts";
 import { formatJson, renderTable } from "../util/output.ts";
 import { loadEffectiveConfigReporting } from "./shared.ts";
 
-export const summary = "Record and list delegation events in .omt/ledger.jsonl.";
+export const summary = "Record and list delegation events in .omt3/ledger.jsonl.";
 
 export const usage = `Usage: omt ledger done <requestId|taskId> [--verdict <word>] [--status <status>] [--task-id <id>] [--note <text>]
        omt ledger settle-check
@@ -34,7 +34,7 @@ Subcommands:
                     clientRequestId or task id; prints closed ... and a settle: line
   settle-check      print settle: allowed, or settle: no (linked worktree);
                     writes nothing
-  add               append one entry to .omt/ledger.jsonl
+  add               append one entry to .omt3/ledger.jsonl
   list              print the entries
   stats             print dispatched, active, and terminal counts, the limits,
                     and whether another task can be dispatched; with --plan,

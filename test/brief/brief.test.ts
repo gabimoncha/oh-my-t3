@@ -254,7 +254,7 @@ test("findRoleTemplate uses project, user, package, then the generic template", 
   const generic = join(roots.packageRoot, "skills", "omt", "references", "roles", "_generic.md");
   const bundled = join(roots.packageRoot, "skills", "omt", "references", "roles", "review.md");
   const user = join(roots.configDir, "roles", "review.md");
-  const project = join(roots.projectRoot, ".omt", "roles", "review.md");
+  const project = join(roots.projectRoot, ".omt3", "roles", "review.md");
   writeFile(generic, "generic");
 
   assert.deepEqual(await findRoleTemplate(roots, "review"), { path: generic, content: "generic" });
@@ -289,8 +289,8 @@ test("loadResultContract reads and trims the contract for a result kind", async 
 
 test("renderBrief gives every role its test policy, CLI, and shared-build rules", () => {
   for (const role of ["execute", "ui", "writing", "design", "qa", "review", "oracle", "plan-review", "guardrail", "explore", "research", "plan", "custom"]) {
-    const text = renderBrief(input({ role, cliCommand: "/project/.omt/bin/omt" }), PERSONA, CONTRACT);
-    assert.match(text, /^- CLI: Run omt as \/project\/\.omt\/bin\/omt\.$/m);
+    const text = renderBrief(input({ role, cliCommand: "/project/.omt3/bin/omt" }), PERSONA, CONTRACT);
+    assert.match(text, /^- CLI: Run omt as \/project\/\.omt3\/bin\/omt\.$/m);
     const tests = text.split("\n").find((line) => line.startsWith("- Tests:"));
     assert.ok(tests, role);
     if (["execute", "ui", "writing"].includes(role)) {
@@ -462,13 +462,13 @@ test("brief --save writes the full brief, records the start, and returns a short
   const project = makeProject();
   project.writeOmt("plans/p.md", "<!-- omt-plan v1 slug=p profile=prototype -->\n");
   project.writeOmt("bin/omt", "#!/bin/sh\n");
-  const command = join(project.cwd, ".omt", "bin", "omt");
+  const command = join(project.cwd, ".omt3", "bin", "omt");
   const argv = ["brief", "qa", "--task", "Check the main flow.", "--context", "c".repeat(2_000),
     "--plan", "p", "--unit", "U4", "--round", "2", "--attempt", "3", "--capabilities", LIVE_CAPS_FILE, "--json"];
   const full = JSON.parse((await project.runOk(argv)).ctx.out()) as BriefJsonOutput;
   const output = JSON.parse((await project.runOk([...argv, "--save"])).ctx.out()) as BriefJsonOutput;
   const id = "omt:p:U4:qa:r2:a3";
-  const path = join(project.cwd, ".omt", "evidence", "briefs", `${id}.md`);
+  const path = join(project.cwd, ".omt3", "evidence", "briefs", `${id}.md`);
   const text = readFileSync(path, "utf8");
   assert.equal(text, full.delegateTask.task);
   assert.ok(output.delegateTask.task.length <= 600);
@@ -484,8 +484,8 @@ test("brief --save writes the full brief, records the start, and returns a short
   const closed = await project.runOk(["ledger", "done", id, "--verdict", "VERIFIED", "--task-id", "task-u4"]);
   assert.match(closed.ctx.out(), /^closed U4 qa r2 a3\nsettle: /);
   assert.match((await project.runOk(["ledger", "stats", "--plan", "p"])).ctx.out(), /^active: 0$/m);
-  assert.equal(existsSync(join(project.cwd, ".omt", "evidence", "briefs", `.${id}.md.tmp`)), false);
-  assert.deepEqual(readdirSync(join(project.cwd, ".omt", "evidence", "briefs")), [`${id}.md`]);
+  assert.equal(existsSync(join(project.cwd, ".omt3", "evidence", "briefs", `.${id}.md.tmp`)), false);
+  assert.deepEqual(readdirSync(join(project.cwd, ".omt3", "evidence", "briefs")), [`${id}.md`]);
 });
 
 test("brief --save uses the brief hash without both plan and unit, and records no start", async () => {
@@ -494,7 +494,7 @@ test("brief --save uses the brief hash without both plan and unit, and records n
     const argv = ["brief", "execute", "--task", "x", "--json", ...flags];
     const full = JSON.parse((await project.runOk(argv)).ctx.out()) as BriefJsonOutput;
     const hash = createHash("sha256").update(full.delegateTask.task).digest("hex").slice(0, 12);
-    const path = join(project.cwd, ".omt", "evidence", "briefs", `execute-${hash}.md`);
+    const path = join(project.cwd, ".omt3", "evidence", "briefs", `execute-${hash}.md`);
     const output = JSON.parse((await project.runOk([...argv, "--save"])).ctx.out()) as BriefJsonOutput;
     assert.equal(readFileSync(path, "utf8"), full.delegateTask.task);
     assert.ok(output.delegateTask.task.includes(path));
@@ -510,5 +510,5 @@ test("brief --save writes no brief for an unavailable route", async () => {
   const result = await project.run(["brief", "execute", "--task", "x", "--save", "--json", "--capabilities", LIVE_CAPS_FILE]);
   assert.equal(result.code, 1);
   assert.equal(result.ctx.out(), "");
-  assert.equal(existsSync(join(project.cwd, ".omt", "evidence", "briefs")), false);
+  assert.equal(existsSync(join(project.cwd, ".omt3", "evidence", "briefs")), false);
 });

@@ -4,18 +4,20 @@ import { parseArgs } from "../util/args.ts";
 import { usageError } from "../util/errors.ts";
 import { formatJson } from "../util/output.ts";
 
-export const summary = "Print the absolute paths of the project's .omt state.";
+export const summary = "Print the absolute paths of the project's state folder.";
 
-export const usage = `Usage: omt paths [--json] [--root|--plans|--grills|--ledger|--evidence|--config|--shim]
+export const usage = `Usage: omt paths [--json] [--root|--omt|--plans|--grills|--ledger|--evidence|--config|--shim]
 
-Print the project root, .omt, plans, grills, ledger, evidence, project
-config, and shim paths, one "name: path" line each. From a linked git
-worktree, the paths are in the main checkout.
+Print the project root, the state folder, plans, grills, ledger, evidence,
+project config, and shim paths, one "name: path" line each. From a linked git
+worktree, the paths are in the main checkout. The state folder is .omt3, or
+.omt in a project that has not run omt migrate.
 
 Options:
   --json      print an object with the keys root, omt, plans, grills,
               ledger, evidence, config, and shim
   --root      print only the project root
+  --omt       print only the state folder
   --plans     print only the plans directory
   --grills    print only the grills directory
   --ledger    print only the ledger file
@@ -25,12 +27,13 @@ Options:
   -h, --help  print this help
 `;
 
-const SINGLE = ["root", "plans", "grills", "ledger", "evidence", "config", "shim"] as const;
+const SINGLE = ["root", "omt", "plans", "grills", "ledger", "evidence", "config", "shim"] as const;
 
 export const run: CommandRun = async (ctx) => {
   const { values } = parseArgs(ctx.argv, {
     json: { type: "boolean" },
     root: { type: "boolean" },
+    omt: { type: "boolean" },
     plans: { type: "boolean" },
     grills: { type: "boolean" },
     ledger: { type: "boolean" },

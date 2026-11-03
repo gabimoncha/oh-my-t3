@@ -22,4 +22,4 @@ At PR step 6, offer one e2e test per verified flow that no test covers, with its
 
 ## Guardrails (`review.guardrails: propose`)
 
-After PR step 4 and the CI fixes, dispatch one read-only `guardrail` child with `mode: "wait"`, the merged findings, the CI failures, the rule-file list, and `.omt/guardrails.md`. Per finding, it proposes a `check`, a `rule-fix`, or a `new-rule`, or gives a reason for none. Append each new proposal to `.omt/guardrails.md` as `- [ ] G<k> <date> PR #<n> <class>: <proposal>. Where: <file>. Proof: <command or none>.`
+After PR step 4 and the CI fixes, dispatch one read-only `guardrail` child with `mode: "wait"`, the merged findings, the CI failures, the rule-file list, and `$(omt paths --omt)/guardrails.md`. Per finding, it proposes a `check`, a `rule-fix`, or a `new-rule`, or gives a reason for none. Append each new proposal to that file as `- [ ] G<k> <date> PR #<n> <class>: <proposal>. Where: <file>. Proof: <command or none>.`

@@ -41,7 +41,7 @@ export function makeFixture(): Fixture {
   const home = join(root, "home");
   mkdirSync(join(root, "project"), { recursive: true });
   mkdirSync(home, { recursive: true });
-  const configDir = join(home, ".config", "oh-my-t3code");
+  const configDir = join(home, ".config", "oh-my-t3");
   return {
     root,
     home,

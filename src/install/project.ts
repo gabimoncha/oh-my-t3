@@ -140,7 +140,7 @@ function assertShellSafe(path: string): void {
 }
 
 // When the recorded file is gone, a bundle or binary shim runs the project's node_modules/.bin/omt,
-// then the first omt on PATH that is not the shim itself, so .omt/bin on PATH cannot make it loop.
+// then the first omt on PATH that is not the shim itself, so .omt3/bin on PATH cannot make it loop.
 const FALLBACK_LINES: readonly string[] = [
   "case $0 in */*) root=${0%/*}/../.. ;; *) root=../.. ;; esac",
   'if [ -x "$root/node_modules/.bin/omt" ]; then',

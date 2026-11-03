@@ -301,12 +301,12 @@ footer.page-footer ul { columns: 2 300px; }
         <tr><th scope="row">Model choice and fallback</th><td><code>orchestrator_capabilities</code> live catalog. Strict <code>target.options</code> check. Typed errors.</td><td>An ordered chain of rungs per role. The first runnable rung wins. The skill falls back on a typed error. With <code>--against</code>, a cross-family role tries the family other than the worker's first. Optional <code>--capabilities</code> pre-check.</td></tr>
         <tr><th scope="row">Effort</th><td>Option ids per driver (<code>effort</code>, <code>reasoningEffort</code>, <code>thinking</code>, <code>variant</code>).</td><td>One ladder <code>off</code> to <code>max</code>, mapped to the nearest advertised value.</td></tr>
         <tr><th scope="row">Result return</th><td>A wake message with task ids only. <code>task_status.summary</code> is the last assistant message.</td><td>Fixed result blocks <code>STATUS</code>, <code>VERDICT</code>, <code>ANSWER</code>, or <code>PLAN</code>. The parent checks the evidence.</td></tr>
-        <tr><th scope="row">Status and cancel</th><td><code>task_status</code>, <code>task_cancel</code> (recursive).</td><td>The ledger <code>.omt/ledger.jsonl</code> records dispatches and results.</td></tr>
+        <tr><th scope="row">Status and cancel</th><td><code>task_status</code>, <code>task_cancel</code> (recursive).</td><td>The ledger <code>.omt3/ledger.jsonl</code> records dispatches and results.</td></tr>
         <tr><th scope="row">Read-only access</th><td><code>interactionMode</code> <code>plan</code>, enforced on Claude, Codex, Cursor, and OpenCode. Pi has no plan-mode handling, and the ACP drivers such as Grok get only a prompt instruction. Children can only narrow modes.</td><td>Read-only roles default to plan mode. The brief keeps the result block in the assistant message.</td></tr>
         <tr><th scope="row">Workspace</th><td>Children share the parent checkout by default. Since T3 Code v0.1.0, <code>delegate_task</code> with <code>isolation: "worktree"</code> runs a child in a separate checkout. <code>t3_thread_launch</code> makes worktree threads.</td><td>Explicit unit scopes. Parallel edits only for scopes that do not overlap. omt does not use <code>isolation: "worktree"</code> yet, so its children share the checkout. <code>omt-swarm</code> for worktree tracks when the user asks.</td></tr>
         <tr><th scope="row">Limits</th><td>No cap on concurrency or depth was found. Prompts up to 120,000 characters. Up to 20 threads in one batch.</td><td><code>maxParallel</code> 6, <code>maxDepth</code> 1, <code>maxReviewRounds</code> 4. Every brief states the depth. No task budget.</td></tr>
         <tr><th scope="row">Review and done</th><td>Nothing.</td><td>One review child from the other model family that fixes local findings, a cross-family oracle, one QA child that edits nothing, and evidence-based done.</td></tr>
-        <tr><th scope="row">Long-run state</th><td>Durable task state. Wakes after the parent turn ends.</td><td>A plan file <code>.omt/plans/&lt;slug&gt;.md</code> with checkbox grammar, plus the ledger. The main thread re-reads both after compaction.</td></tr>
+        <tr><th scope="row">Long-run state</th><td>Durable task state. Wakes after the parent turn ends.</td><td>A plan file <code>.omt3/plans/&lt;slug&gt;.md</code> with checkbox grammar, plus the ledger. The main thread re-reads both after compaction.</td></tr>
         <tr><th scope="row">Continuation</th><td>Native <code>/goal</code> (no MCP tool), async wakes, <code>schedule_task</code>, <code>watch_pull_request</code>.</td><td>No re-prompt hooks and no heartbeat. The main thread waits for its children inside its turn with <code>delegate_task</code> in wait mode or <code>t3_thread_wait</code>. An optional Claude <code>UserPromptSubmit</code> hook arms ulw.</td></tr>
         <tr><th scope="row">Extension surface</th><td>No plugin API. Provider-native settings and skills load.</td><td>Skills in <code>~/.agents/skills</code> plus <code>~/.claude/skills</code> symlinks. Manifest, backups, and a consent-first install.</td></tr>
       </tbody>
@@ -322,7 +322,7 @@ footer.page-footer ul { columns: 2 300px; }
     <div class="fig-scroll" tabindex="0" role="region" aria-label="Layer diagram of oh-my-t3">
 <svg class="diagram" role="img" aria-labelledby="fig1-t fig1-d" width="860" height="650" viewBox="0 0 860 650">
   <title id="fig1-t">Layer diagram of oh-my-t3</title>
-  <desc id="fig1-d">The user types a prompt in a T3 thread. On Claude Code, the optional ulw hook adds a pointer. On every driver, the parent can also load omt-ulw from its skill description or from a $omt-ulw mention. The parent agent holds the skills and calls the omt CLI. The skills call T3 orchestrator v2 MCP tools such as delegate_task, task_status, and t3_thread_wait. T3 starts child threads routed by role to Claude or Codex models. Explore runs on codex gpt-6-luna, oracle on codex gpt-6-astra, and qa on claudeAgent claude-haiku-5-5. The parent waits for each child inside its turn, and T3 returns the result to the waiting call. The CLI reads and writes .omt in the repository and has no path to T3. Children work in the shared checkout.</desc>
+  <desc id="fig1-d">The user types a prompt in a T3 thread. On Claude Code, the optional ulw hook adds a pointer. On every driver, the parent can also load omt-ulw from its skill description or from a $omt-ulw mention. The parent agent holds the skills and calls the omt CLI. The skills call T3 orchestrator v2 MCP tools such as delegate_task, task_status, and t3_thread_wait. T3 starts child threads routed by role to Claude or Codex models. Explore runs on codex gpt-6-luna, oracle on codex gpt-6-astra, and qa on claudeAgent claude-haiku-5-5. The parent waits for each child inside its turn, and T3 returns the result to the waiting call. The CLI reads and writes .omt3 in the repository and has no path to T3. Children work in the shared checkout.</desc>
   <!-- user -->
   <rect class="box-a" x="310" y="14" width="240" height="50" rx="8"/>
   <text class="b" x="430" y="35" text-anchor="middle">User in a T3 thread</text>
@@ -376,9 +376,9 @@ footer.page-footer ul { columns: 2 300px; }
   <text class="m halo" x="378" y="369">t3_thread_wait</text>
   <path class="ln-d" d="M310,380 L310,306" marker-end="url(#ah)"/>
   <text class="s halo" x="302" y="346" text-anchor="end">result (waited in the turn)</text>
-  <!-- .omt -->
+  <!-- .omt3 -->
   <rect class="box-w" x="598" y="380" width="246" height="120" rx="10"/>
-  <text class="b" x="721" y="402" text-anchor="middle">.omt/ in the repository</text>
+  <text class="b" x="721" y="402" text-anchor="middle">.omt3/ in the repository</text>
   <text class="m" x="721" y="424" text-anchor="middle">config.jsonc</text>
   <text class="m" x="721" y="442" text-anchor="middle">plans/&lt;slug&gt;.md</text>
   <text class="m" x="721" y="460" text-anchor="middle">ledger.jsonl</text>
@@ -406,14 +406,14 @@ footer.page-footer ul { columns: 2 300px; }
   <text x="428" y="621" text-anchor="middle">Shared checkout. Children work in the parent's project, branch, and worktree</text>
 </svg>
     </div>
-    <figcaption>Figure 1. The layers. Orange boxes run on Claude (<code>claudeAgent</code>). Green boxes run on Codex (<code>codex</code>). The children show rung 1 of each default role. The <code>oracle</code> runs on Codex here because the main thread, which built the change, runs on Claude. The <code>qa</code> child edits nothing, though its role has edit access to run commands and write logs. The CLI reads and writes <code>.omt/</code> but has no MCP credential, so <code>delegate_task</code> is the final validator of every route. Children load the same skills and Claude hook as the parent. The <code>omt-brief</code> marker keeps the hook silent in a child.</figcaption>
+    <figcaption>Figure 1. The layers. Orange boxes run on Claude (<code>claudeAgent</code>). Green boxes run on Codex (<code>codex</code>). The children show rung 1 of each default role. The <code>oracle</code> runs on Codex here because the main thread, which built the change, runs on Claude. The <code>qa</code> child edits nothing, though its role has edit access to run commands and write logs. The CLI reads and writes <code>.omt3/</code> but has no MCP credential, so <code>delegate_task</code> is the final validator of every route. Children load the same skills and Claude hook as the parent. The <code>omt-brief</code> marker keeps the hook silent in a child.</figcaption>
   </figure>
   <ul>
     <li>The <strong>skills</strong> are Markdown <code>SKILL.md</code> files. They plan, build, read results, and choose the next step.</li>
     <li><strong>Three ways to start ulw.</strong> (1) On Claude Code with <code>--hooks</code>, the hook adds a pointer to the prompt. (2) On any driver, the model loads <code>omt-ulw</code> on its own, because the skill description holds the words <code>ulw</code> and <code>ultrawork</code>. (3) The user types a mention, such as <code>/omt-ulw</code> in Claude or <code>$omt-ulw</code> in Codex. The hook is optional. It only makes start (1) more reliable.</li>
     <li>The <strong>CLI</strong> merges config, resolves role chains, maps effort to options, renders briefs, and counts plan items and ledger entries.</li>
     <li>The CLI cannot call T3. Claude and Codex sessions get the MCP server through config, not through environment variables. So routing is unverified by default, and T3 checks the target at dispatch.</li>
-    <li>The skills also work without the CLI. They look for <code>omt</code> on <code>PATH</code>, then <code>.omt/bin/omt</code>, then follow the manual steps in <code>roles.md</code> and <code>brief.md</code>. They never call a runner such as <code>npx</code> themselves. A shim from a one-shot install calls its runner with the pinned version. Without the CLI, the main thread resolves roles with the table in <code>roles.md</code>, writes briefs by the layout in <code>brief.md</code>, edits the plan checkboxes and log by hand, and counts the open task ids in the plan's log in place of <code>omt ledger stats</code>.</li>
+    <li>The skills also work without the CLI. They look for <code>omt</code> on <code>PATH</code>, then <code>.omt3/bin/omt</code>, then follow the manual steps in <code>roles.md</code> and <code>brief.md</code>. They never call a runner such as <code>npx</code> themselves. A shim from a one-shot install calls its runner with the pinned version. Without the CLI, the main thread resolves roles with the table in <code>roles.md</code>, writes briefs by the layout in <code>brief.md</code>, edits the plan checkboxes and log by hand, and counts the open task ids in the plan's log in place of <code>omt ledger stats</code>.</li>
   </ul>
 </section>
 
@@ -532,7 +532,7 @@ footer.page-footer ul { columns: 2 300px; }
     <li><span class="n">2</span><p><strong>Explore.</strong> Read the code that the goal touches yourself. Send only broad reads to 1 to <code>maxParallel</code> read-only <code>explore</code> children with units <code>E&lt;k&gt;</code>, in parallel, and wait for them in this turn.</p></li>
     <li><span class="n">3</span><p><strong>Frame.</strong> Write the objective in one sentence, the done conditions, the tier, and the plan slug. Each done condition is a check that can fail. Run <code>omt profile show --json</code> (with <code>--plan &lt;slug&gt;</code> when the plan file exists) and <code>omt roles --plan &lt;slug&gt;</code>. Without the CLI, use the resolve-by-hand table in <code>roles.md</code>.</p></li>
     <li><span class="n">4</span><p><strong>Ask.</strong> Ask every open owner question in one batch, each with 2 to 4 options and a recommendation, and end the turn. After the answers, explore again when needed and ask the next batch. Stop when no question is open. A question that the code can answer is not an owner question.</p></li>
-    <li><span class="n">5</span><p><strong>Plan.</strong> Run <code>omt init</code> when <code>.omt/.gitignore</code> is missing. LIGHT runs <code>omt plan new &lt;slug&gt; --light</code>, and the main thread fills it. HEAVY runs the <code>omt-plan</code> skill, which writes the plan, runs the plan review, and returns here. The owner approves a HEAVY plan. A unit that the main thread builds has the role <code>main</code>.</p></li>
+    <li><span class="n">5</span><p><strong>Plan.</strong> Run <code>omt init</code> when <code>.omt3/.gitignore</code> is missing. LIGHT runs <code>omt plan new &lt;slug&gt; --light</code>, and the main thread fills it. HEAVY runs the <code>omt-plan</code> skill, which writes the plan, runs the plan review, and returns here. The owner approves a HEAVY plan. A unit that the main thread builds has the role <code>main</code>.</p></li>
     <li><span class="n">6</span><p><strong>Design check.</strong> When the plan asks for an <code>omt-design</code> step that has not run, run <code>omt-design</code> first. Build no <code>ui</code> unit before its spec is approved.</p></li>
     <li><span class="n">7</span><p><strong>Build.</strong> Build the units in the order of the <code>ready:</code> line of <code>omt plan status</code>. For each unit, edit the files in its scope, run its verify command, write its tests from <code>## Tests</code> (<code>build.qa: planned</code>), prove that each new test fails without the change (<code>build.failureProofs: on</code>), and mark it done. A large unit with a scope that no other open unit touches may go to an <code>execute</code> child, or a <code>ui</code> child, as an independent track. A <code>ui</code> unit goes to a <code>ui</code> child when the main thread does not run Claude Opus.</p></li>
     <li><span class="n">8</span><p><strong>Review.</strong> One review child reviews the whole diff. It uses the <code>oracle</code> role with <code>--unit F2</code> when <code>build.oracle</code> requires the oracle for the tier, else the <code>review</code> role with <code>--unit REVIEW</code>. Its context is the objective, the done conditions, the plan <code>## Summary</code>, and the scope paths, never the main thread's history. The main thread stages its work first. The reviewer fixes each local finding itself, reports the rest, and lists its fixes under <code>FIXES</code>.</p></li>
@@ -611,7 +611,7 @@ footer.page-footer ul { columns: 2 300px; }
   <p><code>plan-review</code>, <code>review</code>, and <code>oracle</code> have <code>crossFamily: true</code>. The <code>grill</code> role is retired. The reviewer of these roles comes from the family other than the worker's. The family is the driver (<code>claudeAgent</code> or <code>codex</code>), not the model.</p>
   <p><code>omt route</code> and <code>omt brief</code> take <code>--against &lt;provider|driver|auto&gt;</code>. The value names the worker whose change the task reviews. For a cross-family role, the CLI moves the rungs of the other family to the front. Each group keeps its configured order. So when Opus wrote the change, the review runs on <code>codex/gpt-6-astra</code> first. This is already the configured order, so no rung moves. When Luna, Sol, or Astra wrote it, the CLI moves <code>claudeAgent/claude-opus-5-5</code> (configured rung 2) to the front (Figure 3). When the other family cannot run, the same family reviews. With <code>--capabilities</code>, the CLI finds this before dispatch and a note says so. Without it, T3 refuses the other-family target at dispatch, and the skill sends the same-family fallback.</p>
   <ul>
-    <li><code>--against auto</code> reads <code>.omt/ledger.jsonl</code> and needs <code>--plan</code>. With <code>--unit</code>, when the unit has a work or plan dispatch with a provider, the worker is the provider of the last one. In all other cases, the worker is the provider of most units in the plan. This includes no <code>--unit</code>, and a unit with no such dispatch, such as the oracle unit F2. A tie goes to the tied provider with the latest dispatch. When the plan has no dispatch with a provider, the configured order applies.</li>
+    <li><code>--against auto</code> reads <code>.omt3/ledger.jsonl</code> and needs <code>--plan</code>. With <code>--unit</code>, when the unit has a work or plan dispatch with a provider, the worker is the provider of the last one. In all other cases, the worker is the provider of most units in the plan. This includes no <code>--unit</code>, and a unit with no such dispatch, such as the oracle unit F2. A tie goes to the tied provider with the latest dispatch. When the plan has no dispatch with a provider, the configured order applies.</li>
     <li>Without <code>--against</code>, the configured order applies. The cross-family roles then start on Codex, which fits the default worker, <code>execute</code> on Claude.</li>
     <li><code>omt-ulw</code> builds its review and oracle briefs with <code>--against &lt;driver&gt;</code>, the main thread's own driver from step 0, because the ledger has no work dispatch for the units that the main thread built.</li>
     <li>On a role without <code>crossFamily</code>, <code>--against</code> has no effect, and a note says so.</li>
@@ -750,7 +750,7 @@ footer.page-footer ul { columns: 2 300px; }
     </div>
     <figcaption>Figure 3. The <code>review</code> role with <code>--against auto</code>. The CLI puts the rung of the family other than the worker's first. The second rung is a backup. The skill sends it only when T3 refuses the first target with a typed error, and the attempt number goes up. <code>plan-review</code> and <code>oracle</code> work the same way.</figcaption>
   </figure>
-  <p>omt looks for the persona of a role in <code>.omt/roles/</code>, then in <code>&lt;configDir&gt;/roles/</code> (see Figure 6), then in the bundled <code>roles/</code>, then in <code>roles/_generic.md</code>. The first file found wins. A custom role gets its result block from its <code>result</code> field.</p>
+  <p>omt looks for the persona of a role in <code>.omt3/roles/</code>, then in <code>&lt;configDir&gt;/roles/</code> (see Figure 6), then in the bundled <code>roles/</code>, then in <code>roles/_generic.md</code>. The first file found wins. A custom role gets its result block from its <code>result</code> field.</p>
 </section>
 
 <!-- 5. Briefs and contracts -->
@@ -770,7 +770,7 @@ footer.page-footer ul { columns: 2 300px; }
   <rect class="box-a" x="12" y="64" width="470" height="44" rx="6"/>
   <text class="m b" x="22" y="82"># Role: execute</text>
   <text class="s" x="22" y="100">persona text from roles/execute.md</text>
-  <text class="s" x="500" y="82">Always present. Persona lookup order: .omt/roles,</text>
+  <text class="s" x="500" y="82">Always present. Persona lookup order: .omt3/roles,</text>
   <text class="s" x="500" y="100">user roles dir, bundled roles, _generic.md.</text>
   <rect class="box-a" x="12" y="116" width="470" height="30" rx="6"/>
   <text class="m b" x="22" y="136"># Task</text>
@@ -787,7 +787,7 @@ footer.page-footer ul { columns: 2 300px; }
   <text class="m b" x="22" y="262"># Constraints</text>
   <text class="s" x="22" y="280">1. access line (read-only or edit, with or without scope)</text>
   <text class="s" x="22" y="296">2. delegation line (depth against maxDepth)</text>
-  <text class="s" x="22" y="312">3. evidence line (edit roles: save output under .omt/evidence/)</text>
+  <text class="s" x="22" y="312">3. evidence line (edit roles: save output under .omt3/evidence/)</text>
   <text class="s" x="22" y="328">4. plan-mode line (only when interactionMode is plan)</text>
   <text class="s" x="22" y="344">5. two fixed lines: no parent context; no commit, push, or branch</text>
   <text class="s" x="500" y="262">Always present. At depth 1 of 1 the child does</text>
@@ -935,7 +935,7 @@ OPEN:
 <!-- 6. State -->
 <section id="state" aria-labelledby="state-h">
   <h2 id="state-h">6. State in the repository</h2>
-  <p>A long run outlives the agent's context. So the run state lives in files under <code>.omt/</code> in the project root. After compaction or a context reset, the main thread re-reads <code>omt plan status &lt;slug&gt;</code> and <code>omt ledger list --plan &lt;slug&gt;</code> before it acts.</p>
+  <p>A long run outlives the agent's context. So the run state lives in files under <code>.omt3/</code> in the project root. After compaction or a context reset, the main thread re-reads <code>omt plan status &lt;slug&gt;</code> and <code>omt ledger list --plan &lt;slug&gt;</code> before it acts.</p>
 
   <h3>Config layers</h3>
   <figure>
@@ -951,7 +951,7 @@ OPEN:
   <text class="m" x="24" y="134">&lt;configDir&gt;/config.jsonc</text>
   <rect class="box" x="12" y="160" width="300" height="46" rx="8"/>
   <text class="b" x="24" y="180">3 project (wins)</text>
-  <text class="m" x="24" y="198">&lt;root&gt;/.omt/config.jsonc</text>
+  <text class="m" x="24" y="198">&lt;root&gt;/.omt3/config.jsonc</text>
   <rect class="box-a" x="370" y="100" width="250" height="100" rx="8"/>
   <text class="m" x="384" y="124">parseJsonc</text>
   <text class="m" x="384" y="148">validateLayer</text>
@@ -970,7 +970,7 @@ OPEN:
   <text class="s" x="670" y="212">and doctor</text>
 </svg>
     </div>
-    <figcaption>Figure 6. Three layers. <code>configDir</code> is <code>$OMT_CONFIG_DIR</code>, else <code>$XDG_CONFIG_HOME/oh-my-t3code</code>, else <code>~/.config/oh-my-t3code</code>. The project root is the nearest ancestor with <code>.omt</code> or <code>.git</code>. No env var sets a role or a limit.</figcaption>
+    <figcaption>Figure 6. Three layers. <code>configDir</code> is <code>$OMT_CONFIG_DIR</code>, else <code>$XDG_CONFIG_HOME/oh-my-t3</code>, else <code>~/.config/oh-my-t3</code>; while only the old <code>oh-my-t3code</code> folder exists, omt reads that one. The project root is the nearest ancestor with <code>.omt3</code>, <code>.omt</code>, or <code>.git</code>. No env var sets a role or a limit.</figcaption>
   </figure>
   <ul>
     <li>Each file is JSONC. Comments and trailing commas are allowed. A syntax error becomes one issue, and the loader skips that file. A missing file is not an error.</li>
@@ -1001,7 +1001,7 @@ OPEN:
 }</code></pre>
 
   <h3>The plan file</h3>
-  <p><code>.omt/plans/&lt;slug&gt;.md</code> is Markdown that people can read and <code>omt plan status</code> can count. Column-zero lines that match <code>^- \[( |x|X|~)\] (U|D|F)(\d+)\. (.*)$</code> are items. <code>U</code> is a unit, <code>D</code> a done-when check, <code>F</code> a final check. A shortened example from the template (the <code>## Summary</code>, <code>## Research</code>, <code>## Roles</code>, and <code>## Tests</code> sections are left out):</p>
+  <p><code>.omt3/plans/&lt;slug&gt;.md</code> is Markdown that people can read and <code>omt plan status</code> can count. Column-zero lines that match <code>^- \[( |x|X|~)\] (U|D|F)(\d+)\. (.*)$</code> are items. <code>U</code> is a unit, <code>D</code> a done-when check, <code>F</code> a final check. A shortened example from the template (the <code>## Summary</code>, <code>## Research</code>, <code>## Roles</code>, and <code>## Tests</code> sections are left out):</p>
 <pre><code># Retry failed HTTP calls
 
 &lt;!-- omt-plan v1 slug=http-retry created=2026-10-06T09:00:00.000Z --&gt;
@@ -1046,7 +1046,7 @@ Failed HTTP calls retry with backoff, so a short outage does not fail a sync.
   <p><code>omt plan mark</code> rewrites the checkbox, appends a log line, and writes the file atomically. A LIGHT plan (<code>--light</code>) has no <code>F2</code> line. A plan is complete when items exist and every item is done.</p>
 
   <h3>The ledger</h3>
-  <p><code>.omt/ledger.jsonl</code> is append-only. Each entry is one JSON line, written with a single <code>appendFile</code> call. Fields are <code>ts</code>, <code>role</code>, <code>status</code>, and the optional <code>plan</code>, <code>unit</code>, <code>round</code>, <code>attempt</code>, <code>taskId</code>, <code>clientRequestId</code>, <code>provider</code>, <code>model</code>, <code>verdict</code>, and <code>note</code>.</p>
+  <p><code>.omt3/ledger.jsonl</code> is append-only. Each entry is one JSON line, written with a single <code>appendFile</code> call. Fields are <code>ts</code>, <code>role</code>, <code>status</code>, and the optional <code>plan</code>, <code>unit</code>, <code>round</code>, <code>attempt</code>, <code>taskId</code>, <code>clientRequestId</code>, <code>provider</code>, <code>model</code>, <code>verdict</code>, and <code>note</code>.</p>
 <pre><code>{"ts":"2026-10-06T09:12:03.000Z","role":"execute","status":"dispatched","plan":"http-retry","unit":"U1","round":1,"attempt":1,"taskId":"&lt;taskId&gt;","clientRequestId":"omt:http-retry:U1:execute:r1:a1","provider":"claudeAgent","model":"claude-opus-5-5"}</code></pre>
   <p>Skills record <code>--provider</code> and <code>--model</code> on every dispatch. <code>--provider</code> is <code>target.providerInstanceId</code>, or <code>target.driverKind</code> when the target has no instance id. <code>--model</code> is <code>target.model</code>. Both come from the target of the <code>delegate_task</code> call that returned the task, so after a fallback they name the fallback. <code>--against auto</code> reads these fields to find the worker of a unit, or the provider of most units in the plan. A worker entry is a <code>dispatched</code> entry of a role whose result is <code>work</code> or <code>plan</code>. An entry without a provider does not count.</p>
   <figure>
@@ -1091,10 +1091,10 @@ can dispatch: yes</code></pre>
   <p>A run is all ledger entries of one plan slug. The skills always pass <code>--plan &lt;slug&gt;</code>. Without <code>--plan</code>, the counts cover the whole ledger.</p>
 
   <h3>Evidence</h3>
-  <p>Edit children save command output and logs under <code>&lt;root&gt;/.omt/evidence/</code>. The brief says so in its evidence line. The main thread saves the output of the verify commands that it runs itself there too, and the QA child saves its logs and screenshots there. The report quotes the evidence for each done condition.</p>
+  <p>Edit children save command output and logs under <code>&lt;root&gt;/.omt3/evidence/</code>. The brief says so in its evidence line. The main thread saves the output of the verify commands that it runs itself there too, and the QA child saves its logs and screenshots there. The report quotes the evidence for each done condition.</p>
   <div class="callout">
     <strong>Why state lives in the repository.</strong>
-    <p>The run outlives the agent's context, and compaction drops detail. Files survive both. <code>omt init</code> writes <code>.omt/.gitignore</code> with <code>ledger.jsonl</code>, <code>evidence/</code>, <code>bin/</code>, <code>install.json</code>, <code>backups/</code>, <code>plans/</code>, <code>locks/</code>, and <code>guardrails.md</code>, so the run data stays out of commits. All worktrees of one repository share the one <code>.omt/</code> in the main checkout, so a thread in one worktree reads the plan that a thread in another worktree wrote.</p>
+    <p>The run outlives the agent's context, and compaction drops detail. Files survive both. <code>omt init</code> writes <code>.omt3/.gitignore</code> with <code>ledger.jsonl</code>, <code>evidence/</code>, <code>bin/</code>, <code>install.json</code>, <code>backups/</code>, <code>plans/</code>, <code>locks/</code>, and <code>guardrails.md</code>, so the run data stays out of commits. All worktrees of one repository share the one <code>.omt3/</code> in the main checkout, so a thread in one worktree reads the plan that a thread in another worktree wrote.</p>
   </div>
 </section>
 
@@ -1328,17 +1328,17 @@ can dispatch: yes</code></pre>
       <caption>User scope and project scope (<code>--project</code>)</caption>
       <thead><tr><th scope="col">Item</th><th scope="col">User scope</th><th scope="col">Project scope</th></tr></thead>
       <tbody>
-        <tr><th scope="row">Root</th><td>Home directory</td><td>Nearest ancestor with <code>.omt</code> or <code>.git</code>. Refused (exit 2) when it is the home directory or shares a user-scope path.</td></tr>
+        <tr><th scope="row">Root</th><td>Home directory</td><td>Nearest ancestor with <code>.omt3</code> or <code>.git</code>. Refused (exit 2) when it is the home directory or shares a user-scope path.</td></tr>
         <tr><th scope="row">Skill copies</th><td><code>~/.agents/skills/&lt;name&gt;</code></td><td><code>&lt;root&gt;/.agents/skills/&lt;name&gt;</code></td></tr>
         <tr><th scope="row">Claude links</th><td><code>&lt;claudeConfigDir&gt;/skills/&lt;name&gt;</code> (relative)</td><td><code>&lt;root&gt;/.claude/skills/&lt;name&gt;</code> to <code>../../.agents/skills/&lt;name&gt;</code></td></tr>
         <tr><th scope="row">Gemini links</th><td><code>~/.gemini/config/skills/&lt;name&gt;</code>, default when <code>~/.gemini</code> exists</td><td>None. <code class="cmd"><span class="nw">--targets</span> <span class="nw">gemini</span></code> is a usage error.</td></tr>
-        <tr><th scope="row">Config</th><td><code>&lt;configDir&gt;/config.jsonc</code></td><td><code>&lt;root&gt;/.omt/config.jsonc</code> plus <code>.omt/plans/</code></td></tr>
+        <tr><th scope="row">Config</th><td><code>&lt;configDir&gt;/config.jsonc</code></td><td><code>&lt;root&gt;/.omt3/config.jsonc</code> plus <code>.omt3/plans/</code></td></tr>
         <tr><th scope="row">Hook file (<code>--hooks</code>)</th><td><code>&lt;claudeConfigDir&gt;/settings.json</code></td><td><code>&lt;root&gt;/.claude/settings.local.json</code></td></tr>
-        <tr><th scope="row">Hook command</th><td><code class="cmd"><span class="nw">"&lt;runtime&gt;"</span> <span class="nw">"&lt;cli&gt;"</span> <span class="nw">hook</span> <span class="nw">user-prompt-submit</span> <span class="nw">#</span> <span class="nw">oh-my-t3code</span></code>, or <code class="cmd"><span class="nw">"&lt;binary&gt;"</span> <span class="nw">hook</span> <span class="nw">user-prompt-submit</span> <span class="nw">#</span> <span class="nw">oh-my-t3code</span></code> for the release binary</td><td><code class="cmd"><span class="nw">"&lt;root&gt;/.omt/bin/omt"</span> <span class="nw">hook</span> <span class="nw">user-prompt-submit</span> <span class="nw">#</span> <span class="nw">oh-my-t3code</span></code></td></tr>
-        <tr><th scope="row">CLI shim</th><td>None</td><td><code>&lt;root&gt;/.omt/bin/omt</code>, mode 0755</td></tr>
-        <tr><th scope="row">Manifest</th><td><code>&lt;configDir&gt;/install.json</code></td><td><code>&lt;root&gt;/.omt/install.json</code></td></tr>
-        <tr><th scope="row">Backups</th><td><code>&lt;configDir&gt;/backups/&lt;stamp&gt;/</code></td><td><code>&lt;root&gt;/.omt/backups/&lt;stamp&gt;/</code></td></tr>
-        <tr><th scope="row">Git hiding</th><td>None</td><td>A per-root block in <code>info/exclude</code>, plus <code>.omt/.gitignore</code>. <code>--no-git-exclude</code> turns the block off.</td></tr>
+        <tr><th scope="row">Hook command</th><td><code class="cmd"><span class="nw">"&lt;runtime&gt;"</span> <span class="nw">"&lt;cli&gt;"</span> <span class="nw">hook</span> <span class="nw">user-prompt-submit</span> <span class="nw">#</span> <span class="nw">oh-my-t3code</span></code>, or <code class="cmd"><span class="nw">"&lt;binary&gt;"</span> <span class="nw">hook</span> <span class="nw">user-prompt-submit</span> <span class="nw">#</span> <span class="nw">oh-my-t3code</span></code> for the release binary</td><td><code class="cmd"><span class="nw">"&lt;root&gt;/.omt3/bin/omt"</span> <span class="nw">hook</span> <span class="nw">user-prompt-submit</span> <span class="nw">#</span> <span class="nw">oh-my-t3code</span></code></td></tr>
+        <tr><th scope="row">CLI shim</th><td>None</td><td><code>&lt;root&gt;/.omt3/bin/omt</code>, mode 0755</td></tr>
+        <tr><th scope="row">Manifest</th><td><code>&lt;configDir&gt;/install.json</code></td><td><code>&lt;root&gt;/.omt3/install.json</code></td></tr>
+        <tr><th scope="row">Backups</th><td><code>&lt;configDir&gt;/backups/&lt;stamp&gt;/</code></td><td><code>&lt;root&gt;/.omt3/backups/&lt;stamp&gt;/</code></td></tr>
+        <tr><th scope="row">Git hiding</th><td>None</td><td>A per-root block in <code>info/exclude</code>, plus <code>.omt3/.gitignore</code>. <code>--no-git-exclude</code> turns the block off.</td></tr>
       </tbody>
     </table>
   </div>
@@ -1348,7 +1348,7 @@ can dispatch: yes</code></pre>
 ├── .claude/
 │   ├── skills/&lt;name&gt;             symlink to ../../.agents/skills/&lt;name&gt;
 │   └── settings.local.json       UserPromptSubmit hook (with --hooks)
-├── .omt/
+├── .omt3/
 │   ├── bin/omt                   shim that runs the CLI that made the install
 │   ├── config.jsonc              project starter config
 │   ├── plans/
@@ -1357,19 +1357,19 @@ can dispatch: yes</code></pre>
 │   ├── install.json              manifest for exact uninstall
 │   └── backups/                  first backup adds .gitignore with *
 └── .git/info/exclude             block between the oh-my-t3code markers</code></pre>
-    <figcaption>Figure 9. Files of a project install. The hook calls the shim, and the shim calls the CLI that made the install: the binary, <code>dist/cli.js</code>, <code>src/cli.ts</code>, or a one-shot runner. Skills reach the CLI as <code>.omt/bin/omt</code>.</figcaption>
+    <figcaption>Figure 9. Files of a project install. The hook calls the shim, and the shim calls the CLI that made the install: the binary, <code>dist/cli.js</code>, <code>src/cli.ts</code>, or a one-shot runner. Skills reach the CLI as <code>.omt3/bin/omt</code>.</figcaption>
   </figure>
   <div class="callout">
     <strong>The no-trace guarantee.</strong>
     <p>After <code>omt install --project</code>, with or without <code>--hooks</code>, <code>git status --porcelain</code> shows nothing new. The one exception is a <code>settings.local.json</code> that the repository tracks: it shows as modified while the hook is installed.</p>
     <p>After <code>omt uninstall --project</code>, the tree and the exclude file are byte for byte as before the install, with these exceptions:</p>
     <ul>
-      <li>Data that the user created meanwhile (plans, ledger, evidence) stays, and so does what keeps it out of git: <code>.omt/.gitignore</code> and a reduced exclude block.</li>
+      <li>Data that the user created meanwhile (plans, ledger, evidence) stays, and so does what keeps it out of git: <code>.omt3/.gitignore</code> and a reduced exclude block.</li>
       <li>A reduced manifest stays when a created file stays. It records the created files that stay.</li>
-      <li>A file that the user edited after the install stays, with its block entry. An edited <code>.omt/config.jsonc</code> stays unless you add <code>--purge</code>.</li>
+      <li>A file that the user edited after the install stays, with its block entry. An edited <code>.omt3/config.jsonc</code> stays unless you add <code>--purge</code>.</li>
       <li>An omt hook entry that was in the settings file before the install is removed, so a tracked <code>settings.local.json</code> shows as modified.</li>
       <li>An existing skill that the install updated stays updated.</li>
-      <li>A backup that the uninstall could not restore exactly stays in <code>.omt/backups/</code>, hidden from git. A path that <code>install --force</code> replaced stays in <code>.omt/backups/&lt;stamp&gt;/</code> and does not move back.</li>
+      <li>A backup that the uninstall could not restore exactly stays in <code>.omt3/backups/</code>, hidden from git. A path that <code>install --force</code> replaced stays in <code>.omt3/backups/&lt;stamp&gt;/</code> and does not move back.</li>
     </ul>
     <p>User scope and project scope never read or write each other's files. The install finds the exclude file without running git.</p>
   </div>
@@ -1454,7 +1454,7 @@ can dispatch: yes</code></pre>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">install</span> <span class="nw">[--project</span> <span class="nw">[--no-git-exclude]]</span> <span class="nw">[--targets</span> <span class="nw">&lt;list&gt;]</span> <span class="nw">[--hooks]</span> <span class="nw">[--yes]</span> <span class="nw">[--dry-run]</span> <span class="nw">[--force]</span></code></th><td>Install the bundled skills and link them into the agent roots.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">uninstall</span> <span class="nw">[--project]</span> <span class="nw">[--yes]</span> <span class="nw">[--dry-run]</span> <span class="nw">[--purge]</span> <span class="nw">[--force]</span></code></th><td>Remove the managed skills, links, hooks, and manifest.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">doctor</span> <span class="nw">[--project]</span> <span class="nw">[--capabilities</span> <span class="nw">&lt;file&gt;]</span> <span class="nw">[--json]</span></code></th><td>Run the checks. Exit 1 when a check fails.</td></tr>
-        <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">init</span></code></th><td>Create <code>.omt/config.jsonc</code>, <code>.omt/plans/</code>, and <code>.omt/.gitignore</code> when missing. Never overwrites.</td></tr>
+        <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">init</span></code></th><td>Create <code>.omt3/config.jsonc</code>, <code>.omt3/plans/</code>, and <code>.omt3/.gitignore</code> when missing. Never overwrites.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">config</span> <span class="nw">[show]</span> <span class="nw">[--defaults]</span></code></th><td>Print the merged config as JSON, before the selected profile applies, or the built-in defaults.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">config</span> <span class="nw">path</span></code></th><td>Print the user and project config paths.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">config</span> <span class="nw">validate</span> <span class="nw">[--json]</span></code></th><td>Print config issues. Exit 1 on any error.</td></tr>
@@ -1462,13 +1462,13 @@ can dispatch: yes</code></pre>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">roles</span> <span class="nw">[--capabilities</span> <span class="nw">&lt;file&gt;]</span> <span class="nw">[--role</span> <span class="nw">&lt;name&gt;]...</span> <span class="nw">[--plan</span> <span class="nw">&lt;slug&gt;]</span> <span class="nw">[--profile</span> <span class="nw">&lt;name&gt;]</span> <span class="nw">[--json]</span></code></th><td>Resolve every role chain and print a table. The <code>CROSS</code> column says <code>yes</code> for a cross-family role.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">route</span> <span class="nw">&lt;role&gt;</span> <span class="nw">[--capabilities</span> <span class="nw">&lt;file&gt;]</span> <span class="nw">[--against</span> <span class="nw">&lt;provider|driver|auto&gt;]</span> <span class="nw">[--plan</span> <span class="nw">&lt;slug&gt;]</span> <span class="nw">[--profile</span> <span class="nw">&lt;name&gt;]</span> <span class="nw">[--unit</span> <span class="nw">&lt;id&gt;]</span></code></th><td>Print <code>delegate_task</code> arguments for one role as JSON. <code>--against</code> puts the other family first for a cross-family role. <code>auto</code> needs <code>--plan</code>.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">brief</span> <span class="nw">&lt;role&gt;</span> <span class="nw">(--task</span> <span class="nw">&lt;text&gt;</span> <span class="nw">|</span> <span class="nw">--task-file</span> <span class="nw">&lt;file&gt;)</span> <span class="nw">[options]</span></code></th><td>Render the brief, or with <code>--json</code> a ready <code>delegate_task</code> payload. With <code>--json</code>, it takes <code>--against</code> like <code>omt route</code>, and the notes go to stderr.</td></tr>
-        <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">plan</span> <span class="nw">new</span> <span class="nw">&lt;slug&gt;</span> <span class="nw">[--title</span> <span class="nw">&lt;text&gt;]</span> <span class="nw">[--light]</span> <span class="nw">[--max-parallel</span> <span class="nw">&lt;n&gt;]</span> <span class="nw">[--profile</span> <span class="nw">&lt;name&gt;]</span> <span class="nw">[--force]</span></code></th><td>Write <code>.omt/plans/&lt;slug&gt;.md</code> from the template.</td></tr>
+        <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">plan</span> <span class="nw">new</span> <span class="nw">&lt;slug&gt;</span> <span class="nw">[--title</span> <span class="nw">&lt;text&gt;]</span> <span class="nw">[--light]</span> <span class="nw">[--max-parallel</span> <span class="nw">&lt;n&gt;]</span> <span class="nw">[--profile</span> <span class="nw">&lt;name&gt;]</span> <span class="nw">[--force]</span></code></th><td>Write <code>.omt3/plans/&lt;slug&gt;.md</code> from the template.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">plan</span> <span class="nw">limit</span> <span class="nw">&lt;slug&gt;</span> <span class="nw">&lt;n|none&gt;</span></code></th><td>Set or remove the plan's <code>max-parallel</code> header key. <code>--tasks</code> and <code>--max-tasks</code> are usage errors, because the task budget was removed.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">plan</span> <span class="nw">profile</span> <span class="nw">&lt;slug&gt;</span> <span class="nw">&lt;name|none&gt;</span></code></th><td>Set or remove the plan's workflow profile.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">plan</span> <span class="nw">mark</span> <span class="nw">&lt;slug&gt;</span> <span class="nw">&lt;id&gt;</span> <span class="nw">&lt;done|open|blocked&gt;</span></code></th><td>Set an item checkbox and append a log line.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">plan</span> <span class="nw">status</span> <span class="nw">[&lt;slug&gt;]</span> <span class="nw">[--json]</span></code></th><td>Print counts, the next open unit, the ready units, and a warning for each dependency error or <code>max-tasks</code> header key. The default is the newest plan.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">plan</span> <span class="nw">list</span> <span class="nw">[--json]</span></code></th><td>Print one line per plan.</td></tr>
-        <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">ledger</span> <span class="nw">add</span> <span class="nw">--role</span> <span class="nw">&lt;role&gt;</span> <span class="nw">--status</span> <span class="nw">&lt;status&gt;</span> <span class="nw">[options]</span></code></th><td>Append one entry to <code>.omt/ledger.jsonl</code>.</td></tr>
+        <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">ledger</span> <span class="nw">add</span> <span class="nw">--role</span> <span class="nw">&lt;role&gt;</span> <span class="nw">--status</span> <span class="nw">&lt;status&gt;</span> <span class="nw">[options]</span></code></th><td>Append one entry to <code>.omt3/ledger.jsonl</code>.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">ledger</span> <span class="nw">list</span> <span class="nw">[--plan</span> <span class="nw">&lt;slug&gt;]</span> <span class="nw">[--json]</span></code></th><td>Print the entries.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">ledger</span> <span class="nw">stats</span> <span class="nw">[--plan</span> <span class="nw">&lt;slug&gt;]</span> <span class="nw">[--json]</span></code></th><td>Print the counts, the limits, and <code class="cmd"><span class="nw">can</span> <span class="nw">dispatch</span></code>.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">ledger</span> <span class="nw">request-id</span> <span class="nw">--plan</span> <span class="nw">&lt;slug&gt;</span> <span class="nw">--unit</span> <span class="nw">&lt;id&gt;</span> <span class="nw">--role</span> <span class="nw">&lt;role&gt;</span> <span class="nw">[--round</span> <span class="nw">&lt;n&gt;]</span> <span class="nw">[--attempt</span> <span class="nw">&lt;n&gt;]</span></code></th><td>Print the canonical <code>clientRequestId</code>.</td></tr>
@@ -1476,7 +1476,7 @@ can dispatch: yes</code></pre>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">profile</span> <span class="nw">show</span> <span class="nw">[&lt;name&gt;]</span> <span class="nw">[--plan</span> <span class="nw">&lt;slug&gt;]</span> <span class="nw">[--profile</span> <span class="nw">&lt;name&gt;]</span> <span class="nw">[--json]</span></code></th><td>Print the effective profile, workflow, limits, roles, and models.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">lock</span> <span class="nw">run</span> <span class="nw">&lt;name&gt;</span> <span class="nw">[--wait</span> <span class="nw">&lt;seconds&gt;]</span> <span class="nw">--</span> <span class="nw">&lt;command&gt;</span> <span class="nw">[args...]</span></code></th><td>Run a command under a shared build lock and return its exit code.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">lock</span> <span class="nw">list</span></code></th><td>Print each lock's state and the holder of a held lock.</td></tr>
-        <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">paths</span> <span class="nw">[--json]</span> <span class="nw">[--root|--plans|--ledger|--evidence|--config|--shim]</span></code></th><td>Print the absolute paths of the project's <code>.omt</code> state.</td></tr>
+        <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">paths</span> <span class="nw">[--json]</span> <span class="nw">[--root|--plans|--ledger|--evidence|--config|--shim]</span></code></th><td>Print the absolute paths of the project's <code>.omt3</code> state.</td></tr>
         <tr><th scope="row"><code class="cmd"><span class="nw">omt</span> <span class="nw">hook</span> <span class="nw">user-prompt-submit</span></code></th><td>Read the Claude Code hook JSON. On an ultrawork prompt, print the pointer. Always exit 0.</td></tr>
       </tbody>
     </table>
@@ -1559,7 +1559,7 @@ can dispatch: yes</code></pre>
     <dt>unit</dt><dd>A unit of work. In a plan file, a <code>U&lt;n&gt;</code> item with a role, scope, done condition, verify command, and dependencies. As a <code>--unit</code> value in the ledger and request ids, also <code>E&lt;k&gt;</code> (explore), <code>REVIEW</code> (the ulw review), <code>QA</code> (the ulw QA run), <code>G&lt;k&gt;</code> (code review group), <code>FIX</code> (a review of fixes), <code>Q&lt;k&gt;</code> (research question), and <code>DS&lt;k&gt;</code> (design). A unit that the main thread builds has the role <code>main</code>.</dd>
     <dt>U / D / F items</dt><dd>Plan checkboxes for units, done-when checks, and final checks (<code>F1</code> test suite, <code>F2</code> oracle).</dd>
     <dt>LIGHT / HEAVY</dt><dd>The two ulw tiers. LIGHT is one or two units in one area with no design decision left. HEAVY is everything else.</dd>
-    <dt>ledger</dt><dd><code>.omt/ledger.jsonl</code>. It records the delegated tasks, rounds, and verdicts.</dd>
+    <dt>ledger</dt><dd><code>.omt3/ledger.jsonl</code>. It records the delegated tasks, rounds, and verdicts.</dd>
     <dt>ledger slot</dt><dd>A dispatched entry that no terminal entry has closed. It counts as <code>active</code>.</dd>
     <dt>run</dt><dd>The work of one plan slug. <code>maxParallel</code> counts the active ledger entries of that slug. A run has no task budget.</dd>
     <dt><code>canDispatch</code></dt><dd><code>active &lt; maxParallel</code>.</dd>
@@ -1569,7 +1569,7 @@ can dispatch: yes</code></pre>
     <dt>shared checkout</dt><dd>A delegated child runs in the parent's project, branch, and worktree. It is not isolated. T3 Code v0.1.0 can isolate a child with <code>isolation: "worktree"</code>, and omt does not use that yet.</dd>
     <dt>track</dt><dd>A group of plan units with a disjoint scope that <code>omt-swarm</code> runs as a top-level T3 thread in its own worktree and branch. It commits, and the main thread merges it.</dd>
     <dt>pointer</dt><dd>The <code>additionalContext</code> text that the ulw hook injects. It tells the agent to load <code>omt-ulw</code> first.</dd>
-    <dt>shim</dt><dd><code>&lt;root&gt;/.omt/bin/omt</code>, a <code>sh</code> script that runs the CLI that made the install: the recorded binary, the recorded runtime with the recorded CLI file, or a one-shot runner with the pinned version.</dd>
+    <dt>shim</dt><dd><code>&lt;root&gt;/.omt3/bin/omt</code>, a <code>sh</code> script that runs the CLI that made the install: the recorded binary, the recorded runtime with the recorded CLI file, or a one-shot runner with the pinned version.</dd>
     <dt>exclude block</dt><dd>A per-root section in the repository's <code>info/exclude</code> that hides a project install from git.</dd>
     <dt>managed directory</dt><dd>A skill directory that holds <code>.omt-managed.json</code> with package, version, skill, and hash.</dd>
     <dt>locally modified</dt><dd>A managed skill whose current hash differs from its marker hash. Install treats it as a conflict.</dd>

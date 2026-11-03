@@ -73,8 +73,8 @@ test("U1 pnpm linked checkout keeps shared state and local setup files", () => {
   const linked = join(f.root, "linked");
   f.git(["worktree", "add", "-q", linked]);
   ok(f.cli(["init"], linked));
-  assert.ok(existsSync(join(f.project, ".omt", "config.jsonc")));
-  assert.ok(!existsSync(join(linked, ".omt")));
+  assert.ok(existsSync(join(f.project, ".omt3", "config.jsonc")));
+  assert.ok(!existsSync(join(linked, ".omt3")));
   const before = bytes(linked);
   assert.match(ok(f.cli(["install", "--project", "--dry-run"], linked)).out, /Dry run: nothing was written/);
   assert.deepEqual(bytes(linked), before);
@@ -95,7 +95,7 @@ test("U1 pnpm linked checkout keeps shared state and local setup files", () => {
   const applied = bytes(linked);
   assert.match(ok(f.cli(["worktree", "setup", "--yes"], linked)).out, /Everything is up to date/);
   assert.deepEqual(bytes(linked), applied);
-  assert.ok(!existsSync(join(linked, ".omt")));
+  assert.ok(!existsSync(join(linked, ".omt3")));
 });
 
 // e2e U1: Bun generation and the standalone runner with a controlled executable.

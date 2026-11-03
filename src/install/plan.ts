@@ -186,8 +186,8 @@ export interface ProjectInstallSteps {
   gitignoreRestore?: { before: string; sha256: string };
   omtDirCreated: boolean;
   settingsCreated: boolean;
-  configCreated: boolean; // an install created .omt/config.jsonc
-  gitignoreCreated: boolean; // an install created .omt/.gitignore
+  configCreated: boolean; // an install created .omt3/config.jsonc
+  gitignoreCreated: boolean; // an install created .omt3/.gitignore
   existing: ManifestExisting; // skills and links in place before the first install; the uninstall keeps them
   missingDirs: string[]; // directories absent before this run; the manifest records the ones the run creates
 }
@@ -224,7 +224,7 @@ export interface ProjectUninstallSteps {
   root: string;
   shim?: { path: string; action: PlanAction };
   exclude?: FileStep;
-  gitignore?: FileStep; // gives back an existing .omt/.gitignore that a --no-git-exclude install appended to
+  gitignore?: FileStep; // gives back an existing .omt3/.gitignore that a --no-git-exclude install appended to
   files: CreatedFileStep[];
   backupsDir: string;
   backupsIgnore?: ManifestFile; // the backups .gitignore that an install created; removed when it is the last file there
@@ -833,7 +833,7 @@ async function planProjectUninstall(root: string, manifest: Manifest | undefined
   const shimPath = manifest?.project?.shim ?? projectShimPath(root);
   if ((await isRegularFile(shimPath)) && isManagedShim(await readFileIfExists(shimPath))) steps.shim = { path: shimPath, action: "remove" };
   const gitignorePath = join(omt, ".gitignore");
-  // The ledger and the evidence stay, so a created .omt/.gitignore stays to keep them out of git.
+  // The ledger and the evidence stay, so a created .omt3/.gitignore stays to keep them out of git.
   const dataStays = (await pathExists(ledgerPath(root))) || (await pathExists(evidenceDir(root)));
   for (const file of manifest?.project?.files ?? []) {
     if (file.path === paths.configPath) continue;

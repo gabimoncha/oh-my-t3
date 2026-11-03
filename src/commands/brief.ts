@@ -6,7 +6,7 @@ import { findRoleTemplate, loadResultContract } from "../brief/templates.ts";
 import { limitArg } from "../config/validate.ts";
 import { appendLedger, closedBy, openStarts, readLedger, requestId, withLedgerLock } from "../ledger/ledger.ts";
 import { parsePlan } from "../plan/parse.ts";
-import { evidenceDir, findProjectRoot, ledgerPath, planPath } from "../paths.ts";
+import { evidenceDir, findProjectRoot, ledgerPath, planPath, projectShimPath } from "../paths.ts";
 import { rungFamily, workerFamily } from "../routing/family.ts";
 import { findRole, harnessOptions, resolveRole, toRouteOutput } from "../routing/resolve.ts";
 import type { BriefJsonOutput, CliContext, CommandRun, LedgerEntry, ResolvedTarget, RoleResolution, Rung } from "../types.ts";
@@ -206,7 +206,7 @@ export const run: CommandRun = async (ctx) => {
   if (values.unit !== undefined) input.unit = values.unit;
 
   const projectRoot = findProjectRoot(ctx.cwd);
-  const localCli = join(projectRoot, ".omt", "bin", "omt");
+  const localCli = projectShimPath(projectRoot);
   const cliCommand = await pathExists(localCli) ? shellWord(localCli) : "omt";
   input.cliCommand = cliCommand;
   if (role.access === "edit") input.evidenceDir = `${evidenceDir(projectRoot)}/`;

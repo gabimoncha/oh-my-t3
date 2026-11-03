@@ -101,7 +101,7 @@ test("parsePlan sets complete only when every U, D, and F item is done", () => {
 test("plan new writes the template and refuses to overwrite without --force", async () => {
   const ctx = projectContext(["new", "auth", "--title", "Auth work"]);
   assert.equal(await run(ctx), 0);
-  const path = join(ctx.cwd, ".omt", "plans", "auth.md");
+  const path = join(ctx.cwd, ".omt3", "plans", "auth.md");
   assert.equal(ctx.out(), `${path}\n`);
   assert.equal(readFileSync(path, "utf8"), planTemplate("auth", "Auth work", "2026-01-02T03:04:05.000Z"));
 
@@ -120,7 +120,7 @@ test("plan new rejects an invalid slug with exit code 2", async () => {
 
 test("plan status prints counts and the next unit, defaulting to the newest plan", async () => {
   const ctx = projectContext(["status"]);
-  const dir = join(ctx.cwd, ".omt", "plans");
+  const dir = join(ctx.cwd, ".omt3", "plans");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "auth-refactor.md"), SAMPLE);
   writeFileSync(join(dir, "older.md"), "# Older\n\n- [ ] U1. x\n");
@@ -153,7 +153,7 @@ test("plan status prints counts and the next unit, defaulting to the newest plan
 test("plan status CLI lists only dependency-ready units in text and JSON", () => {
   const root = tempDir();
   mkdirSync(join(root, ".git"));
-  const dir = join(root, ".omt", "plans");
+  const dir = join(root, ".omt3", "plans");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "dependencies.md"), `# Dependencies
 
@@ -212,7 +212,7 @@ test("dependencyWarnings names unknown units, self-dependencies, and a cycle", (
 
 test("plan status prints one warning line per dependency problem, and --json has warnings", async () => {
   const ctx = projectContext(["status", "p"]);
-  const dir = join(ctx.cwd, ".omt", "plans");
+  const dir = join(ctx.cwd, ".omt3", "plans");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "p.md"), `${header("")}\n- [ ] U1. a\n  - Depends on: U7\n`);
   assert.equal(await run(ctx), 0);
@@ -239,7 +239,7 @@ test("plan status fails when there is no plan or the slug is missing", async () 
 
 test("plan list prints one line per plan and --json prints an array", async () => {
   const ctx = projectContext(["list"]);
-  const dir = join(ctx.cwd, ".omt", "plans");
+  const dir = join(ctx.cwd, ".omt3", "plans");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "auth-refactor.md"), SAMPLE);
   writeFileSync(join(dir, "b.md"), "# B\n\n- [x] U1. x\n");
@@ -275,7 +275,7 @@ test("plan rejects a missing or unknown subcommand with exit code 2", async () =
 test("plan new --light leaves out the oracle line", async () => {
   const ctx = projectContext(["new", "demo", "--light"]);
   assert.equal(await run(ctx), 0);
-  const text = readFileSync(join(ctx.cwd, ".omt", "plans", "demo.md"), "utf8");
+  const text = readFileSync(join(ctx.cwd, ".omt3", "plans", "demo.md"), "utf8");
   assert.match(text, /^- \[ \] F1\. /m);
   assert.doesNotMatch(text, /F2\./);
   assert.match(planTemplate("x", "x", "t"), /^- \[ \] F2\. /m);
@@ -284,7 +284,7 @@ test("plan new --light leaves out the oracle line", async () => {
 test("plan mark rewrites the checkbox and appends a log line", async () => {
   const ctx = projectContext(["new", "demo"]);
   assert.equal(await run(ctx), 0);
-  const path = join(ctx.cwd, ".omt", "plans", "demo.md");
+  const path = join(ctx.cwd, ".omt3", "plans", "demo.md");
 
   const done = ctx.at(["mark", "demo", "U1", "done"]);
   assert.equal(await run(done), 0);
@@ -322,7 +322,7 @@ test("plan mark exits 1 for a missing plan or id and 2 for a bad state", async (
 test("plan list and status skip a dangling plan symlink", async () => {
   const ctx = projectContext(["new", "demo"]);
   assert.equal(await run(ctx), 0);
-  symlinkSync(join(ctx.cwd, "missing.md"), join(ctx.cwd, ".omt", "plans", "gone.md"));
+  symlinkSync(join(ctx.cwd, "missing.md"), join(ctx.cwd, ".omt3", "plans", "gone.md"));
   const list = ctx.at(["list"]);
   assert.equal(await run(list), 0);
   assert.match(list.out(), /^demo /);
@@ -334,9 +334,9 @@ test("plan list and status skip a dangling plan symlink", async () => {
 test("plan mark and plan new --force write through a symlinked plan file", async () => {
   const ctx = projectContext([]);
   const real = join(ctx.cwd, "shared", "real.md");
-  const link = join(ctx.cwd, ".omt", "plans", "linked.md");
+  const link = join(ctx.cwd, ".omt3", "plans", "linked.md");
   mkdirSync(join(ctx.cwd, "shared"));
-  mkdirSync(join(ctx.cwd, ".omt", "plans"), { recursive: true });
+  mkdirSync(join(ctx.cwd, ".omt3", "plans"), { recursive: true });
   writeFileSync(real, planTemplate("linked", "Linked", "2026-01-01T00:00:00.000Z"));
   symlinkSync(join("..", "..", "shared", "real.md"), link);
 
@@ -397,7 +397,7 @@ test("the template has a Research section after Done when, also with --light", (
 test("plan new --max-parallel writes the header key and rejects a bad value", async () => {
   const ctx = projectContext(["new", "demo", "--max-parallel", "1"]);
   assert.equal(await run(ctx), 0);
-  const text = readFileSync(join(ctx.cwd, ".omt", "plans", "demo.md"), "utf8");
+  const text = readFileSync(join(ctx.cwd, ".omt3", "plans", "demo.md"), "utf8");
   assert.match(text, /^<!-- omt-plan v1 slug=demo created=2026-01-02T03:04:05\.000Z max-parallel=1 -->$/m);
   assert.equal(parsePlan(text).maxParallel, 1);
 
@@ -417,7 +417,7 @@ test("plan new --max-parallel writes the header key and rejects a bad value", as
 test("plan limit sets, changes, and clears max-parallel in the header only", async () => {
   const ctx = projectContext(["new", "demo"]);
   assert.equal(await run(ctx), 0);
-  const path = join(ctx.cwd, ".omt", "plans", "demo.md");
+  const path = join(ctx.cwd, ".omt3", "plans", "demo.md");
   const original = readFileSync(path, "utf8");
 
   assert.equal(await run(ctx.at(["limit", "demo", "2"])), 0);
@@ -434,7 +434,7 @@ test("plan limit sets, changes, and clears max-parallel in the header only", asy
 test("plan limit changes only the first header comment and leaves quoted examples in the body", async () => {
   const ctx = projectContext(["new", "demo"]);
   assert.equal(await run(ctx), 0);
-  const path = join(ctx.cwd, ".omt", "plans", "demo.md");
+  const path = join(ctx.cwd, ".omt3", "plans", "demo.md");
   const original = `${readFileSync(path, "utf8")}${QUOTED}`;
   writeFileSync(path, original);
 
@@ -459,14 +459,14 @@ test("plan limit exits 1 for a missing plan and 2 for a bad value", async () => 
 test("plan limit --tasks and plan new --max-tasks exit 2 because the task budget was removed", async () => {
   const ctx = projectContext(["new", "demo"]);
   assert.equal(await run(ctx), 0);
-  const path = join(ctx.cwd, ".omt", "plans", "demo.md");
+  const path = join(ctx.cwd, ".omt3", "plans", "demo.md");
   const original = readFileSync(path, "utf8");
   for (const argv of [["limit", "demo", "--tasks", "80"], ["limit", "demo", "2", "--tasks", "none"], ["new", "other", "--max-tasks", "80"]]) {
     await assert.rejects(run(ctx.at(argv)), (error: unknown) =>
       error instanceof OmtError && error.exitCode === 2 && /the task budget was removed/.test(error.message));
   }
   assert.equal(readFileSync(path, "utf8"), original);
-  assert.equal(existsSync(join(ctx.cwd, ".omt", "plans", "other.md")), false);
+  assert.equal(existsSync(join(ctx.cwd, ".omt3", "plans", "other.md")), false);
   assert.equal(await run(ctx.at(["limit", "demo", "2"])), 0);
   assert.equal(readFileSync(path, "utf8"), withHeaderKeys(original, "max-parallel=2"));
 });
@@ -474,7 +474,7 @@ test("plan limit --tasks and plan new --max-tasks exit 2 because the task budget
 test("plan status warns about a max-tasks header key, which has no effect", async () => {
   const ctx = projectContext(["new", "demo", "--max-parallel", "2"]);
   assert.equal(await run(ctx), 0);
-  const path = join(ctx.cwd, ".omt", "plans", "demo.md");
+  const path = join(ctx.cwd, ".omt3", "plans", "demo.md");
   writeFileSync(path, readFileSync(path, "utf8").replace("max-parallel=2", "max-parallel=2 max-tasks=80"));
   const status = ctx.at(["status", "demo"]);
   assert.equal(await run(status), 0);
@@ -498,8 +498,8 @@ test("plan mutations reject external leaf and parent symlinks", async () => {
     const ctx = projectContext(["mark", "demo", "U1", "done"]);
     const outside = join(tempDir(), "demo.md");
     writeFileSync(outside, SAMPLE);
-    mkdirSync(join(ctx.cwd, ".omt"), { recursive: true });
-    const plans = join(ctx.cwd, ".omt", "plans");
+    mkdirSync(join(ctx.cwd, ".omt3"), { recursive: true });
+    const plans = join(ctx.cwd, ".omt3", "plans");
     if (parent) symlinkSync(join(outside, ".."), plans);
     else {
       mkdirSync(plans, { recursive: true });

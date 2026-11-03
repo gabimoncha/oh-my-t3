@@ -62,7 +62,7 @@ step by step, run the check at the end of each step, and tell me what to restart
 
 ## Who it is for
 
-Use omt if you use T3 Code and want an agent to plan and finish work that has several steps. With both Claude Code and Codex, a model of one family reviews the work of the other family. You can read the plan, the task count, and each review verdict in files under `.omt/`.
+Use omt if you use T3 Code and want an agent to plan and finish work that has several steps. With both Claude Code and Codex, a model of one family reviews the work of the other family. You can read the plan, the task count, and each review verdict in files under `.omt3/`.
 
 Do not use omt in these cases:
 
@@ -89,7 +89,7 @@ $omt-ulw add rate limiting to the public API
 
 T3 changes `$omt-ulw` to the syntax of each provider, such as `/omt-ulw` in Claude Code. With the Claude Code hook, the phrase `start ulw` works too: `start ulw add rate limiting to the public API`. The hook starts nothing when a message only names ulw or ultrawork.
 
-The agent reads the code, asks its open questions in one batch, writes a plan in `.omt/plans/`, and builds the units itself. Then a model from the other family reviews the whole change and fixes small findings, and a qa task runs every check and device flow. In the default `normal` profile, the reviewer of a large run is the oracle, and it reviews again after each round of fixes.
+The agent reads the code, asks its open questions in one batch, writes a plan in `.omt3/plans/`, and builds the units itself. Then a model from the other family reviews the whole change and fixes small findings, and a qa task runs every check and device flow. In the default `normal` profile, the reviewer of a large run is the oracle, and it reviews again after each round of fixes.
 
 After an install for all projects, run `omt init` in the project first.
 
@@ -113,7 +113,7 @@ The agent can start the first six skills itself. You start `omt` by name.
 
 `omt-grill`, `omt-help`, `omt-loop`, and `omt-show` were removed. `omt-plan` runs the stress test of `omt-grill`, and `omt-setup` answers the questions of `omt-help`. `omt install` and `omt update` remove the old folders.
 
-A plan and its ledger stay in `.omt/` after context compaction and across sessions, so one plan can run for days. A profile in `.omt/config.jsonc` can change the models, the checks, and the limits. See [Configure roles and profiles](docs/configuration.md), or ask `$omt-setup` to make the change.
+A plan and its ledger stay in `.omt3/` after context compaction and across sessions, so one plan can run for days. A profile in `.omt3/config.jsonc` can change the models, the checks, and the limits. See [Configure roles and profiles](docs/configuration.md), or ask `$omt-setup` to make the change.
 
 ## Worktree setup
 
@@ -142,7 +142,7 @@ The [walkthrough](docs/walkthrough.md) follows two real runs on this repository,
 - Main thread: the T3 thread that runs an omt skill. It writes the plan, builds the units, starts the child tasks, and reads their results.
 - Unit: one part of the plan, with a file scope, a done condition, and a verify command. The main thread builds most units itself.
 - Brief: the full task text that a child task gets.
-- Ledger: `.omt/ledger.jsonl`, with one line for each task start and each result.
+- Ledger: `.omt3/ledger.jsonl`, with one line for each task start and each result.
 - Profile: a named set of workflow switches, limits, and role changes. The built-in profiles are `normal` and `prototype`.
 - Oracle: a review of the whole change from the other model family, before it counts as done.
 - LIGHT and HEAVY: the two run sizes. A LIGHT run has one or two units in one area of code. Every other run is HEAVY and gets a reviewed plan.

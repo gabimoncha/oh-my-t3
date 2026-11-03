@@ -1,8 +1,8 @@
 node_modules/
 dist/
 coverage/
-.omt/ledger.jsonl
-.omt/evidence/
+.omt3/ledger.jsonl
+.omt3/evidence/
 .DS_Store
 .wrangler/
 test-results/

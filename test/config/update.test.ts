@@ -15,7 +15,7 @@ function setup() {
   return {
     opts: { cwd, env: { OMT_CONFIG_DIR: configDir }, homedir },
     userPath: join(configDir, "config.jsonc"),
-    projectPath: join(cwd, ".omt", "config.jsonc"),
+    projectPath: join(cwd, ".omt3", "config.jsonc"),
   };
 }
 

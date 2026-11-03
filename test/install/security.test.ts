@@ -25,7 +25,7 @@ test("apply refuses a gitignore restore redirected after planning", async () => 
   const f = makeFixture();
   const ctx = fakeContext({ root: f.root, packageRoot: f.packageRoot });
   mkdirSync(join(ctx.cwd, ".git"));
-  const ignore = join(ctx.cwd, ".omt", ".gitignore");
+  const ignore = join(ctx.cwd, ".omt3", ".gitignore");
   writeFile(ignore, "mine\n");
   const install = await buildInstallPlan(ctx, { scope: "project", targets: ["agents"], hooks: false, gitExclude: false, force: false });
   await applyInstall(install, ctx.now());

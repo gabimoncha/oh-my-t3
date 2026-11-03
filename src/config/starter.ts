@@ -3,7 +3,7 @@ import { setTopLevelValue } from "./jsonc.ts";
 export const SCHEMA_URL = "https://raw.githubusercontent.com/gabimoncha/oh-my-t3/main/schema/omt.schema.json";
 
 export const USER_STARTER_CONFIG = `// oh-my-t3 user config. It applies to every project.
-// A project config in .omt/config.jsonc overrides it.
+// A project config in .omt3/config.jsonc overrides it.
 // Run \`omt config show --defaults\` to see the built-in roles and limits.
 {
   "$schema": "${SCHEMA_URL}",

@@ -194,7 +194,7 @@ function manifestOptions(paths: ScopePaths, manifest: Manifest | undefined): { t
   return { targets, hooks: (manifest?.hooks.length ?? 0) > 0, gitExclude: manifest?.project?.gitExcludeOff !== true };
 }
 
-async function planHere(ctx: CliContext, scope: "user" | "project"): Promise<InstallPlan> {
+export async function planHere(ctx: CliContext, scope: "user" | "project"): Promise<InstallPlan> {
   const paths = await scopePaths(ctx, scope);
   const { manifest } = await loadScopeManifest(paths);
   return buildInstallPlan(ctx, { ...manifestOptions(paths, manifest), force: false, scope, sync: true });
@@ -255,6 +255,17 @@ async function projectTargets(ctx: CliContext, projectOnly: boolean): Promise<Pr
   return projectOnly ? targets.filter((target) => sameRoot(target.root, current)) : targets;
 }
 
+// Whether this CLI syncs the project itself: a runner shim that calls the runner and version that run now, or a
+// path shim whose CLI is this file or has the running channel. omt migrate uses the same rule.
+export function shimRunsHere(ctx: CliContext, channel: Channel, root: string, shim: ProjectShim): boolean {
+  if (shim.kind === "runner") {
+    const running = oneShotRunner(ctx.cliPath, ctx.env);
+    return running !== undefined && shim.command === runnerCommand(running, ctx.version);
+  }
+  // The running CLI's own file is its install, whatever channel detection makes of the path.
+  return realOrSelf(shim.cli) === realOrSelf(ctx.cliPath) || pathShimChannel(ctx, root, shim).key === channel.key;
+}
+
 // The shim rules of section 5.14, in order.
 async function planProject(ctx: CliContext, channel: Channel, options: SyncOptions, target: ProjectTarget): Promise<SyncEntry> {
   const { root } = target;
@@ -271,11 +282,8 @@ async function planProject(ctx: CliContext, channel: Channel, options: SyncOptio
     const shim = await readProjectShim(root);
     if (shim === undefined) return noted(base, "skipped", "no managed shim; run omt install --project there");
     const runThere = `run ${shim.path} update --project there`;
+    if (shimRunsHere(ctx, channel, root, shim)) return planned(base, await planHere({ ...ctx, cwd: root }, "project"));
     if (shim.kind === "runner") {
-      const running = oneShotRunner(ctx.cliPath, ctx.env);
-      if (running !== undefined && shim.command === runnerCommand(running, ctx.version)) {
-        return planned(base, await planHere({ ...ctx, cwd: root }, "project"));
-      }
       if (options.runners === "skip" || !isNewer(options.targetVersion, shim.pin)) return noted(base, "skipped", `runs ${shim.command}; ${runThere}`);
       const runner: RunnerSync = {
         root,
@@ -287,10 +295,6 @@ async function planProject(ctx: CliContext, channel: Channel, options: SyncOptio
         run: options.run ?? spawnReading(ctx),
       };
       return { ...base, runner, result: { ...base.result, status: "synced" } };
-    }
-    // The running CLI's own file is its install, whatever channel detection makes of the path.
-    if (realOrSelf(shim.cli) === realOrSelf(ctx.cliPath) || pathShimChannel(ctx, root, shim).key === channel.key) {
-      return planned(base, await planHere({ ...ctx, cwd: root }, "project"));
     }
     return noted(base, "skipped", `runs another omt (${shim.cli}); ${runThere}`);
   } catch (error) {

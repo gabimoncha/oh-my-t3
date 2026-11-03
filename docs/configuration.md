@@ -2,8 +2,8 @@
 
 omt reads two config files:
 
-- The user config, `~/.config/oh-my-t3code/config.jsonc`, applies to all projects. `omt install` and `omt config init` create it.
-- The project config, `.omt/config.jsonc`, overrides the user config for one project. `omt install --project` and `omt init` create it.
+- The user config, `~/.config/oh-my-t3/config.jsonc`, applies to all projects. `omt install` and `omt config init` create it.
+- The project config, `.omt3/config.jsonc`, overrides the user config for one project. `omt install --project` and `omt init` create it.
 
 `omt config path` prints both paths and says which files exist. `omt config init` writes the user starter config, and `--force` overwrites an existing file.
 
@@ -132,7 +132,9 @@ This role runs a security review on GPT-6-Astra in plan mode:
 }
 ```
 
-To give a role its own persona, write `.omt/roles/<role>.md`. The file content is the persona and the rules for that role, and it replaces the bundled persona. omt looks in `.omt/roles/`, then in `~/.config/oh-my-t3code/roles/`, then in the bundled personas.
+If the project still has an `.omt/` folder from an earlier release, run `omt migrate` first. A new `.omt3/` folder makes omt read `.omt3/` and stop reading the config, plans, and ledger in `.omt/` until the migration runs.
+
+To give a role its own persona, write `.omt3/roles/<role>.md`. The file content is the persona and the rules for that role, and it replaces the bundled persona. omt looks in `.omt3/roles/`, then in `~/.config/oh-my-t3/roles/`, then in the bundled personas.
 
 ## Choose a profile
 
@@ -301,7 +303,7 @@ claudeAgent  not detected  T3 disabled, claude not on PATH
 codex        detected  T3 enabled, /usr/local/bin/codex
 recommended: harnesses ["codex"]
 cross-family review: the same family reviews
-<project>/.omt/config.jsonc: harnesses none -> ["codex"]
+<project>/.omt3/config.jsonc: harnesses none -> ["codex"]
 run omt detect --write to apply
 ```
 
@@ -368,9 +370,9 @@ omt config explain --profile fast-proto
 ```
 
 ```text
-user: <home>/.config/oh-my-t3code/config.jsonc
-project: <project>/.omt/config.jsonc
-defaults: <home>/.config/oh-my-t3code/install.json
+user: <home>/.config/oh-my-t3/config.jsonc
+project: <project>/.omt3/config.jsonc
+defaults: <home>/.config/oh-my-t3/install.json
 profile: fast-proto (argument)
 root:
 limits.maxParallel  4  project

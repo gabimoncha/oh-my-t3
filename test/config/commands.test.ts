@@ -19,7 +19,7 @@ function setup() {
   mkdirSync(join(project, ".git"), { recursive: true });
   const configDir = join(root, "cfg");
   const userPath = join(configDir, "config.jsonc");
-  const projectPath = join(project, ".omt", "config.jsonc");
+  const projectPath = join(project, ".omt3", "config.jsonc");
   const ctx = (argv: string[]) => fakeContext({
     root,
     argv,
@@ -232,7 +232,7 @@ test("init creates the config, plans dir, and .gitignore in the project root", a
     out += text;
   };
   assert.equal(await init(c), 0);
-  const omt = join(project, ".omt");
+  const omt = join(project, ".omt3");
   assert.equal(
     pathLines(out),
     `create ${join(omt, "config.jsonc")}\ncreate ${join(omt, "plans")}\ncreate ${join(omt, ".gitignore")}\n`,
@@ -245,7 +245,7 @@ test("init creates the config, plans dir, and .gitignore in the project root", a
 test("init creates only what is missing and never overwrites the config", async () => {
   const { project, ctx, write, projectPath } = setup();
   write(projectPath, "{ /* mine */ }");
-  const omt = join(project, ".omt");
+  const omt = join(project, ".omt3");
   const c = ctx([]);
   assert.equal(await init(c), 0);
   assert.equal(
@@ -263,13 +263,13 @@ test("init creates only what is missing and never overwrites the config", async 
 
 test("init adds the missing lines to an existing .gitignore and keeps the user's lines", async () => {
   const { project, ctx, write, projectPath } = setup();
-  const ignore = join(project, ".omt", ".gitignore");
+  const ignore = join(project, ".omt3", ".gitignore");
   write(ignore, "ledger.jsonl\nevidence/\nbin/\ninstall.json\nbackups/\n# mine\nscratch/");
   const c = ctx([]);
   assert.equal(await init(c), 0);
   assert.equal(
     pathLines(c.out()),
-    `create ${projectPath}\ncreate ${join(project, ".omt", "plans")}\nupdate ${ignore}\n`,
+    `create ${projectPath}\ncreate ${join(project, ".omt3", "plans")}\nupdate ${ignore}\n`,
   );
   assert.equal(
     readFileSync(ignore, "utf8"),
@@ -282,18 +282,18 @@ test("init adds the missing lines to an existing .gitignore and keeps the user's
 
 test("init updates a symlinked .gitignore through its target and leaves a dangling one alone", async () => {
   const { root, project, ctx, write } = setup();
-  const ignore = join(project, ".omt", ".gitignore");
+  const ignore = join(project, ".omt3", ".gitignore");
   const target = join(root, "dotfiles", "omt-gitignore");
   write(target, "ledger.jsonl\n");
-  mkdirSync(join(project, ".omt"), { recursive: true });
+  mkdirSync(join(project, ".omt3"), { recursive: true });
   symlinkSync(target, ignore);
   assert.equal(await init(ctx([])), 0);
   assert.ok(lstatSync(ignore).isSymbolicLink());
   assert.equal(readFileSync(target, "utf8"), OMT_GITIGNORE);
 
   const other = setup();
-  const dangling = join(other.project, ".omt", ".gitignore");
-  mkdirSync(join(other.project, ".omt"), { recursive: true });
+  const dangling = join(other.project, ".omt3", ".gitignore");
+  mkdirSync(join(other.project, ".omt3"), { recursive: true });
   symlinkSync(join(other.root, "missing"), dangling);
   const c = other.ctx([]);
   assert.equal(await init(c), 0);
@@ -336,7 +336,7 @@ test("logicalCwd drops $PWD when a symlink into a subdirectory hides the project
   const pkg = join(repo, "pkg");
   const link = join(root, "pkglink");
   mkdirSync(join(repo, ".git"), { recursive: true });
-  mkdirSync(join(repo, ".omt"));
+  mkdirSync(join(repo, ".omt3"));
   mkdirSync(pkg);
   symlinkSync(pkg, link);
   const physical = realpathSync(pkg);
@@ -359,7 +359,7 @@ test("config path prints the user and project paths unresolved", () => {
   assert.equal(result.code, 0, result.stderr);
   assert.equal(
     result.stdout,
-    `user: ${join(link, "cfg", "config.jsonc")} (absent)\nproject: ${join(link, ".omt", "config.jsonc")} (absent)\n`,
+    `user: ${join(link, "cfg", "config.jsonc")} (absent)\nproject: ${join(link, ".omt3", "config.jsonc")} (absent)\n`,
   );
 });
 
@@ -368,8 +368,8 @@ test("with $PWD on a symlink into a subdirectory, the CLI uses the real project 
   const repo = join(root, "real", "repo");
   const link = join(root, "pkglink");
   mkdirSync(join(repo, ".git"), { recursive: true });
-  mkdirSync(join(repo, ".omt"));
-  writeFileSync(join(repo, ".omt", "config.jsonc"), '{ "version": 1 }\n');
+  mkdirSync(join(repo, ".omt3"));
+  writeFileSync(join(repo, ".omt3", "config.jsonc"), '{ "version": 1 }\n');
   mkdirSync(join(repo, "pkg"));
   symlinkSync(join(repo, "pkg"), link);
   const env = { PWD: link };
@@ -377,10 +377,10 @@ test("with $PWD on a symlink into a subdirectory, the CLI uses the real project 
 
   const path = cli(["config", "path"]);
   assert.equal(path.code, 0, path.stderr);
-  assert.match(path.stdout, new RegExp(`^project: ${realpathSync(repo)}/\\.omt/config\\.jsonc \\(present\\)$`, "m"));
+  assert.match(path.stdout, new RegExp(`^project: ${realpathSync(repo)}/\\.omt3/config\\.jsonc \\(present\\)$`, "m"));
 
   const add = cli(["ledger", "add", "--role", "execute", "--status", "dispatched", "--task-id", "t1"]);
   assert.equal(add.code, 0, add.stderr);
-  assert.ok(readFileSync(join(repo, ".omt", "ledger.jsonl"), "utf8").includes('"taskId":"t1"'));
-  assert.throws(() => statSync(join(repo, "pkg", ".omt")));
+  assert.ok(readFileSync(join(repo, ".omt3", "ledger.jsonl"), "utf8").includes('"taskId":"t1"'));
+  assert.throws(() => statSync(join(repo, "pkg", ".omt3")));
 });

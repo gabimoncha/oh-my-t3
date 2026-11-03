@@ -58,7 +58,7 @@ export function childEnv(root: string): NodeJS.ProcessEnv {
     ...process.env,
     HOME: home,
     USERPROFILE: home,
-    OMT_CONFIG_DIR: join(home, ".config", "oh-my-t3code"),
+    OMT_CONFIG_DIR: join(home, ".config", "oh-my-t3"),
     XDG_CONFIG_HOME: join(home, ".config"),
     CLAUDE_CONFIG_DIR: join(home, ".claude"),
     T3CODE_HOME: join(home, ".t3"),

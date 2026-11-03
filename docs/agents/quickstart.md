@@ -130,12 +130,14 @@ Then apply it. Without a terminal, the install does not ask. It prints `Re-run w
 omt install --project --hooks --yes
 ```
 
-The install writes the shim `.omt/bin/omt`. From now on, agents in this project call the CLI as `.omt/bin/omt`, for every channel. The commands below use that path. If `omt` is on `PATH` from a global install, `omt` works too.
+The install writes the shim `.omt3/bin/omt`. From now on, agents in this project call the CLI as `.omt3/bin/omt`, for every channel. The commands below use that path. If `omt` is on `PATH` from a global install, `omt` works too.
+
+A project from an earlier release keeps its state in `.omt/` until `omt migrate` moves it, and the install then writes `.omt/bin/omt`. In such a project, use the paths that `omt paths` prints, and create nothing in `.omt3/`: once `.omt3/` exists, omt reads it and no longer reads `.omt/`. Run `omt migrate` to move the folder.
 
 Check the install:
 
 ```sh
-.omt/bin/omt doctor --project
+.omt3/bin/omt doctor --project
 ```
 
 Expect these lines, with paths in the user's project:
@@ -148,13 +150,13 @@ PASS  harnesses  claudeAgent, codex
 PASS  skills     7 skills installed in <project>/.agents/skills
 PASS  links      7 links in <project>/.claude/skills
 PASS  hooks      Claude UserPromptSubmit hook in <project>/.claude/settings.local.json
-PASS  shim       <project>/.omt/bin/omt
+PASS  shim       <project>/.omt3/bin/omt
 PASS  exclude    omt block in <project>/.git/info/exclude
 PASS  t3         <home>/.t3/userdata/settings.json
 PASS  worktree   <project>: the setup script "Setup" runs node .t3/omt-worktree-setup.mjs; ...
 ```
 
-`<runtime>` names what runs omt: `omt 0.1.0 binary` for the release binary, or the runtime and its version, such as `node 22.21.1` or `bun 1.4.4`. After a one-shot install, the `shim` line names the runner, such as `<project>/.omt/bin/omt runs npx --yes omt3@0.1.0`.
+`<runtime>` names what runs omt: `omt 0.1.0 binary` for the release binary, or the runtime and its version, such as `node 22.21.1` or `bun 1.4.4`. After a one-shot install, the `shim` line names the runner, such as `<project>/.omt3/bin/omt runs npx --yes omt3@0.1.0`.
 
 The `worktree` line is often `WARN` or `INFO` on the first install. The worktree setup step below covers it.
 
@@ -169,7 +171,7 @@ A `WARN  skills` line means the installed skills do not match the CLI. Doctor st
 Check: this command prints the `PASS  skills` line:
 
 ```sh
-.omt/bin/omt doctor --project | grep -E '^PASS +skills '
+.omt3/bin/omt doctor --project | grep -E '^PASS +skills '
 ```
 
 Also check that doctor prints no `FAIL` line, and that `git status --short` shows no new files from the install. A dev-dependency install shows `package.json` and the lockfile as changed. These changes come from step 3, not from the project install.
@@ -178,8 +180,8 @@ Also check that doctor prints no `FAIL` line, and that `git status --short` show
 
 T3 runs a setup script in each new worktree before the agent starts. Without a setup script, saved in T3 or inherited, a worktree thread has no dependencies installed. Check the setup before you report the install as complete:
 
-1. Run `.omt/bin/omt worktree check` and read the `setup` and `next:` lines.
-2. Follow [the worktree setup reference](../../skills/omt/references/worktrees.md): read the effective setup in T3, keep a compatible one, and generate a missing one for Bun or pnpm with `.omt/bin/omt worktree setup --dry-run`, then `--yes`, only when the user agrees.
+1. Run `.omt3/bin/omt worktree check` and read the `setup` and `next:` lines.
+2. Follow [the worktree setup reference](../../skills/omt/references/worktrees.md): read the effective setup in T3, keep a compatible one, and generate a missing one for Bun or pnpm with `.omt3/bin/omt worktree setup --dry-run`, then `--yes`, only when the user agrees.
 3. A `t3.json` file does not activate anything. T3 runs the setup only after the user commits `t3.json`, `.t3/`, and for pnpm `pnpm-workspace.yaml` on the branch that new worktrees start from, and imports Setup in T3 Project Settings. Tell the user these steps. Do not import a setup that the base branch lacks.
 
 Check: the effective T3 setup runs a dependency install, or you told the user that activation is pending and what remains. Report each part that you could not verify as unverified.
@@ -237,23 +239,23 @@ Check: the user knows the three first tasks, how to start `$omt`, that `$omt-set
 Show the current setup:
 
 ```sh
-.omt/bin/omt roles
-.omt/bin/omt profile list
-.omt/bin/omt profile show normal --json
+.omt3/bin/omt roles
+.omt3/bin/omt profile list
+.omt3/bin/omt profile show normal --json
 ```
 
 `omt roles` prints the selected target of each role. `omt profile list` prints the presets `normal` and `prototype`, and any custom profiles. `omt profile show <name> --json` prints the resolved workflow, limits, roles, and models of one profile.
 
 Tell the user how to change them:
 
-- Pick a profile for one run: `$omt-ulw --profile prototype <task>`. Pick a default: set `"profile": "<name>"` in `.omt/config.jsonc`. Switch a running plan: `.omt/bin/omt plan profile <slug> <name>`.
-- Write a profile: add it under `profiles` in `.omt/config.jsonc` (this project) or `~/.config/oh-my-t3code/config.jsonc` (all projects). A profile `extends` a preset and can switch workflow steps and override roles, models, and limits. A profile without `extends` inherits `normal`. [Configure roles and profiles](../configuration.md#write-a-custom-profile) has an example.
+- Pick a profile for one run: `$omt-ulw --profile prototype <task>`. Pick a default: set `"profile": "<name>"` in `.omt3/config.jsonc`. Switch a running plan: `.omt3/bin/omt plan profile <slug> <name>`.
+- Write a profile: add it under `profiles` in `.omt3/config.jsonc` (this project) or `~/.config/oh-my-t3/config.jsonc` (all projects). A profile `extends` a preset and can switch workflow steps and override roles, models, and limits. A profile without `extends` inherits `normal`. [Configure roles and profiles](../configuration.md#write-a-custom-profile) has an example.
 - Add a custom role: add it under `roles` in the same config files. A new role needs `description`, `access`, and `chain`. Its `result` field picks the result block: `work`, `review`, `test`, `research`, `plan`, or `guardrail`.
-- Add a persona: write `.omt/roles/<role>.md`. Its content is the persona and rules for that role, and it replaces the bundled persona. The lookup order is `.omt/roles/`, then `~/.config/oh-my-t3code/roles/`, then the bundled personas.
-- Fit the harnesses: `.omt/bin/omt detect` prints which harnesses can run and the `"harnesses"` value that fits them. `.omt/bin/omt detect --write --dry-run` shows the change, and `--yes` instead of `--dry-run` writes it. In a T3 thread, add `--capabilities <file>` from step 4 to each of these commands.
+- Add a persona: write `.omt3/roles/<role>.md`. Its content is the persona and rules for that role, and it replaces the bundled persona. The lookup order is `.omt3/roles/`, then `~/.config/oh-my-t3/roles/`, then the bundled personas.
+- Fit the harnesses: `.omt3/bin/omt detect` prints which harnesses can run and the `"harnesses"` value that fits them. `.omt3/bin/omt detect --write --dry-run` shows the change, and `--yes` instead of `--dry-run` writes it. In a T3 thread, add `--capabilities <file>` from step 4 to each of these commands.
 - Let an agent do it: the user can ask `$omt-setup` for any of these changes.
 
-Check: `.omt/bin/omt config validate` reports no errors after each config change.
+Check: `.omt3/bin/omt config validate` reports no errors after each config change.
 
 ## 8. Tell the user what a run costs
 
@@ -261,7 +263,7 @@ omt counts child tasks, not tokens. Tell the user:
 
 - The main thread builds the units itself. A build run starts one review child and one QA child, plus a few `explore` children for broad reads. In the `normal` profile, the reviewer checks the fixes again after each round, up to 4 reviews. A failed check gets at most 2 QA re-runs.
 - A HEAVY run also starts one `plan-review` child, for at most 2 plan review rounds.
-- A run has no task budget. The default limit is 6 child tasks at a time. Lower it for one plan with `.omt/bin/omt plan limit <slug> <n>`.
+- A run has no task budget. The default limit is 6 child tasks at a time. Lower it for one plan with `.omt3/bin/omt plan limit <slug> <n>`.
 
 Check: the user knows what a run starts and the limit of child tasks at a time.
 
@@ -269,7 +271,7 @@ Check: the user knows what a run starts and the limit of child tasks at a time.
 
 Do this when the user asks to update omt. `omt update` asks the npm registry for the latest version and runs the update command of the channel that installed omt. Then the new CLI syncs the skills in user scope and in each project that `omt install --project` recorded. A skill that the user edited stays as it is.
 
-In these steps, `omt` means the command of the install. With a project install, it is `.omt/bin/omt`, and you run it in the project root. With only a global install, it is `omt` from `PATH`.
+In these steps, `omt` means the command of the install. With a project install, it is `.omt3/bin/omt`, and you run it in the project root. With only a global install, it is `omt` from `PATH`.
 
 1. Show the plan:
 
@@ -280,7 +282,7 @@ In these steps, `omt` means the command of the install. With a project install, 
    Show the output to the user. The output names the channel, such as `omt 0.2.0 (npm global); latest 0.3.0`. It then shows one of these lines:
 
    - `run: <command>`: the update command that omt runs. The mise channels write an exact pin into the global mise config, such as `github:gabimoncha/oh-my-t3@0.3.0`, and the line says so.
-   - `pin: <project>/.omt/bin/omt -> <runner command>`: a one-shot install. omt writes the new version into the shim.
+   - `pin: <project>/.omt3/bin/omt -> <runner command>`: a one-shot install. omt writes the new version into the shim.
    - `hint: <text>`: omt runs no update command. For a dev dependency, the hint names two commands of the project's package manager. The first updates the dependency, such as `pnpm add -D oh-my-t3@0.3.0`, and changes `package.json` and the lockfile. The second syncs the skills with the new CLI, such as `pnpm exec omt update --skills-only --project`. Run the commands of the hint only after the user agrees, then go to step 3.
    - `omt <version> is the latest`: only the skills sync.
 
@@ -328,9 +330,9 @@ To update by hand, for example without network access to the npm registry, do th
    | npm dev dependency | `npm i -D oh-my-t3@latest` | `npx omt` |
    | pnpm dev dependency | `pnpm add -D oh-my-t3@latest` | `pnpm exec omt` |
    | Bun dev dependency | `bun add -D oh-my-t3@latest` | `bunx omt` |
-   | One-shot | Run the project install again with the new version, such as `npx oh-my-t3@<version> install --project --yes`. Without a version, the runner can reuse the version in its cache. | `.omt/bin/omt` |
+   | One-shot | Run the project install again with the new version, such as `npx oh-my-t3@<version> install --project --yes`. Without a version, the runner can reuse the version in its cache. | `.omt3/bin/omt` |
 
-   For mise, `<version>` is the version in the `tools:` line that `mise use -g` prints. The project shim of a mise install records the path of the old version, and mise keeps that version. So until the sync in step 2 rewrites the shim, `.omt/bin/omt` still runs the old CLI. The shim of a dev dependency can also record an old CLI file, such as an old folder of the shared pnpm store. So for a dev dependency, the new CLI runs through the package manager.
+   For mise, `<version>` is the version in the `tools:` line that `mise use -g` prints. The project shim of a mise install records the path of the old version, and mise keeps that version. So until the sync in step 2 rewrites the shim, `.omt3/bin/omt` still runs the old CLI. The shim of a dev dependency can also record an old CLI file, such as an old folder of the shared pnpm store. So for a dev dependency, the new CLI runs through the package manager.
 
    Check: `<new CLI> --version` prints the new version.
 
@@ -349,10 +351,10 @@ To update by hand, for example without network access to the npm registry, do th
 Run this in the project root:
 
 ```sh
-.omt/bin/omt uninstall --project --yes
+.omt3/bin/omt uninstall --project --yes
 ```
 
-It removes what the install wrote, except the files that the user changed. It also removes the shim, so run the next commands with the install command of the channel from step 4, such as `omt` or `npx oh-my-t3`. It keeps the user's own files in `.omt/`: the plans, the ledger, the evidence, an edited config, the personas, and the backups. It also keeps an edited skill with its links, and the parts of the exclude block and the manifest that the kept files need. The [install guide](../install.md) gives the details. Add `--dry-run` to see the list first. Tell the user to restart the T3 threads of this project.
+It removes what the install wrote, except the files that the user changed. It also removes the shim, so run the next commands with the install command of the channel from step 4, such as `omt` or `npx oh-my-t3`. It keeps the user's own files in `.omt3/`: the plans, the ledger, the evidence, an edited config, the personas, and the backups. It also keeps an edited skill with its links, and the parts of the exclude block and the manifest that the kept files need. The [install guide](../install.md) gives the details. Add `--dry-run` to see the list first. Tell the user to restart the T3 threads of this project.
 
 Check: the uninstall exits 0. Then run a second dry run in the project root. Replace `omt` with the command of the channel:
 

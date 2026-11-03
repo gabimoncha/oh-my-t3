@@ -83,7 +83,7 @@ test("--with omt-swarm in project scope installs it and records the choice in th
   writeFile(join(project, ".git", "info", "exclude"), "");
   await f.runOk(["install", "--project", "--with", SWARM, "--yes"]);
   assert.ok(existsSync(join(project, ".agents", "skills", SWARM, "SKILL.md")));
-  assert.deepEqual(readJson(join(project, ".omt", "install.json")).optIn, [SWARM]);
+  assert.deepEqual(readJson(join(project, ".omt3", "install.json")).optIn, [SWARM]);
   await assertDoctorClean(f, ["--project"]);
 });
 

@@ -8,7 +8,7 @@ On git actions, reply style, tests, and model choice, the user's own instruction
 
 ## The CLI
 
-Use the first one that exists: `omt` on `PATH`, `.omt/bin/omt` in the project root, or, in a linked worktree, `"$(git rev-parse --path-format=absolute --git-common-dir)/../.omt/bin/omt"`. When none exists, follow the [agent quick start](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/agents/quickstart.md) and stop. `omt help <command>` prints the flags of each command.
+Use the first one that exists: `omt` on `PATH`, `.omt3/bin/omt` or `.omt/bin/omt` in the project root, or, in a linked worktree, both under `"$(git rev-parse --path-format=absolute --git-common-dir)/.."`. When none exists, follow the [agent quick start](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/agents/quickstart.md) and stop. `omt help <command>` prints the flags of each command.
 
 ## What a child is
 

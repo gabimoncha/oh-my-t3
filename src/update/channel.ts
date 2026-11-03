@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MISE_GITHUB_TOOL, PACKAGE_NAME, PACKAGE_NAMES, REPOSITORY_URL } from "../brand.ts";
-import { findProjectRoot } from "../paths.ts";
+import { findProjectRoot, projectShimPath } from "../paths.ts";
 import type { Env } from "../paths.ts";
 import { oneShotRunner, runnerCommand } from "../install/project.ts";
 import type { Runner } from "../install/project.ts";
@@ -507,7 +507,7 @@ export async function newCliCommand(channel: Channel, version: string, run: RunC
   }
   if (channel.kind === "mise-github") return ["mise", "exec", `${MISE_GITHUB_TOOL}@${version}`, "--", "omt"];
   if (channel.kind === "mise-npm") return ["mise", "exec", `npm:${channel.packageName}@${version}`, "--", "omt"];
-  if (channel.kind === "one-shot" && channel.projectRoot !== undefined) return [join(channel.projectRoot, ".omt", "bin", "omt")];
+  if (channel.kind === "one-shot" && channel.projectRoot !== undefined) return [projectShimPath(channel.projectRoot)];
   return channel.kind === "binary" || process.argv[1] === undefined ? [process.execPath] : [process.execPath, process.argv[1]];
 }
 

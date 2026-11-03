@@ -31,11 +31,11 @@ test("npm, pnpm, and bun install the release as a dev dependency and run install
     assert.equal(version.trim(), registry.version, `${manager} must run the package version`);
     const install = await run(runner, [...runnerArgs, "install", "--project", "--yes"], project, env);
     assert.doesNotMatch(install, /^FAIL\b/m);
-    const doctor = await run(join(project, ".omt", "bin", "omt"), ["doctor", "--project"], project, env);
+    const doctor = await run(join(project, ".omt3", "bin", "omt"), ["doctor", "--project"], project, env);
     assert.doesNotMatch(doctor, /^FAIL\b/m);
     if (manager !== "npm") {
       // The bundle inlines the worktree setup runner, so setup writes its exact bytes with no templates/ folder.
-      await run(join(project, ".omt", "bin", "omt"), ["worktree", "setup", "--yes"], project, env);
+      await run(join(project, ".omt3", "bin", "omt"), ["worktree", "setup", "--yes"], project, env);
       const runnerFile = readFileSync(join(project, ".t3", "omt-worktree-setup.mjs"), "utf8");
       assert.equal(runnerFile, readFileSync(join(PACKAGE_ROOT, "templates", "worktree-setup.mjs"), "utf8"), `${manager} must write the bundled runner`);
     }

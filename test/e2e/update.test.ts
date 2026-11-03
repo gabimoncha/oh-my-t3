@@ -72,7 +72,7 @@ test("global npm oh-my-t3 install of A updates to B with --yes: CLI, user skills
   }
 }, LONG);
 
-test("npx omt3@A install --project, then .omt/bin/omt update --yes pins the shim to B", async () => {
+test("npx omt3@A install --project, then .omt3/bin/omt update --yes pins the shim to B", async () => {
   const tool = tools();
   const reg = await releaseRegistry("u6-oneshot-", tool, { next: true });
   const A = reg.version;
@@ -81,7 +81,7 @@ test("npx omt3@A install --project, then .omt/bin/omt update --yes pins the shim
   const project = join(reg.root, "project");
   gitRepo(env.HOME!, project);
   await run(tool.npx, ["--yes", `omt3@${A}`, "install", "--project", "--yes"], project, env);
-  const shim = join(project, ".omt", "bin", "omt");
+  const shim = join(project, ".omt3", "bin", "omt");
   assert.ok(readFileSync(shim, "utf8").split("\n").includes(`exec npx --yes omt3@${A} "$@"`), "shim must pin A");
   const out = await run(shim, ["update", "--yes"], project, env);
   const text = readFileSync(shim, "utf8");
@@ -110,6 +110,6 @@ test("global npm oh-my-t3code install of A switches to oh-my-t3 B with --yes, an
   assert.equal(existsSync(join(lib, "oh-my-t3code")), false, "npm must have removed oh-my-t3code");
   assert.equal(JSON.parse(readFileSync(join(lib, "oh-my-t3", "package.json"), "utf8")).version, B);
   assert.equal(lastLine(await run(omt, ["--version"], reg.root, env)), B, "the omt bin must run oh-my-t3 B");
-  assert.equal(lastLine(await run(join(project, ".omt", "bin", "omt"), ["--version"], project, env)), B, "the project shim must run B");
+  assert.equal(lastLine(await run(join(project, ".omt3", "bin", "omt"), ["--version"], project, env)), B, "the project shim must run B");
   assert.equal(JSON.parse(readFileSync(projectManifestPath(project), "utf8")).version, B, "project manifest must record B");
 }, LONG);

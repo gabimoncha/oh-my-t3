@@ -195,10 +195,10 @@ test("no skill text says that review runs on the same family as execute", () => 
   assert.deepEqual(offenders, []);
 });
 
-test("skills name the shared evidence directory, not a bare .omt/evidence/ path (common)", () => {
+test("skills name the shared evidence directory, not a bare .omt3/evidence/ path (common)", () => {
   const offenders = walk(SKILLS_DIR)
     .filter((path) => path.endsWith(".md"))
-    .filter((path) => readFileSync(path, "utf8").includes(".omt/evidence"))
+    .filter((path) => readFileSync(path, "utf8").includes(".omt3/evidence"))
     .map((path) => relative(PACKAGE_ROOT, path));
   assert.deepEqual(offenders, []);
   for (const name of ["omt-research"]) {

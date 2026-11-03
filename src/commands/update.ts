@@ -1,7 +1,9 @@
-import type { CommandRun } from "../types.ts";
+import { offerMigration } from "../migrate/offer.ts";
+import type { CliContext } from "../types.ts";
 import { parseArgs } from "../util/args.ts";
 import { usageError } from "../util/errors.ts";
 import { runUpdate } from "../update/flow.ts";
+import type { UpdateSeams } from "../update/flow.ts";
 
 export const summary = "Update the omt CLI with the command of its channel, then sync the skills.";
 
@@ -12,7 +14,9 @@ pnpm, or Bun global, or mise), then sync the skills in user scope and in
 each recorded project with the new CLI. A skill that you edited stays as it
 is, and the output names it. Asks the npm registry for the latest version.
 Shows the plan first, then asks to apply it. Shows default settings changes
-and asks before accepting them. User overrides stay unchanged.
+and asks before accepting them. User overrides stay unchanged. When old
+.omt or oh-my-t3code folders remain, it offers omt migrate on a terminal,
+and prints a hint with --yes, --json, or no terminal.
 
 Options:
   --check        ask the registry and print the current version, the latest
@@ -27,7 +31,7 @@ Options:
   -h, --help     print this help
 `;
 
-export const run: CommandRun = async (ctx) => {
+export async function run(ctx: CliContext, seams: UpdateSeams = {}): Promise<number> {
   const { values } = parseArgs(ctx.argv, {
     check: { type: "boolean" },
     "dry-run": { type: "boolean" },
@@ -56,5 +60,8 @@ export const run: CommandRun = async (ctx) => {
   if (options.json && !options.check && !options.dryRun && !options.yes) {
     throw usageError("--json needs --check, --dry-run, or --yes", "omt update asks before it applies, and JSON output cannot ask");
   }
-  return runUpdate(ctx, options);
-};
+  const code = await runUpdate(ctx, options, seams);
+  if (code !== 0) return code;
+  const offered = await offerMigration({ ...ctx, isTTY: seams.isTTY ?? ctx.isTTY, prompt: seams.prompt ?? ctx.prompt }, options);
+  return offered;
+}

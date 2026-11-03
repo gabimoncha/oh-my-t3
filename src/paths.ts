@@ -21,12 +21,38 @@ function envPath(env: Env, name: string): string | undefined {
   return value === undefined || value === "" ? undefined : value;
 }
 
+export const STATE_DIR_NAME = ".omt3";
+export const LEGACY_STATE_DIR_NAME = ".omt";
+export const CONFIG_DIR_NAME = "oh-my-t3";
+export const LEGACY_CONFIG_DIR_NAME = "oh-my-t3code";
+
+// A folder pair: the current name, and the name that earlier releases used.
+export interface FolderPair {
+  current: string;
+  legacy: string;
+}
+
+function defaultConfigPair(env: Env, homedir: string): FolderPair {
+  const base = envPath(env, "XDG_CONFIG_HOME") ?? join(homedir, ".config");
+  return { current: join(base, CONFIG_DIR_NAME), legacy: join(base, LEGACY_CONFIG_DIR_NAME) };
+}
+
+// Undefined when OMT_CONFIG_DIR names the folder, because then its name is the user's choice.
+export function configDirPair(env: Env, homedir: string): FolderPair | undefined {
+  return envPath(env, "OMT_CONFIG_DIR") === undefined ? defaultConfigPair(env, homedir) : undefined;
+}
+
+// The current folder when it exists, else the legacy folder when it exists, else the current folder.
+// An install that has not run omt migrate keeps reading and writing its legacy folder.
+function pick(pair: FolderPair): string {
+  if (existsSync(pair.current)) return pair.current;
+  return existsSync(pair.legacy) ? pair.legacy : pair.current;
+}
+
 export function configDir(env: Env, homedir: string): string {
   const explicit = envPath(env, "OMT_CONFIG_DIR");
   if (explicit !== undefined) return explicit;
-  const xdg = envPath(env, "XDG_CONFIG_HOME");
-  if (xdg !== undefined) return join(xdg, "oh-my-t3code");
-  return join(homedir, ".config", "oh-my-t3code");
+  return pick(defaultConfigPair(env, homedir));
 }
 
 export function userConfigPath(env: Env, homedir: string): string {
@@ -97,7 +123,7 @@ export function hasProjectMarker(cwd: string): boolean {
 function nearestMarker(cwd: string): string | undefined {
   let dir = resolve(cwd);
   for (;;) {
-    if (existsSync(join(dir, ".omt")) || existsSync(join(dir, ".git"))) return dir;
+    if (existsSync(join(dir, STATE_DIR_NAME)) || existsSync(join(dir, LEGACY_STATE_DIR_NAME)) || existsSync(join(dir, ".git"))) return dir;
     const parent = dirname(dir);
     if (parent === dir) return undefined;
     dir = parent;
@@ -122,7 +148,7 @@ function underLogicalAncestor(worktree: string, main: string): string {
   }
 }
 
-// A linked worktree resolves to its main checkout, so all worktrees share one .omt.
+// A linked worktree resolves to its main checkout, so all worktrees share one state folder.
 export function findProjectRoot(cwd: string): string {
   const dir = nearestMarker(cwd);
   if (dir === undefined) return resolve(cwd);
@@ -154,24 +180,27 @@ export function pnpmWorkspacePath(root: string): string {
   return join(root, "pnpm-workspace.yaml");
 }
 
-// A linked worktree whose own .omt holds plans or a ledger that omt no longer reads.
-export function shadowedWorktreeState(cwd: string): { worktree: string; main: string } | undefined {
+// A linked worktree whose own .omt3 or .omt holds plans or a ledger that omt no longer reads. `dir` is
+// the first of the two that does.
+export function shadowedWorktreeState(cwd: string): { worktree: string; main: string; dir: string } | undefined {
   const worktree = nearestMarker(cwd);
   if (worktree === undefined) return undefined;
   const found = mainCheckoutOf(worktree);
   if (found === undefined) return undefined;
   const main = underLogicalAncestor(worktree, found);
-  const own = omtDir(worktree);
-  let plans = false;
+  for (const own of [join(worktree, STATE_DIR_NAME), join(worktree, LEGACY_STATE_DIR_NAME)]) {
+    if (holdsState(own)) return { worktree, main, dir: own };
+  }
+  return undefined;
+}
+
+function holdsState(dir: string): boolean {
   try {
-    plans = readdirSync(join(own, "plans"), { withFileTypes: true }).some(
-      (entry) => entry.isFile() && entry.name.endsWith(".md"),
-    );
+    if (readdirSync(join(dir, "plans"), { withFileTypes: true }).some((entry) => entry.isFile() && entry.name.endsWith(".md"))) return true;
   } catch {
     // No plans directory.
   }
-  if (!plans && !isFile(join(own, "ledger.jsonl"))) return undefined;
-  return { worktree, main };
+  return isFile(join(dir, "ledger.jsonl"));
 }
 
 function isFile(path: string): boolean {
@@ -182,8 +211,33 @@ function isFile(path: string): boolean {
   }
 }
 
+export function stateDirPair(root: string): FolderPair {
+  return { current: join(root, STATE_DIR_NAME), legacy: join(root, LEGACY_STATE_DIR_NAME) };
+}
+
 export function omtDir(root: string): string {
-  return join(root, ".omt");
+  return pick(stateDirPair(root));
+}
+
+// A legacy folder that omt reads now, or that sits beside the current one.
+export interface LegacyUse {
+  current: string;
+  legacy: string;
+  both: boolean; // both folders exist, and omt uses the current one
+}
+
+function legacyUse(pair: FolderPair): LegacyUse | undefined {
+  if (!existsSync(pair.legacy)) return undefined;
+  return { ...pair, both: existsSync(pair.current) };
+}
+
+// The legacy project and user folders that the hint names: for the project root of cwd, and for the
+// user folder unless OMT_CONFIG_DIR names it.
+export function legacyFolders(cwd: string, env: Env, homedir: string): { project?: LegacyUse; global?: LegacyUse } {
+  const project = legacyUse(stateDirPair(findProjectRoot(cwd)));
+  const pair = configDirPair(env, homedir);
+  const global = pair === undefined ? undefined : legacyUse(pair);
+  return { ...(project === undefined ? {} : { project }), ...(global === undefined ? {} : { global }) };
 }
 
 export function projectConfigPath(root: string): string {

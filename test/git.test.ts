@@ -13,7 +13,7 @@ function project() {
   const cwd = join(root, "project");
   const git = gitRepo(root, cwd);
   const env = gitEnv(root);
-  const config = (value: unknown) => writeFile(join(cwd, ".omt", "config.jsonc"), JSON.stringify(value));
+  const config = (value: unknown) => writeFile(join(cwd, ".omt3", "config.jsonc"), JSON.stringify(value));
   const check = async (action: string, directory = cwd, ...flags: string[]) => {
     const ctx = fakeContext({ root, cwd: directory, env, argv: ["check", action, ...flags, "--json"] });
     assert.equal(await run(ctx), 0);
@@ -89,7 +89,7 @@ test("git uses a previously accepted partial policy until defaults are accepted"
   p.git(["checkout", "-q", "-b", "feat/x"]);
   const accepted = structuredClone(DEFAULT_CONFIG);
   delete accepted.profiles.normal!.workflow!.git;
-  writeFile(join(p.cwd, ".omt", "install.json"), JSON.stringify({
+  writeFile(join(p.cwd, ".omt3", "install.json"), JSON.stringify({
     acceptedDefaults: { version: 1, cliVersion: "0.1.0", config: accepted },
   }));
   p.config({ profiles: { normal: { workflow: { git: { merge: "auto" } } } } });
@@ -103,7 +103,7 @@ test("git uses a previously accepted partial policy until defaults are accepted"
 test("git merge outside a repo uses the merge value", async () => {
   const p = project();
   const outside = join(p.root, "outside");
-  writeFile(join(outside, ".omt", "config.jsonc"), JSON.stringify({
+  writeFile(join(outside, ".omt3", "config.jsonc"), JSON.stringify({
     profiles: { normal: { workflow: { git: { merge: "auto" } } } },
   }));
   const result = await p.check("merge", outside);

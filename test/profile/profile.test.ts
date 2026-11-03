@@ -10,7 +10,7 @@ test("end to end: pick and switch a custom profile, then use its limits for the 
   const env = childEnv(root);
   mkdirSync(join(project, ".git"), { recursive: true });
   mkdirSync(env.HOME!, { recursive: true });
-  const configPath = join(project, ".omt", "config.jsonc");
+  const configPath = join(project, ".omt3", "config.jsonc");
   const config = {
     profile: "prototype",
     limits: { maxParallel: 2 },
@@ -51,7 +51,7 @@ test("end to end: pick and switch a custom profile, then use its limits for the 
   assert.equal(custom.models["claude-opus-5-5"].fast, true);
   assert.equal(JSON.parse(ok("profile", "show", "--json")).source, "config");
   assert.match(ok("plan", "new", "demo", "--profile", "prototype"), /demo\.md\n$/);
-  const path = join(project, ".omt", "plans", "demo.md");
+  const path = join(project, ".omt3", "plans", "demo.md");
   assert.match(readFileSync(path, "utf8"), /^<!-- omt-plan .* profile=prototype -->$/m);
   assert.match(ok("plan", "profile", "demo", "hackathon"), /^set profile=hackathon for demo\n$/);
   const selected = JSON.parse(ok("profile", "show", "--plan", "demo", "--json"));
@@ -88,11 +88,11 @@ test("profile CLI rejects unknown selections and broken chains and prints role m
   const root = tempDir("omt-profile-errors-");
   const project = join(root, "project");
   mkdirSync(join(project, ".git"), { recursive: true });
-  const configPath = join(project, ".omt", "config.jsonc");
+  const configPath = join(project, ".omt3", "config.jsonc");
   writeFile(configPath, JSON.stringify({ profiles: { custom: { description: "Custom." } } }));
   const run = (...args: string[]) => spawnOmt(args, { root, cwd: project });
   assert.equal(run("plan", "new", "demo").code, 0);
-  const path = join(project, ".omt", "plans", "demo.md");
+  const path = join(project, ".omt3", "plans", "demo.md");
   const original = readFileSync(path, "utf8");
   for (const args of [
     ["profile", "show", "missing"], ["profile", "show", "--profile", "missing"],
@@ -129,7 +129,7 @@ test("profile CLI resolves a retired pr-review selection to normal with a warnin
   const root = tempDir("omt-profile-retired-");
   const project = join(root, "project");
   mkdirSync(join(project, ".git"), { recursive: true });
-  const configPath = join(project, ".omt", "config.jsonc");
+  const configPath = join(project, ".omt3", "config.jsonc");
   writeFile(configPath, JSON.stringify({ profile: "pr-review", profiles: { "pr-review": { description: "Old." } } }));
   const run = (...args: string[]) => spawnOmt(args, { root, cwd: project });
   const retired = /warning --profile: profile "pr-review" is no longer used; normal runs the PR steps\n/;
@@ -150,7 +150,7 @@ test("profile CLI resolves a retired pr-review selection to normal with a warnin
   const created = run("plan", "new", "demo", "--profile", "pr-review");
   assert.equal(created.code, 0, created.stderr);
   assert.match(created.stderr, retired);
-  const path = join(project, ".omt", "plans", "demo.md");
+  const path = join(project, ".omt3", "plans", "demo.md");
   assert.match(readFileSync(path, "utf8"), /^<!-- omt-plan .* profile=normal -->$/m);
   const switched = run("plan", "profile", "demo", "pr-review");
   assert.equal(switched.code, 0, switched.stderr);
