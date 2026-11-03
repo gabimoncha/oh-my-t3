@@ -248,8 +248,10 @@ export interface BriefJsonOutput {
     mode: "async";
     clientRequestId?: string; // present when --plan and --unit are given
   };
-  fallbacks: ResolvedTarget[]; // not a delegate_task field; use one of these when the call fails
-  ledger?: { dispatched: string };
+  fallbacks: ResolvedTarget[]; // not a delegate_task field; the targets after this one, in order
+  targetKey: string; // pass it to --tried in plan mode; with --save the ledger records it
+  ledger?: { done: string }; // present when --save recorded the start
+
 }
 
 export type LedgerStatus =
@@ -275,6 +277,7 @@ export interface LedgerEntry {
   model?: string;
   verdict?: string; // first word or words of the result block, for example "DONE", "APPROVE", "NOT VERIFIED"
   note?: string;
+  targetKey?: string; // the target of a dispatch, such as codex/gpt-6-astra; omt brief --fallback skips tried keys
 }
 
 export interface LedgerStats {

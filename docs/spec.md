@@ -360,8 +360,9 @@ export interface BriefJsonOutput {
     mode: "async";
     clientRequestId?: string; // present when --plan and --unit are given
   };
-  fallbacks: ResolvedTarget[]; // not a delegate_task field; use one of these when the call fails
-  ledger?: { dispatched: string }; // present with --save --json
+  fallbacks: ResolvedTarget[]; // not a delegate_task field; the targets after this one, in order
+  targetKey: string; // the chosen target, such as codex/gpt-6-astra; --tried takes it in plan mode
+  ledger?: { done: string }; // present when --save --json with --plan and --unit recorded the start
 }
 
 export type LedgerStatus = "dispatched" | "completed" | "failed" | "cancelled" | "interrupted" | "verified" | "rejected"; // every status except "dispatched" is terminal
@@ -380,6 +381,7 @@ export interface LedgerEntry {
   model?: string;
   verdict?: string; // first word or words of the result block, for example "DONE", "APPROVE", "NOT VERIFIED"
   note?: string;
+  targetKey?: string; // dispatched entries from omt brief --save: the target that the brief chose
 }
 
 export interface LedgerStats {
@@ -781,7 +783,10 @@ Options:
 | `--capabilities <file>` | used with `--json` to resolve the target |
 | `--against <provider\|driver\|auto>` | the worker whose change the task reviews, used with `--json` (section 5.3) |
 | `--json` | print a ready `delegate_task` payload instead of the brief text |
-| `--save` | save the full brief to evidence; with `--json`, return a short task that names the saved file |
+| `--save` | save the full brief to evidence; with `--json`, return a short task that names the saved file; with `--json`, `--plan`, and `--unit`, also check the parallel limit and record the start |
+| `--fallback` | with `--json`: use the first target in the resolved order that this plan, unit, role, and round have not tried |
+| `--tried <key>` | with `--fallback` and no recorded start: a target key that was tried already; repeatable |
+| `--strict` | with `--against`: exit 1 when the chosen target is in the `--against` worker's family |
 
 `--attempt <n>` (default 1) is the attempt number for the request id (section 10). `--round`, `--depth`, and `--attempt` are positive integers. `--task` and `--task-file` exclude each other, and so do `--context` and `--context-file`. Only one flag can read stdin. An empty task is a usage error. An unknown role exits 1. The brief's `maxDepth` is `--max-depth` when given, else `limits.maxDepth` from the effective config. A `--depth` greater than that max is a usage error (exit 2) with a hint that names `--max-depth`. The retired roles `verify`, `quick`, and `deep` are not in the defaults (section 6.4), so `omt brief verify` exits 1 like any unknown role. `--plan` must match the plan slug regex (section 5.5) and `--unit` must match `^[A-Za-z0-9._-]{1,64}$`; a mismatch is a usage error. When the rendered brief is longer than 120,000 characters, the command prints nothing to stdout and exits 1 with a hint to shorten `--context` or `--prior-file`.
 
@@ -822,7 +827,23 @@ The pointer has no fixed length cap of its own. The path length determines its l
 <cli> ledger add --plan <p> --unit <u> --role <r> --round <n> --attempt <a> --status dispatched --task-id <taskId> --client-request-id <id> --provider <provider> --model <model>
 ```
 
-Only `<taskId>` remains a placeholder. The CLI fills and quotes all other values and omits absent plan, unit, and request-id flags. A target change requires the main thread to update the provider and model. An unavailable JSON route saves no brief. The full rendered brief still has the 120,000-character limit before a save.
+The output adds `targetKey`, the key of the chosen target: `<providerInstanceId>/<model>`, or `driver:<driverKind>/<model>` for a target that names only a driver. The resolved order is the routing order after the `--against` reorder (section 8.3), with one more target after each driver-only target: the same rung with `providerInstanceId` set to the driver. `fallbacks` holds the targets after the chosen one.
+
+Start record. With `--save --json`, `--plan`, and `--unit`, the command holds an exclusive lock, `.omt/locks/ledger.lock`, made with `open(path, "wx")`. It retries for up to 5 seconds and treats a lock file older than 30 seconds as stale; a held lock exits 75. Under the lock it runs these steps in order:
+
+1. Resend. Without `--fallback`, when an open start (section 5.6) has the same `clientRequestId`, it saves the brief, prints the output with the recorded target, and records nothing. It makes no limit check.
+2. Fallback. With `--fallback`, the tried keys are the `targetKey` values of the dispatched entries of the same plan, unit, role, and round, and the attempt is the highest of their attempts plus 1. With no such entry, the command exits 1. Each open start of them gets a `failed` entry with the note `superseded by attempt <n>`. `--attempt` and `--tried` are usage errors with this form.
+3. Strict. With `--strict` and a cross-family role, a chosen target in the family of the `--against` worker exits 1 with `no <role> target outside <family> is left`.
+4. Limit. `active` is the number of open starts of the plan, after step 2. The limit is the profile's `limits.maxParallel`, lowered by a plan header `max-parallel`. When `active` reaches the limit, the command prints `omt: limit: <active> of <max> children are active; run this command again after one ends` to stderr, writes nothing, and exits 75.
+5. It appends the `failed` entries of step 2, saves the brief, and appends one `dispatched` entry with plan, unit, role, round, attempt, `clientRequestId`, `provider`, `model`, and `targetKey`, and no `taskId`.
+
+The output then adds `ledger.done`, a shell command:
+
+```text
+<cli> ledger done <clientRequestId> --verdict <VERDICT>
+```
+
+Without `--save`, or without `--plan` or `--unit`, the command writes no ledger entry and makes no limit check. `--fallback` then needs `--attempt`, and takes the tried keys from `--tried`. With no untried target left, the command exits 1 with `no fallback left for <role>; tried: <keys>`. `--fallback` and `--strict` need `--json`, `--tried` needs `--fallback`, and `--strict` needs `--against`; each is a usage error otherwise. An unavailable JSON route saves no brief. The full rendered brief still has the 120,000-character limit before a save.
 
 ### 5.5 `omt plan`
 
@@ -840,13 +861,15 @@ Only `<taskId>` remains a placeholder. The CLI fills and quotes all other values
 
 - `add` appends one `LedgerEntry` (section 3) as one JSON line to `.omt/ledger.jsonl`, with one `appendFile` call. Required flags: `--role` and `--status`. `--role` accepts any name, not only config roles, because the skills record `swarm` and `loop`. Optional flags: `--plan`, `--unit`, `--round`, `--attempt`, `--task-id`, `--client-request-id`, `--provider`, `--model`, `--verdict`, `--note`. `--round` and `--attempt` are positive integers. `--status dispatched` needs `--task-id` or `--unit`, else exit 2. A `dispatched` entry without `--task-id` is still appended, and the command prints `warning: this dispatched entry has no --task-id; result matching needs it` to stderr. It prints the entry as JSON. A terminal entry that closes no dispatched entry is still appended; the command then prints `omt: no dispatched entry matches; nothing was closed` to stderr and exits 0.
 - In every subcommand, `--plan` must match the plan slug regex (section 5.5) and `--unit` must match `^[A-Za-z0-9._-]{1,64}$`; a mismatch is a usage error.
-- Terminal statuses are `completed`, `failed`, `cancelled`, `interrupted`, `verified`, and `rejected`. A terminal entry T closes a dispatched entry D when T has a `taskId` equal to D's, or when T has no `taskId`, both T and D have a `unit`, and T and D have the same `plan`, `unit`, `role`, `round` (default 1), and `attempt` (default 1). A terminal entry with neither `taskId` nor `unit` closes nothing. `active` counts dispatched entries that no terminal entry closes, in any order. Statistics index terminal task IDs and fallback identities once. Optional identity and display text fields must be strings, except `provider`, which routing checks with its existing warning. Round and attempt values must be positive safe integers.
+- Terminal statuses are `completed`, `failed`, `cancelled`, `interrupted`, `verified`, and `rejected`. A terminal entry T closes a dispatched entry D by the first rule that applies: (1) when both have a `clientRequestId`, only an equal one closes; (2) otherwise, when T has a `taskId`, only an equal `taskId` closes; (3) otherwise, both need a `unit`, and T and D must have the same `plan`, `unit`, `role`, `round` (default 1), and `attempt` (default 1). A terminal entry with neither `taskId` nor `unit` nor a matching `clientRequestId` closes nothing. `closes()` and the index in `ledgerStats()` apply the same rules. An open start is a dispatched entry that no terminal entry closes. `active` counts dispatched entries that no terminal entry closes, in any order. Statistics index terminal task IDs and fallback identities once. Optional identity and display text fields must be strings, except `provider`, which routing checks with its existing warning. Round and attempt values must be positive safe integers.
 - Table output caps each displayed cell at 120 characters with a final ellipsis and stops at 1,000,000 characters plus a truncation notice. `--json` keeps full values.
 - `list` prints a table with the columns `TIME` (HH:MM:SS of `ts`, in UTC), `PLAN`, `UNIT`, `ROLE`, `ROUND`, `STATUS`, `VERDICT`, `TASK` (the last 12 characters of `taskId`). It filters by `--plan` when given. `--json` prints an array of entries. A malformed line is skipped with a warning on stderr.
 - `stats` loads the config, applies the plan header's profile or the config profile, and prints a `LedgerStats` (section 3). Text mode prints one line per field: `plan` (with `--plan`), `profile` (the effective name), `dispatched`, `active`, `terminal`, `max parallel`, and `can dispatch: yes` or `can dispatch: no`. `canDispatch` is `active < maxParallel`. A run has no task budget, so the number of dispatched entries never stops a dispatch. `--json` prints the object. The command has no `--profile` flag. Its JSON has no `profile` field. Before a plan file exists, a skill with a selected run profile compares these counts with `omt profile show <name> --json` limits (section 15.2).
 - With `--plan <slug>`, when `.omt/plans/<slug>.md` exists and its header has `max-parallel` (section 12.2), the effective `maxParallel` is the lower of the profile-applied config value and the plan value. `limits.maxParallel` holds the effective value, `planMaxParallel` holds the plan value, and `canDispatch` uses the effective value. Text mode then prints `max parallel: <effective> (plan <n>, config <m>)`. Without a plan file, the config selects the profile. Without a plan limit, the profile-applied config limits apply.
 - A plan header `max-tasks` key and a config `limits.maxTasksPerRun` have no effect on `stats`. The config key gives the retired-key warning on stderr (section 6.2).
 - `request-id` prints the canonical `clientRequestId` (section 10).
+- `done <id>` closes the latest open start whose `clientRequestId` or `taskId` is `<id>`. Options: `--verdict`, `--status` (`completed`, the default, `failed`, `cancelled`, or `interrupted`; another value exits 2), `--task-id`, and `--note`. It appends a terminal entry with the start's `plan`, `unit`, `role`, `round`, `attempt`, `clientRequestId`, `provider`, and `model`. With no open start, it exits 1 with `no open child matches <id>` and writes nothing. It prints `closed <unit> <role> r<round> a<attempt>`, then the `settle:` line of `settle-check`.
+- `settle-check` prints `settle: no (linked worktree)` when the nearest checkout is a linked worktree (`mainCheckoutOf`, section 4), else `settle: allowed`. It writes nothing. T3 runs the project's settle script in a settled thread's worktree, and a child that shares a linked worktree has that worktree.
 
 ### 5.7 `omt hook user-prompt-submit`
 
@@ -1695,7 +1718,7 @@ Device line, the last constraint line, for every role except `qa`:
 T3 derives the child thread id from this value. So:
 
 - Reuse an id only to resend the same payload after a lost response. T3 then returns the existing task instead of starting a second one.
-- Increase the attempt when you send the same round again to a fallback rung, or again after a child failed.
+- Increase the attempt when you send the same round again to a fallback rung, or again after a child failed. `omt brief --fallback` picks the attempt from the ledger (section 5.4).
 - Increase the round for each new review or fix round.
 
 ## 11. Result contracts

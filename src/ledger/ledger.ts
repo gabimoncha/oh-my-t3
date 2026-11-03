@@ -1,6 +1,8 @@
-import { dirname } from "node:path";
+import { open, stat, unlink } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import type { LedgerEntry, LedgerStats, LedgerStatus, Limits } from "../types.ts";
-import { openStateFile, readFileIfExists } from "../util/fs.ts";
+import { OmtError } from "../util/errors.ts";
+import { ensureDir, errorCode, openStateFile, readFileIfExists } from "../util/fs.ts";
 
 export const LEDGER_STATUSES: readonly LedgerStatus[] = [
   "dispatched",
@@ -25,19 +27,88 @@ export function isTerminal(status: LedgerStatus): boolean {
   return TERMINAL.has(status);
 }
 
-// A terminal entry closes a dispatched one by task id, or, when it has no task id, by plan, unit, role, round, and attempt.
-// Without a task id or a unit on both entries, nothing identifies the dispatch, so the entry closes nothing.
+const identity = (entry: LedgerEntry) => JSON.stringify([entry.plan, entry.unit, entry.role, entry.round ?? 1, entry.attempt ?? 1]);
+
+// A terminal entry T closes a dispatched entry D by these rules, in order:
+// 1. When both have a clientRequestId, only an equal one closes.
+// 2. Otherwise, when T has a taskId, only an equal taskId closes.
+// 3. Otherwise, both need a unit, and plan, unit, role, round, and attempt must match.
+// `closedBy` indexes the same rules, so `closes` and `ledgerStats` always agree.
 export function closes(terminal: LedgerEntry, dispatched: LedgerEntry): boolean {
   if (!TERMINAL.has(terminal.status) || dispatched.status !== "dispatched") return false;
+  if (terminal.clientRequestId !== undefined && dispatched.clientRequestId !== undefined) {
+    return terminal.clientRequestId === dispatched.clientRequestId;
+  }
   if (terminal.taskId !== undefined) return terminal.taskId === dispatched.taskId;
   if (terminal.unit === undefined || dispatched.unit === undefined) return false;
-  return (
-    terminal.plan === dispatched.plan &&
-    terminal.unit === dispatched.unit &&
-    terminal.role === dispatched.role &&
-    (terminal.round ?? 1) === (dispatched.round ?? 1) &&
-    (terminal.attempt ?? 1) === (dispatched.attempt ?? 1)
-  );
+  return identity(terminal) === identity(dispatched);
+}
+
+export function closedBy(entries: LedgerEntry[]): (dispatched: LedgerEntry) => boolean {
+  const requests = new Set<string>();
+  const tasksWithoutRequest = new Set<string>();
+  const tasksWithRequest = new Set<string>();
+  const identitiesWithoutRequest = new Set<string>();
+  const identitiesWithRequest = new Set<string>();
+  for (const entry of entries) {
+    if (!TERMINAL.has(entry.status)) continue;
+    const hasRequest = entry.clientRequestId !== undefined;
+    if (entry.clientRequestId !== undefined) requests.add(entry.clientRequestId);
+    if (entry.taskId !== undefined) (hasRequest ? tasksWithRequest : tasksWithoutRequest).add(entry.taskId);
+    else if (entry.unit !== undefined) (hasRequest ? identitiesWithRequest : identitiesWithoutRequest).add(identity(entry));
+  }
+  return (dispatched) => {
+    if (dispatched.status !== "dispatched") return false;
+    const hasRequest = dispatched.clientRequestId !== undefined;
+    if (dispatched.clientRequestId !== undefined && requests.has(dispatched.clientRequestId)) return true;
+    if (dispatched.taskId !== undefined && (tasksWithoutRequest.has(dispatched.taskId) || (!hasRequest && tasksWithRequest.has(dispatched.taskId)))) {
+      return true;
+    }
+    if (dispatched.unit === undefined) return false;
+    const key = identity(dispatched);
+    return identitiesWithoutRequest.has(key) || (!hasRequest && identitiesWithRequest.has(key));
+  };
+}
+
+// The dispatched entries that no terminal entry closes, in file order.
+export function openStarts(entries: LedgerEntry[], plan?: string): LedgerEntry[] {
+  const selected = plan === undefined ? entries : entries.filter((entry) => entry.plan === plan);
+  const closed = closedBy(selected);
+  return selected.filter((entry) => entry.status === "dispatched" && !closed(entry));
+}
+
+const LOCK_WAIT_MS = 5_000;
+const LOCK_STALE_MS = 30_000;
+
+// Serializes the read, check, and append of one dispatch, so two briefs cannot both take the last slot.
+export async function withLedgerLock<T>(ledger: string, now: () => number, fn: () => Promise<T>): Promise<T> {
+  const lock = join(dirname(ledger), "locks", "ledger.lock");
+  await ensureDir(dirname(lock));
+  const deadline = now() + LOCK_WAIT_MS;
+  for (;;) {
+    try {
+      const handle = await open(lock, "wx");
+      await handle.writeFile(`${process.pid} ${new Date(now()).toISOString()}\n`);
+      await handle.close();
+      break;
+    } catch (error) {
+      if (errorCode(error) !== "EEXIST") throw error;
+      const info = await stat(lock).catch(() => undefined);
+      if (info !== undefined && now() - info.mtimeMs > LOCK_STALE_MS) {
+        await unlink(lock).catch(() => undefined);
+        continue;
+      }
+      if (now() >= deadline) {
+        throw new OmtError("ledger_busy", `the ledger lock ${lock} is held`, { hint: "run the command again in a moment", exitCode: 75 });
+      }
+      await new Promise((done) => setTimeout(done, 25));
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    await unlink(lock).catch(() => undefined);
+  }
 }
 
 export interface LedgerRead {
@@ -62,7 +133,7 @@ function isEntry(value: unknown): value is LedgerEntry {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
   if (typeof record.ts !== "string" || typeof record.role !== "string" || !isLedgerStatus(record.status)) return false;
-  for (const key of ["plan", "unit", "taskId", "clientRequestId", "model", "verdict", "note"]) {
+  for (const key of ["plan", "unit", "taskId", "clientRequestId", "model", "verdict", "note", "targetKey"]) {
     if (record[key] !== undefined && typeof record[key] !== "string") return false;
   }
   for (const key of ["round", "attempt"]) {
@@ -103,17 +174,8 @@ export function ledgerStats(
   const terminalEntries = selected.filter((entry) => TERMINAL.has(entry.status));
   const dispatched = dispatchedEntries.length;
   const terminal = terminalEntries.length;
-  const taskIds = new Set<string>();
-  const identities = new Set<string>();
-  const identity = (entry: LedgerEntry) => JSON.stringify([entry.plan, entry.unit, entry.role, entry.round ?? 1, entry.attempt ?? 1]);
-  for (const entry of terminalEntries) {
-    if (entry.taskId !== undefined) taskIds.add(entry.taskId);
-    else if (entry.unit !== undefined) identities.add(identity(entry));
-  }
-  const active = dispatchedEntries.filter((entry) =>
-    !(entry.taskId !== undefined && taskIds.has(entry.taskId)) &&
-    !(entry.unit !== undefined && identities.has(identity(entry))),
-  ).length;
+  const closed = closedBy(terminalEntries);
+  const active = dispatchedEntries.filter((entry) => !closed(entry)).length;
   const stats: LedgerStats = {
     dispatched,
     active,

@@ -45,7 +45,7 @@ test("brief prints the rendered brief with every given section", async () => {
 test("brief --json holds exactly the delegate_task fields, without clientRequestId by default", async () => {
   const { ctx } = await makeProject().runOk(["brief", "review", "--task", "Check the diff.", "--json"]);
   const output = parse(ctx.out());
-  assert.deepEqual(Object.keys(output), ["delegateTask", "fallbacks"]);
+  assert.deepEqual(Object.keys(output), ["delegateTask", "fallbacks", "targetKey"]);
   assert.deepEqual(Object.keys(output.delegateTask).sort(), [...DELEGATE_TASK_FIELDS].sort());
   assert.equal(output.delegateTask.mode, "async");
   assert.equal(output.delegateTask.role, "review");
@@ -195,7 +195,7 @@ test("brief --json --against puts the other family first and prints the notes to
   const project = makeProject();
   const codex = await project.runOk(["brief", "review", "--task", "Check U1.", "--against", "codex", "--json"]);
   const output = parse(codex.ctx.out());
-  assert.deepEqual(Object.keys(output), ["delegateTask", "fallbacks"]);
+  assert.deepEqual(Object.keys(output), ["delegateTask", "fallbacks", "targetKey"]);
   assert.deepEqual(output.delegateTask.target, { providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "medium" } });
   assert.deepEqual(output.fallbacks, [{ providerInstanceId: "codex", model: "gpt-6-astra", options: { reasoningEffort: "medium" } }]);
   assert.equal(codex.ctx.err(), "note: cross-family: worker family codex; other families first\n");
