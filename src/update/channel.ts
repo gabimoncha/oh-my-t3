@@ -56,6 +56,7 @@ export interface RunSwitch extends PackageSwitch {
   removeFirst: boolean;
   remove: Command;
   restore: Command;
+  removeNew: Command; // a remove-first switch undoes a broken new install with it before the restore
 }
 
 export type UpdateAction =
@@ -400,17 +401,17 @@ function runAction(channel: Channel, version: string, packageName: string = chan
   }
 }
 
-// The commands that remove the old package from a global channel.
-function removeAction(channel: Channel): Command | undefined {
+// The command that removes a package from a global channel.
+function removeAction(channel: Channel, name: string = LEGACY_PACKAGE): Command | undefined {
   switch (channel.kind) {
     case "npm-global":
-      return { argv: ["npm", "uninstall", "-g", LEGACY_PACKAGE], display: `npm uninstall -g ${LEGACY_PACKAGE}` };
+      return { argv: ["npm", "uninstall", "-g", name], display: `npm uninstall -g ${name}` };
     case "pnpm-global":
-      return { argv: ["pnpm", "remove", "-g", LEGACY_PACKAGE], display: `pnpm remove -g ${LEGACY_PACKAGE}` };
+      return { argv: ["pnpm", "remove", "-g", name], display: `pnpm remove -g ${name}` };
     case "bun-global":
-      return { argv: ["bun", "remove", "-g", LEGACY_PACKAGE], display: `bun remove -g ${LEGACY_PACKAGE}` };
+      return { argv: ["bun", "remove", "-g", name], display: `bun remove -g ${name}` };
     case "mise-npm": {
-      const tool = `npm:${LEGACY_PACKAGE}`;
+      const tool = `npm:${name}`;
       return { argv: ["mise", "unuse", "-g", tool], display: `mise unuse -g ${tool} (removes ${tool} from your global mise config)` };
     }
     default:
@@ -431,11 +432,12 @@ const DEV_REMOVE_FIRST: ReadonlySet<NonNullable<Channel["packageManager"]>> = ne
 
 function runSwitch(channel: Channel, install: Command, current: string): RunSwitch | undefined {
   const remove = removeAction(channel);
+  const removeNew = removeAction(channel, PACKAGE_NAME);
   const restore = runAction(channel, current, LEGACY_PACKAGE);
-  if (channel.packageName !== LEGACY_PACKAGE || remove === undefined || restore === undefined) return undefined;
+  if (channel.packageName !== LEGACY_PACKAGE || remove === undefined || removeNew === undefined || restore === undefined) return undefined;
   const removeFirst = REMOVE_FIRST.has(channel.kind);
   const commands = removeFirst ? [remove.display, install.display] : [install.display, remove.display];
-  return { from: LEGACY_PACKAGE, to: PACKAGE_NAME, commands, removeFirst, remove, restore };
+  return { from: LEGACY_PACKAGE, to: PACKAGE_NAME, commands, removeFirst, remove, restore, removeNew };
 }
 
 function devSwitch(channel: Channel, version: string): PackageSwitch | undefined {

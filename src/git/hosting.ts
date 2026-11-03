@@ -55,6 +55,49 @@ export function openPrs(ctx: ToolContext, remote: RemoteRepo, branch: string): H
   return { ok: true, value: prs };
 }
 
+export interface PrView {
+  number: number;
+  url: string;
+  author: string;
+  state: string;
+  headRefName: string;
+  headOwner: string;
+  headRepo: string;
+  crossRepository: boolean;
+  baseRefName: string;
+}
+
+// One PR by number, with its head repository, so a caller can refuse a PR from a fork.
+export function viewPr(ctx: ToolContext, remote: RemoteRepo, number: number): HostResult<PrView> {
+  const result = runTool(ctx, "gh", [
+    "pr", "view", String(number), "--repo", repoArg(remote),
+    "--json", "number,url,author,state,headRefName,headRepositoryOwner,headRepository,isCrossRepository,baseRefName",
+  ]);
+  if (!ok(result)) return { ok: false, reason: `cannot read PR #${number}: ${firstLine(result)}` };
+  let raw: Record<string, unknown>;
+  try {
+    raw = JSON.parse(result.stdout) as Record<string, unknown>;
+  } catch {
+    return { ok: false, reason: `cannot read PR #${number}: gh printed no JSON` };
+  }
+  const login = (value: unknown) => (typeof value === "object" && value !== null && typeof (value as { login?: unknown }).login === "string" ? (value as { login: string }).login : "");
+  const name = (value: unknown) => (typeof value === "object" && value !== null && typeof (value as { name?: unknown }).name === "string" ? (value as { name: string }).name : "");
+  return {
+    ok: true,
+    value: {
+      number,
+      url: typeof raw.url === "string" ? raw.url : "",
+      author: login(raw.author),
+      state: typeof raw.state === "string" ? raw.state : "",
+      headRefName: typeof raw.headRefName === "string" ? raw.headRefName : "",
+      headOwner: login(raw.headRepositoryOwner),
+      headRepo: name(raw.headRepository),
+      crossRepository: raw.isCrossRepository === true,
+      baseRefName: typeof raw.baseRefName === "string" ? raw.baseRefName : "",
+    },
+  };
+}
+
 // The author to pass as `--pr-author`: an author that is not the user, else the user.
 export function prAuthorOf(prs: OpenPr[], user: string | undefined): string | undefined {
   if (prs.length === 0) return undefined;

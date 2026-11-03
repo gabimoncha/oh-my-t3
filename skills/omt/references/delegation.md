@@ -8,11 +8,11 @@ On git actions, reply style, tests, and model choice, the user's own instruction
 
 ## The CLI
 
-Use the first one that exists: `omt` on `PATH`, `.omt/bin/omt` in the project root, or, in a linked worktree, `"$(git rev-parse --path-format=absolute --git-common-dir)/../.omt/bin/omt"`. The skills need the CLI. When none exists, follow the [agent quick start](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/agents/quickstart.md) and stop. `omt help <command>` prints the flags of each command.
+Use the first one that exists: `omt` on `PATH`, `.omt/bin/omt` in the project root, or, in a linked worktree, `"$(git rev-parse --path-format=absolute --git-common-dir)/../.omt/bin/omt"`. When none exists, follow the [agent quick start](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/agents/quickstart.md) and stop. `omt help <command>` prints the flags of each command.
 
 ## What a child is
 
-- A child gets only its task text. It does not see your conversation, so the brief is its full context ([brief.md](brief.md)).
+- A child gets only its task text, so the brief is its full context ([brief.md](brief.md)).
 - A child works in your checkout. Run editing children in parallel only when their scopes are disjoint.
 - A child may keep or narrow your modes, never widen them. From a `plan` thread you can dispatch only children in `plan` interaction mode.
 - Children never commit, push, or create branches.
@@ -88,7 +88,7 @@ The `workflow.git` policy is the owner's standing approval for each action that 
 Each command prints one first word:
 
 - `committed`, `created`, or `updated`: done. Report the hash or the URL.
-- `ask: <reason>`: ask the owner and wait. After the owner's yes in this run, run the same command with `--yes`. A rule in the user's own instruction file counts as a yes only when the reason names a `workflow.git` key. `--yes` never covers a path problem; for a path that had changes before the run, the owner's yes means `--include <path>`.
+- `ask: <reason>`: ask the owner and wait. After the owner's yes in this run, run the same command with `--yes`. A rule in the user's own instruction file counts as a yes only when the reason starts with `workflow.git.`, which marks a policy decision; never for an ownership reason. `--yes` never covers a path problem; for a path that had changes before the run, the owner's yes means `--include <path>`.
 - `off: <reason>`: the policy turns the action off. Do not act, and say so in the report.
 - `split: <reason>`: the PR has more files than `maxPrFiles`. Cut the branch into slices between existing commits, with code and tests low and docs on top. Run the tests at each cut. Then run `omt git stack <sha>,<sha>...` with the last commit of each lower slice, bottom first, and the same flags as `omt git pr`.
 

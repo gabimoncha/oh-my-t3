@@ -7,7 +7,7 @@ import type { Action } from "../git/policy.ts";
 import { pr, stack } from "../git/pr.ts";
 import { readCheckout, readStart, runIdFrom, writeStart } from "../git/start.ts";
 import type { CliContext, CommandRun } from "../types.ts";
-import { checkPositionals, parseArgs } from "../util/args.ts";
+import { checkPositionals, parseArgs, positiveInt } from "../util/args.ts";
 import { usageError } from "../util/errors.ts";
 import { checkPlanSlug } from "../util/ids.ts";
 import { formatJson } from "../util/output.ts";
@@ -22,6 +22,7 @@ export const usage = `Usage: omt git check <commit|push|pr|merge> [--user <login
                       [--path <path>]... [--include <path>]... [--yes]
        omt git pr --title <text> --body-file <file> (--plan <slug> | --run <id>)
                   [--profile <name>] [--base <branch>] [--ready] [--yes] [--force-with-lease]
+       omt git pr --pr <number> (--plan <slug> | --run <id>) [--profile <name>] [--yes]
        omt git stack <sha>,<sha>... --title <text> --body-file <file> (--plan <slug> | --run <id>)
                      [--profile <name>] [--base <branch>] [--ready] [--yes]
 
@@ -82,6 +83,10 @@ Options:
   --base <branch>      with pr and stack: the base branch (default: the open
                        PR's base, else the default branch)
   --ready              with pr and stack: open ready PRs, not drafts
+  --pr <number>        with pr: the open PR that the push must update, such as
+                       the PR under review; asks when it comes from a fork, is on
+                       another branch, or is by another author, and never
+                       creates a PR
   --force-with-lease   with pr: push with --force-with-lease; only after the
                        owner's yes for a force push
   --json               with check: print JSON
@@ -195,17 +200,19 @@ export const run: CommandRun = async (ctx) => {
     });
   }
   if (subcommand === "pr") {
-    const { values } = parseArgs(argv, { ...PR_OPTIONS, "force-with-lease": { type: "boolean" } }, { maxPositionals: 0 });
+    const { values } = parseArgs(argv, { ...PR_OPTIONS, "force-with-lease": { type: "boolean" }, pr: { type: "string" } }, { maxPositionals: 0 });
     runIdFrom(values);
+    const prNumber = values.pr === undefined ? undefined : positiveInt("pr", values.pr);
     return pr(ctx, {
-      title: required(values.title, "title", "pr"),
-      bodyFile: required(values["body-file"], "body-file", "pr"),
+      title: prNumber === undefined ? required(values.title, "title", "pr") : values.title ?? "",
+      bodyFile: prNumber === undefined ? required(values["body-file"], "body-file", "pr") : values["body-file"] ?? "",
       profile: values.profile,
       plan: values.plan,
       base: values.base,
       ready: values.ready === true,
       yes: values.yes === true,
       forceWithLease: values["force-with-lease"] === true,
+      prNumber,
     });
   }
   const { values, positionals } = parseArgs(argv, PR_OPTIONS, { maxPositionals: 1 });

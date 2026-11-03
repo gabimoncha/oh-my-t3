@@ -1,4 +1,5 @@
-import { open, stat, unlink } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { open, readFile, stat, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { LedgerEntry, LedgerStats, LedgerStatus, Limits } from "../types.ts";
 import { OmtError } from "../util/errors.ts";
@@ -80,21 +81,39 @@ export function openStarts(entries: LedgerEntry[], plan?: string): LedgerEntry[]
 const LOCK_WAIT_MS = 5_000;
 const LOCK_STALE_MS = 30_000;
 
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return errorCode(error) === "EPERM";
+  }
+}
+
+async function readOwner(lock: string): Promise<{ pid: number; token: string } | undefined> {
+  const text = await readFile(lock, "utf8").catch(() => undefined);
+  const [pid, token] = (text ?? "").trim().split(" ");
+  return pid === undefined || token === undefined || !/^\d+$/.test(pid) ? undefined : { pid: Number(pid), token };
+}
+
 // Serializes the read, check, and append of one dispatch, so two briefs cannot both take the last slot.
-export async function withLedgerLock<T>(ledger: string, now: () => number, fn: () => Promise<T>): Promise<T> {
+// A lock counts as stale only when it is old and its process is gone, and an owner removes only its own lock.
+export async function withLedgerLock<T>(ledger: string, fn: () => Promise<T>, now: () => number = Date.now): Promise<T> {
   const lock = join(dirname(ledger), "locks", "ledger.lock");
   await ensureDir(dirname(lock));
+  const token = randomUUID();
   const deadline = now() + LOCK_WAIT_MS;
   for (;;) {
     try {
       const handle = await open(lock, "wx");
-      await handle.writeFile(`${process.pid} ${new Date(now()).toISOString()}\n`);
+      await handle.writeFile(`${process.pid} ${token}\n`);
       await handle.close();
       break;
     } catch (error) {
       if (errorCode(error) !== "EEXIST") throw error;
       const info = await stat(lock).catch(() => undefined);
-      if (info !== undefined && now() - info.mtimeMs > LOCK_STALE_MS) {
+      const owner = await readOwner(lock);
+      if (info !== undefined && now() - info.mtimeMs > LOCK_STALE_MS && (owner === undefined || !processAlive(owner.pid))) {
         await unlink(lock).catch(() => undefined);
         continue;
       }
@@ -107,7 +126,7 @@ export async function withLedgerLock<T>(ledger: string, now: () => number, fn: (
   try {
     return await fn();
   } finally {
-    await unlink(lock).catch(() => undefined);
+    if ((await readOwner(lock))?.token === token) await unlink(lock).catch(() => undefined);
   }
 }
 

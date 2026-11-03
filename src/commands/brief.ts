@@ -294,8 +294,7 @@ export const run: CommandRun = async (ctx) => {
   const plan = values.plan as string;
   const unit = values.unit as string;
   const ledger = ledgerPath(projectRoot);
-  const now = () => ctx.now().getTime();
-  const output = await withLedgerLock(ledger, now, async () => {
+  const output = await withLedgerLock(ledger, async () => {
     const { entries } = await readLedger(ledger);
     const open = openStarts(entries, plan);
     if (!fallback) {
@@ -304,6 +303,12 @@ export const run: CommandRun = async (ctx) => {
       if (resent !== undefined) {
         const chosen = list.find((candidate) => candidate.key === resent.targetKey) ?? (list[0] as Candidate);
         return emit(chosen, attempt, true);
+      }
+      // T3 returns the earlier task for a reused clientRequestId, so a closed id cannot start new work.
+      if (entries.some((entry) => entry.status === "dispatched" && entry.clientRequestId === id)) {
+        throw new OmtError("request_closed", `${id} already ran and is closed`, {
+          hint: "pass --attempt <n+1> to run the same round again, or the next --round for a new round",
+        });
       }
     }
     const same = (entry: LedgerEntry) =>

@@ -13,7 +13,7 @@ Every role ends with a fixed result block, the last thing in `task_status.summar
 
 ## A claim is not evidence
 
-A worker's `DONE` is a claim until you or a `qa` task check it. A small model has reported a file's line count without running any tool, and the count was wrong. For every `DONE`:
+A worker's `DONE` is a claim until you or a `qa` task check it. For every `DONE`:
 
 1. Check that each path under `CHANGES` changed: `git status --porcelain -- <scope paths>` lists it, and `git diff HEAD -- <scope paths>` shows the edits. Read each new file in full.
 2. Check that no file outside the scopes changed: `git status --porcelain -- . ':(exclude).omt'`.

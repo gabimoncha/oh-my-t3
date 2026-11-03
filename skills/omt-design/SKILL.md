@@ -1,6 +1,6 @@
 ---
 name: omt-design
-description: Design pass in T3 Code. Use when the user asks for designs, mockups, screens, UX, or a design pass, or when an omt-plan or omt-ulw run has a requested design pass before its UI units. Draws variants itself or with one routed design child, lets the owner pick and steer by screenshots until they approve, writes a design spec that UI units cite, and can build the screens.
+description: Design pass in T3 Code. Use when the user asks for designs, mockups, screens, UX, or a design pass, or when an omt-plan or omt-ulw run has a requested design pass before its UI units. Draws variants, lets the owner pick and steer by screenshots until they approve, and writes a design spec that UI units cite.
 ---
 
 # Design
@@ -19,7 +19,7 @@ Done when: you run in `default` mode and you know the drawer, or the user has th
 
 ### 1. Frame and slug
 
-Write down the goal, the users, the platform, the screens and flows, the constraints, and the existing brand, from the code and assets that set the look. Ask the owner only what you cannot find, in one batch, with 2 to 4 options and your recommendation each.
+Write down the goal, the users, the platform, the screens and flows, the constraints, and the existing brand, from the code and assets. Ask the owner only what you cannot find, in one batch, with options and your recommendation.
 
 Pick a slug that matches `^[a-z0-9][a-z0-9-]{0,63}$`. The design files go under `docs/design/<slug>/`, and the spec is `docs/design/<slug>.md`. The ledger plan is the plan slug when `omt-plan` or `omt-ulw` called this skill, else `design-<slug>`.
 
@@ -27,7 +27,7 @@ Done when: the frame and the slug are in your reply.
 
 ### 2. Draw the variants
 
-When this skill runs alone, run `omt git start --run design-<slug>` before the first file.
+When this skill runs alone, run `omt git start --run <slug>` before the first file. Step 7 builds under the plan `<slug>`, so the same start record covers the design files.
 
 Draw `workflow.design.variants` distinct variants of each screen, or the count that the owner asked for. Each variant has its empty, loading, and error states. Use the tool that `workflow.design.tool` names:
 

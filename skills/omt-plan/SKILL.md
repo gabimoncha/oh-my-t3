@@ -5,7 +5,7 @@ description: Plan before code in T3 Code. Use when the user asks for a plan, a s
 
 # Plan
 
-You write a plan that the main thread can build from without another owner decision, and you get it reviewed. You plan only, also when `omt-ulw` calls this skill. You change no code in this skill.
+You write a plan that the main thread can build from without another owner decision, and you get it reviewed. You plan only, also when `omt-ulw` calls this skill, and change no code.
 
 You explore, ask, and write the plan yourself. Children only explore (`explore`) and review the plan (`plan-review`). Dispatch each child by [Dispatching a child](../omt/references/delegation.md#dispatching-a-child), and wait by [Waiting](../omt/references/delegation.md#waiting). End your turn for the owner only for a batch of questions, a plan approval, or the hand-off. Read only the part of a child's result that your next action needs.
 
@@ -76,7 +76,7 @@ Done when: `omt plan status <slug>` lists every unit, each unit has all five fie
 
 ### 4. Plan review
 
-Read `workflow.plan.review` from `omt profile show --plan <slug> --json`:
+Read `workflow.plan.review` from `omt profile show --plan <slug> --json`, or in `plan` mode, with no plan file, from `omt profile show [<name>] --json`:
 
 - `owner`: ask the owner to approve the plan and its `## Tests` list. Dispatch no child. After the approval, go to step 5.
 - `two-families`: 1 `plan-review` child, briefed with `--against <your family> --strict`. When the brief exits 1, stop and tell the user that no reviewer from the other family can run.

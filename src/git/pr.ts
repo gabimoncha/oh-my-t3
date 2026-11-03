@@ -6,9 +6,9 @@ import { firstLine, git, ok, runTool, trimEnd } from "./exec.ts";
 import type { ToolResult } from "./exec.ts";
 import { gate } from "./gate.ts";
 import type { Gate } from "./gate.ts";
-import { openPrs, prAuthorOf, repoArg } from "./hosting.ts";
+import { openPrs, prAuthorOf, repoArg, viewPr } from "./hosting.ts";
 import type { OpenPr } from "./hosting.ts";
-import { decide, maxPrFilesOf } from "./policy.ts";
+import { decide, maxPrFilesOf, sameName } from "./policy.ts";
 import { readCheckout } from "./start.ts";
 
 export interface PrOptions {
@@ -19,6 +19,7 @@ export interface PrOptions {
   base: string | undefined;
   ready: boolean;
   yes: boolean;
+  prNumber?: number | undefined; // pr only: the PR that this push must update; omt then never creates one
 }
 
 interface Body {
@@ -35,7 +36,7 @@ async function readBody(ctx: CliContext, file: string): Promise<Body> {
 
 function rejected(result: ToolResult): string | undefined {
   const text = `${result.stderr}\n${result.stdout}`;
-  if (!/\[rejected\]|\[remote rejected\]|non-fast-forward|fetch first|stale info/i.test(text)) return undefined;
+  if (!/\[rejected\]|\[remote rejected\]|non-fast-forward|fetch first|stale info|atomic push failed/i.test(text)) return undefined;
   return text.split(/\r?\n/).map((line) => line.trim()).find((line) => /rejected/i.test(line)) ?? firstLine(result);
 }
 
@@ -61,6 +62,7 @@ interface Ready {
   remote: NonNullable<Gate["remote"]>;
   branch: string;
   base: string;
+  target: { url: string } | undefined; // the open PR that a push updates
 }
 
 // The checks that `pr` and `stack` share: policy, origin, and base.
@@ -71,10 +73,29 @@ async function prepare(ctx: CliContext, options: PrOptions): Promise<Ready | str
   const { remote, state } = policy;
   if (remote === undefined) return "ask: omt cannot read the owner from the origin remote URL\n";
   if (state.branch === undefined) return "ask: HEAD is detached\n";
-  const base = options.base ?? policy.prs[0]?.baseRefName ?? state.defaultBranch;
+  let target: Ready["target"] = policy.prs[0];
+  let prBase = policy.prs[0]?.baseRefName;
+  if (options.prNumber !== undefined) {
+    const n = options.prNumber;
+    const view = viewPr(ctx, remote, n);
+    if (!view.ok) return `ask: ${view.reason}\n`;
+    const named = view.value;
+    if (named.state !== "OPEN") return `ask: PR #${n} is not open\n`;
+    if (named.crossRepository || !sameName(named.headOwner, remote.owner)) {
+      return `ask: PR #${n} comes from ${named.headOwner}/${named.headRepo}, not ${remote.owner}/${remote.repo}; omt pushes only to origin\n`;
+    }
+    if (named.headRefName !== state.branch) return `ask: PR #${n} is on the branch ${named.headRefName}, and this checkout is on ${state.branch}\n`;
+    if (!options.yes && (policy.user === undefined || !sameName(named.author, policy.user))) return `ask: PR #${n} is by ${named.author}, not by you\n`;
+    target = named;
+    prBase = named.baseRefName;
+  }
+  if (prBase !== undefined && options.base !== undefined && prBase !== options.base) {
+    return `ask: the open PR targets ${prBase}, not ${options.base}; leave out --base, or change the PR's base first\n`;
+  }
+  const base = prBase ?? options.base ?? state.defaultBranch;
   if (base === undefined || base === "") return "ask: no base branch\n";
   if (base === state.branch) return `ask: the base ${base} is the branch itself\n`;
-  return { gate: policy, remote, branch: state.branch, base };
+  return { gate: policy, remote, branch: state.branch, base, target };
 }
 
 // Fetches the base, so that `refs/remotes/origin/<base>` is current. Returns an error line or undefined.
@@ -90,7 +111,7 @@ function changedFiles(ctx: CliContext, args: string[]): number | string {
 }
 
 export async function pr(ctx: CliContext, options: PrOptions & { forceWithLease: boolean }): Promise<number> {
-  const body = await readBody(ctx, options.bodyFile);
+  const body = options.prNumber === undefined ? await readBody(ctx, options.bodyFile) : { args: [], input: undefined };
   const ready = await prepare(ctx, options);
   if (typeof ready === "string") {
     ctx.stdout(ready);
@@ -115,9 +136,8 @@ export async function pr(ctx: CliContext, options: PrOptions & { forceWithLease:
     ctx.stdout(refused);
     return 0;
   }
-  const open = ready.gate.prs[0];
-  if (open !== undefined) {
-    ctx.stdout(`updated ${open.url}\n`);
+  if (ready.target !== undefined) {
+    ctx.stdout(`updated ${ready.target.url}\n`);
     return 0;
   }
   const url = createPr(ctx, [
@@ -221,10 +241,9 @@ export async function stack(ctx: CliContext, cuts: string[], options: PrOptions)
 
   for (const slice of lower) {
     if (commitOf(`refs/heads/${slice.name}`) === undefined) git(ctx, ["branch", slice.name, slice.to]);
-    const refused = push(ctx, ["origin", `${slice.name}:${slice.name}`]);
-    if (refused !== undefined) return stop(refused);
   }
-  const refused = push(ctx, ["origin", `HEAD:${branch}`]);
+  // One atomic push, so that a rejected ref publishes no slice.
+  const refused = push(ctx, ["--atomic", "origin", ...lower.map((slice) => `${slice.name}:${slice.name}`), `HEAD:${branch}`]);
   if (refused !== undefined) return stop(refused);
 
   const draft = options.ready ? [] : ["--draft"];

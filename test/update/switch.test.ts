@@ -12,7 +12,8 @@ const LATEST = "0.2.0";
 const OPTIONS: UpdateOptions = { check: false, dryRun: false, yes: true, skillsOnly: false, project: false, json: true };
 
 // One fake package manager for npm, pnpm, Bun, and mise. It logs each call, keeps the global packages as
-// folders under FAKE_ROOT, and fails the install of each package named in FAKE_FAIL.
+// folders under FAKE_ROOT, fails the install of each package named in FAKE_FAIL, and installs a CLI that
+// does not start for each package named in FAKE_BROKEN.
 const FAKE_PM = `#!/bin/sh
 tool=$(basename "$0")
 echo "$tool $*" >> "$FAKE_LOG"
@@ -20,6 +21,7 @@ place() {
   mkdir -p "$1/dist"
   printf '{"name":"%s","version":"%s"}\\n' "$2" "$3" > "$1/package.json"
   cp "$FAKE_CLI" "$1/dist/cli.js"
+  for broken in $FAKE_BROKEN; do [ "$broken" = "$2" ] && echo "process.exit(1);" > "$1/dist/cli.js"; done
 }
 fails() {
   for failing in $FAKE_FAIL; do [ "$failing" = "$1" ] && exit 1; done
@@ -176,6 +178,19 @@ test("npm: a failed install of oh-my-t3 reinstalls oh-my-t3code", async () => {
   const s = fixture("npm", "oh-my-t3code", { FAKE_FAIL: "oh-my-t3" });
   await assert.rejects(s.update(), /npm install -g oh-my-t3@0\.2\.0 exited 1; omt reinstalled oh-my-t3code with npm install -g oh-my-t3code@0\.1\.0/);
   assert.deepEqual(s.calls(), ["npm uninstall -g oh-my-t3code", `npm install -g oh-my-t3@${LATEST}`, `npm install -g oh-my-t3code@${CURRENT}`]);
+  assert.equal(version(s.folder("oh-my-t3code")), CURRENT);
+  assert.equal(existsSync(s.folder("oh-my-t3")), false);
+});
+
+test("npm: a new CLI that does not start is removed, and oh-my-t3code is reinstalled", async () => {
+  const s = fixture("npm", "oh-my-t3code", { FAKE_BROKEN: "oh-my-t3" });
+  await assert.rejects(s.update(), /the new omt prints nothing; omt reinstalled oh-my-t3code with npm install -g oh-my-t3code@0\.1\.0/);
+  assert.deepEqual(s.calls(), [
+    "npm uninstall -g oh-my-t3code",
+    `npm install -g oh-my-t3@${LATEST}`,
+    "npm uninstall -g oh-my-t3",
+    `npm install -g oh-my-t3code@${CURRENT}`,
+  ]);
   assert.equal(version(s.folder("oh-my-t3code")), CURRENT);
   assert.equal(existsSync(s.folder("oh-my-t3")), false);
 });

@@ -109,7 +109,7 @@ test("git stack pushes two valid slices and opens chained draft PRs", () => {
     "note: gh stack is not installed; the PRs have chained bases only",
     "",
   ].join("\n"));
-  assert.deepEqual(b.pushLog(), ["push origin feat/x-1:feat/x-1", "push origin HEAD:feat/x"]);
+  assert.deepEqual(b.pushLog(), ["push --atomic origin feat/x-1:feat/x-1 HEAD:feat/x"]);
   assert.equal(b.git(["rev-parse", "feat/x-1"]).trim(), cut);
   const [lower, top] = b.creates();
   assert.match(lower ?? "", /--base main --head feat\/x-1 --title Add files \(1\/2\) --body-file - --draft$/);
@@ -146,4 +146,48 @@ test("git stack asks when the cuts are out of order or a slice branch exists els
   b.flag("ls-remote", `${second}\trefs/heads/feat/x-1\n`);
   assert.equal(stack(first), "ask: feat/x-1 exists on origin at another commit\n");
   assert.deepEqual(b.pushLog(), []);
+});
+
+test("git stack sends every slice in one atomic push, so a rejected ref publishes nothing", () => {
+  const b = branch([["one.txt"], ["two.txt"]]);
+  b.flag("reject-push");
+  const [cut] = b.shas;
+  const out = b.ok(["stack", cut as string, "--title", "Add files", "--body-file", b.bodyPath, "--run", "r1"]);
+  assert.match(out, /^ask: the push was rejected: /);
+  assert.deepEqual(b.pushLog(), ["push --atomic origin feat/x-1:feat/x-1 HEAD:feat/x"]);
+  assert.deepEqual(b.creates(), []);
+});
+
+test("git pr asks when --base differs from the base of the open PR, and pushes nothing", () => {
+  const b = branch();
+  b.prs("feat/x", [openPr(7, "alice", "feat/x", "main")]);
+  assert.equal(b.pr("--base", "alt"), "ask: the open PR targets main, not alt; leave out --base, or change the PR's base first\n");
+  assert.deepEqual(b.pushLog(), []);
+});
+
+test("git pr --pr updates the named PR of the user and never creates one", () => {
+  const b = branch();
+  b.flag("pr-7.json", JSON.stringify({
+    number: 7, url: "https://github.com/alice/app/pull/7", author: { login: "alice" }, state: "OPEN",
+    headRefName: "feat/x", headRepositoryOwner: { login: "alice" }, headRepository: { name: "app" }, isCrossRepository: false, baseRefName: "main",
+  }));
+  assert.equal(b.ok(["pr", "--pr", "7", "--run", "r1"]), "updated https://github.com/alice/app/pull/7\n");
+  assert.deepEqual(b.pushLog(), ["push origin HEAD:feat/x"]);
+  assert.deepEqual(b.creates(), []);
+});
+
+test("git pr --pr asks for a fork PR, a PR on another branch, and another author's PR, and pushes nothing", () => {
+  const b = branch();
+  const view = (fields: Record<string, unknown>) => b.flag("pr-8.json", JSON.stringify({
+    number: 8, url: "https://github.com/alice/app/pull/8", author: { login: "alice" }, state: "OPEN", headRefName: "feat/x",
+    headRepositoryOwner: { login: "alice" }, headRepository: { name: "app" }, isCrossRepository: false, baseRefName: "main", ...fields,
+  }));
+  view({ author: { login: "bob" }, headRepositoryOwner: { login: "bob" }, isCrossRepository: true });
+  assert.equal(b.pr("--pr", "8"), "ask: PR #8 comes from bob/app, not alice/app; omt pushes only to origin\n");
+  view({ headRefName: "feat/other" });
+  assert.equal(b.pr("--pr", "8"), "ask: PR #8 is on the branch feat/other, and this checkout is on feat/x\n");
+  view({ author: { login: "bob" } });
+  assert.equal(b.pr("--pr", "8"), "ask: PR #8 is by bob, not by you\n");
+  assert.deepEqual(b.pushLog(), []);
+  assert.deepEqual(b.creates(), []);
 });

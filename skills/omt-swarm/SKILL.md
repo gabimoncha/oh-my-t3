@@ -71,7 +71,7 @@ The launch message is a plain task, not an `omt brief`:
 4. Report what changed, each check with its exit code and log path, and the commit hash.
 5. End with one line: `TRACK <track>: DONE <commit hash>` or `TRACK <track>: BLOCKED <reason>`.
 
-From `git worktree list --porcelain`, keep the path of each branch as `<track worktree>`. Record each launch as `dispatched`, with the `threadId` as the note. When a launch fails or its response is lost, launch again with the same `clientRequestId` only when `t3_thread_list` does not show the thread.
+Keep each branch's path from `git worktree list --porcelain` as `<track worktree>`. Record each launch as `dispatched`, with the `threadId` as the note. After a failed or lost launch, launch again with the same `clientRequestId` only when `t3_thread_list` does not show the thread.
 
 Done when: every track has exactly one thread id in the ledger and one worktree path.
 

@@ -96,7 +96,7 @@ The git policy in your config decides each commit, push, PR, and merge. The skil
 
 1. Before the first edit, `omt git start` records the files that were already changed.
 2. `omt git commit` commits only the files that the run changed. A file that you changed before the run stays out of the commit.
-3. `omt git pr` pushes the branch and opens a draft PR, or updates the open PR of the branch. When the PR would change more than `maxPrFiles` files, the skill cuts the branch into slices and opens one stacked PR per slice with `omt git stack`.
+3. `omt git pr` pushes the branch and opens a draft PR, or updates the open PR of the branch. In a PR review, `omt git pr --pr <number>` pushes the fixes to that PR only, and asks for a PR from a fork or by another author. When the PR would change more than `maxPrFiles` files, the skill cuts the branch into slices and opens one stacked PR per slice with `omt git stack`.
 
 Each command acts on `auto`. On `ask`, it acts on nothing, and the skill asks you first. On `off`, the skill skips the action and says so.
 

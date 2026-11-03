@@ -1,6 +1,6 @@
 # Roles
 
-A role names a kind of work. The config maps each role to a chain of targets (provider, model, effort), and `omt brief` picks the first one that can run. Plans and briefs name roles, never models.
+A role names a kind of work. The config maps each role to a chain of targets (provider, model, effort), and `omt brief` picks the first that can run. Plans name roles, never models.
 
 | Role | Access | Result | Choose it for |
 | --- | --- | --- | --- |

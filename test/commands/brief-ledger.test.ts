@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "bun:test";
 import type { BriefJsonOutput, LedgerEntry } from "../../src/types.ts";
@@ -157,3 +157,32 @@ test("ledger settle-check and done print settle: no in a linked worktree", async
   assert.equal((await project.runOk(["ledger", "settle-check"], { cwd: worktree })).ctx.out(), "settle: no (linked worktree)\n");
   assert.equal((await project.runOk(["ledger", "settle-check"])).ctx.out(), "settle: allowed\n");
 });
+
+test("a closed request id cannot start new work; the next attempt can", async () => {
+  const project = makeProject();
+  const output = parse((await project.runOk(brief("E1"))).ctx.out());
+  await project.runOk(["ledger", "done", output.delegateTask.clientRequestId as string, "--verdict", "ANSWER"]);
+  const again = await project.run(brief("E1"));
+  assert.equal(again.code, 1);
+  assert.match(again.ctx.err(), /omt:p:E1:explore:r1:a1 already ran and is closed/);
+  const next = parse((await project.runOk(brief("E1", "--attempt", "2"))).ctx.out());
+  assert.equal(next.delegateTask.clientRequestId, "omt:p:E1:explore:r1:a2");
+  assert.match((await project.runOk(["ledger", "stats", "--plan", "p"])).ctx.out(), /^active: 1$/m);
+});
+
+test("the ledger lock clears an old lock of a dead process, waits for a live one, and never removes another owner's lock", async () => {
+  const project = makeProject();
+  const lock = join(project.cwd, ".omt", "locks", "ledger.lock");
+  const old = new Date(Date.now() - 60_000);
+  mkdirSync(join(project.cwd, ".omt", "locks"), { recursive: true });
+  writeFileSync(lock, "999999999 dead-token\n");
+  utimesSync(lock, old, old);
+  await project.runOk(brief("E1"));
+  assert.equal(existsSync(lock), false);
+
+  writeFileSync(lock, `${process.pid} live-token\n`);
+  utimesSync(lock, old, old);
+  const held = await project.run(brief("E2"));
+  assert.equal(held.code, 75);
+  assert.equal(readFileSync(lock, "utf8"), `${process.pid} live-token\n`);
+}, 15_000);

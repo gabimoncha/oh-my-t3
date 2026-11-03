@@ -27,6 +27,11 @@ case "$1 $2" in
     ;;
   "pr edit")
     ;;
+  "pr view")
+    file="$dir/pr-$3.json"
+    [ -f "$file" ] || { echo "no pull requests found" >&2; exit 1; }
+    cat "$file"
+    ;;
   "stack --help")
     [ -f "$dir/stack" ] || { echo "unknown command \"stack\" for \"gh\"" >&2; exit 1; }
     ;;

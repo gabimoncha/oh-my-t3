@@ -570,11 +570,20 @@ async function update(ctx: CliContext, options: UpdateOptions, seams: UpdateSeam
   }
   report.updated = true;
 
-  const cli = await newCliCommand(updatedChannel(resolved.channel, action), latest, run);
-  const version = await run([...cli, "--version"], { cwd: ctx.cwd });
-  const printed = lastLine(version.stdout);
-  if (version.code !== 0 || printed !== latest) {
-    throw new OmtError("update_version", `the update finished, but the new omt prints ${printed === "" ? "nothing" : printed}`);
+  let cli: string[];
+  try {
+    cli = await newCliCommand(updatedChannel(resolved.channel, action), latest, run);
+    const version = await run([...cli, "--version"], { cwd: ctx.cwd });
+    const printed = lastLine(version.stdout);
+    if (version.code !== 0 || printed !== latest) {
+      throw new OmtError("update_version", `the update finished, but the new omt prints ${printed === "" ? "nothing" : printed}`);
+    }
+  } catch (error) {
+    // A remove-first switch already removed the old package, so a new CLI that does not start must not stay alone.
+    if (!(moved?.removeFirst === true && error instanceof OmtError)) throw error;
+    const stdio = { inherit: true, toStderr: options.json };
+    await run(moved.removeNew.argv, stdio).catch(() => undefined);
+    throw await restoreOld(moved, error.message, run, stdio, undefined);
   }
   let failed = false;
   if (moved !== undefined && !moved.removeFirst) {

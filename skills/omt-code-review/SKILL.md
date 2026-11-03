@@ -76,7 +76,7 @@ Use the steps above. When any of `review.ci`, `review.verify`, `review.tests`, `
 
 ### PR 1. Target
 
-Run `gh pr view <n> --json title,body,url,baseRefName,baseRefOid,headRefOid,files`, and link the PR with `link_pull_request`. For the return command, save `git branch --show-current`, or `git rev-parse HEAD` for a detached HEAD. Run `git fetch origin <baseRefName> pull/<n>/head`.
+Run `gh pr view <n> --json title,body,url,baseRefName,baseRefOid,headRefOid,files`, and link the PR. For the return command, save `git branch --show-current`, or `git rev-parse HEAD` for a detached HEAD. Run `git fetch origin <baseRefName> pull/<n>/head`.
 
 Check out the PR only when a step needs it: ask the owner first when `git status --porcelain` prints anything, then run `gh pr checkout <n>`.
 
@@ -113,6 +113,6 @@ Done when: the owner has the evidence file and the return command.
 
 ### PR 6. Offers
 
-Offer the fix loop of step 6. After yes, check out the PR (PR step 1). Run `omt git start --run review-<slug>` before the first fix. Commit each fix with `omt git commit -m "<message>" --path <path>`, and push to the PR branch with `omt git pr --title "<title>" --body-file <file>`. Pass `--run review-<slug> --profile <profile>` to both. Follow [Git actions](../omt/references/delegation.md#git-actions) on `ask:` and `off:`. Post nothing else to GitHub.
+Offer the fix loop of step 6. After yes, check out the PR (PR step 1). Run `omt git start --run review-<slug>` before the first fix. Commit each fix with `omt git commit -m "<message>" --path <path>`, and push to the PR branch with `omt git pr --pr <n>`, which updates only that PR and asks for a fork PR or another author's PR. Pass `--run review-<slug> --profile <profile>` to both. For a fork PR, leave the commits local and tell the owner. Follow [Git actions](../omt/references/delegation.md#git-actions) on `ask:` and `off:`. Post nothing else to GitHub.
 
 Done when: each approved fix is pushed, or the owner said no.
