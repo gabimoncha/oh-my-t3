@@ -1,6 +1,6 @@
 # Landing page contributor guide
 
-`site/` is the landing page at https://oh-my-t3.pages.dev. It is a separate Bun package: a TanStack Start app that prerenders one static page to `dist/client`. Its contract is `docs/spec.md` section 17.2. When the page and the spec disagree, fix one of them in the same change.
+`site/` is the landing page at https://omt3.dev. It is a separate Bun package: a TanStack Start app that prerenders one static page to `dist/client`. Its contract is `docs/spec.md` section 17.2. When the page and the spec disagree, fix one of them in the same change.
 
 ## Copy and design
 

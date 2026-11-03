@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-24.04
     environment:
       name: site
-      url: https://oh-my-t3.pages.dev
+      url: https://omt3.dev
     permissions:
       contents: read
     concurrency:
@@ -121,8 +121,8 @@ jobs:
         run: |
           redirect="$RUNNER_TEMP/previous-pages-redirect"
           mkdir -p "$redirect"
-          printf '%s\n' '/* https://oh-my-t3.pages.dev/:splat 301' > "$redirect/_redirects"
-          printf '%s\n' '<!doctype html><title>oh-my-t3</title><a href="https://oh-my-t3.pages.dev">Visit oh-my-t3</a>' > "$redirect/index.html"
+          printf '%s\n' '/* https://omt3.dev/:splat 301' > "$redirect/_redirects"
+          printf '%s\n' '<!doctype html><title>oh-my-t3</title><a href="https://omt3.dev">Visit oh-my-t3</a>' > "$redirect/index.html"
           bunx wrangler pages deploy "$redirect" --project-name oh-my-t3code --branch main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
