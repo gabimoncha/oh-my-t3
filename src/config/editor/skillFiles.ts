@@ -1,4 +1,4 @@
-import { readdir, realpath } from "node:fs/promises";
+import { lstat, readdir, realpath } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { errorCode, readFileIfExists, writeFileAtomic } from "../../util/fs.ts";
 import { isRecord } from "../../util/json.ts";
@@ -14,6 +14,21 @@ export interface SkillFile {
 const SKILL_NAME = /^[a-z][a-z0-9-]{0,63}$/;
 const SEGMENT = "[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}";
 const FILE_PATH = new RegExp(`^(SKILL\\.md|references/(${SEGMENT}/){0,4}${SEGMENT}\\.md)$`);
+
+// True when the skill folder or any part of path below it is a symlink. A missing part is not a symlink.
+async function hasSymlink(skillsRoot: string, name: string, path: string): Promise<boolean> {
+  let current = skillsRoot;
+  for (const part of [name, ...path.split("/")]) {
+    current = join(current, part);
+    try {
+      if ((await lstat(current)).isSymbolicLink()) return true;
+    } catch (error) {
+      if (errorCode(error) === "ENOENT") return false;
+      throw error;
+    }
+  }
+  return false;
+}
 
 async function referenceFiles(dir: string): Promise<string[]> {
   try {
@@ -33,10 +48,12 @@ async function referenceFiles(dir: string): Promise<string[]> {
 export async function skillFiles(skillsRoot: string, name: string): Promise<SkillFile[] | undefined> {
   if (!SKILL_NAME.test(name)) return undefined;
   const dir = join(skillsRoot, name);
+  if (await hasSymlink(skillsRoot, name, "SKILL.md")) return undefined;
   const main = await readFileIfExists(join(dir, "SKILL.md"));
   if (main === undefined) return undefined;
   const files: SkillFile[] = [{ path: "SKILL.md", hash: textHash(main), text: main }];
   for (const path of await referenceFiles(dir)) {
+    if (await hasSymlink(skillsRoot, name, path)) continue;
     const text = await readFileIfExists(join(dir, path));
     if (text !== undefined) files.push({ path, hash: textHash(text), text });
   }
@@ -78,9 +95,11 @@ export async function writeSkillFile(skillsRoot: string, request: SkillWrite): P
   const full = join(dir, request.path);
   const current = await readFileIfExists(full);
   if (current === undefined) throw new EditorError(404, "unknown_skill_file", `${request.name}/${request.path} does not exist`);
-  const realDir = await realpath(dir);
-  const inside = relative(realDir, await realpath(full));
-  if (inside.startsWith("..") || inside.startsWith(sep)) throw badRequest("the file is outside the skill folder");
+  if (await hasSymlink(skillsRoot, request.name, request.path)) throw badRequest("the skill file or a folder above it is a symlink");
+  const inside = relative(await realpath(skillsRoot), await realpath(full));
+  if (inside.startsWith("..") || inside.startsWith(sep) || !inside.startsWith(`${request.name}${sep}`)) {
+    throw badRequest("the file is outside the skill folder");
+  }
   if (textHash(current) !== request.base) {
     throw new EditorError(409, "skill_changed", `${request.name}/${request.path} changed since the editor loaded it; nothing was written`, {
       hint: "reload the file",
