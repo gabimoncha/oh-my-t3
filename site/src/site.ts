@@ -1,7 +1,7 @@
 import manifest from "../../package.json" with { type: "json" };
 
 export const VERSION = manifest.version;
-export const SITE_URL = "https://oh-my-t3.pages.dev";
+export const SITE_URL = manifest.homepage;
 export const REPO = "https://github.com/gabimoncha/oh-my-t3";
 export const DOCS = `${REPO}/tree/main/docs`;
 export const WALKTHROUGH = `${REPO}/blob/main/docs/walkthrough.md`;

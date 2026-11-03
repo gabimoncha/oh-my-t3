@@ -12,7 +12,7 @@ npx oh-my-t3 --version
 
 The `omt` command stays the same. `omt3` remains an npm package alias. `oh-my-t3code` is deprecated: `omt update` moves each install of it to `oh-my-t3`, and a later release stops publishing it ([Retire the oh-my-t3code package](releasing.md#retire-the-oh-my-t3code-package)). Until then, keep the releases of all three packages at the same version. The npm name `omt` belongs to another author.
 
-The website uses the Cloudflare Pages project `oh-my-t3`, at `https://oh-my-t3.pages.dev`. The previous project, `oh-my-t3code`, redirects to the new site with HTTP 301 and preserves paths for links in published packages.
+The website is `https://omt3.dev`, on the Cloudflare Pages project `oh-my-t3`. The default Pages address, `https://oh-my-t3.pages.dev`, remains available. The previous project, `oh-my-t3code`, redirects to `https://omt3.dev` with HTTP 301 and preserves paths for links in published packages. The root `package.json` homepage supplies the website URL to the site and the npm packages.
 
 ## Compatibility identities
 

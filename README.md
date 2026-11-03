@@ -4,6 +4,8 @@
 
 [![npm](https://img.shields.io/npm/v/oh-my-t3)](https://www.npmjs.com/package/oh-my-t3) [![CI](https://github.com/gabimoncha/oh-my-t3/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gabimoncha/oh-my-t3/actions/workflows/ci.yml)
 
+[Website](https://omt3.dev) · [Install](#install) · [Docs](docs/README.md)
+
 oh-my-t3 adds plans, roles, task briefs, and review loops to the agents that you run in [T3 Code](https://t3.codes). You give the agent a goal, such as `start ulw add OAuth to the API`. The agent reads the code, asks you its open questions, plans, and builds the change in its own thread. Then a child task from the other model family reviews the change, and another child task runs every check.
 
 ## Names

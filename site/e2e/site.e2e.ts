@@ -24,6 +24,9 @@ test("the page renders with the current brand, no errors, and no sideways scroll
   await expect(page.getByRole("link", { name: "oh-my-t3, home" })).toBeVisible();
   await expect(page.locator('nav[aria-label="Main"] a[href="https://github.com/gabimoncha/oh-my-t3"]')).toHaveText("GitHub");
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "oh-my-t3: give the agent a goal, get back reviewed work");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://omt3.dev/");
+  await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", "https://omt3.dev/");
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", "https://omt3.dev/og.png");
   const versionNote = page.getByText(`This is version ${manifest.version}. The config format and the CLI output can change.`, { exact: true });
   await expect(versionNote).toBeAttached();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Give the agent a goal\.\s*Get back reviewed work\./);
