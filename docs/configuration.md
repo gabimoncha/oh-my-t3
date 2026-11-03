@@ -132,6 +132,8 @@ This role runs a security review on GPT-6-Astra in plan mode:
 }
 ```
 
+If the project still has an `.omt/` folder from an earlier release, run `omt migrate` first. A new `.omt3/` folder makes omt read `.omt3/` and stop reading the config, plans, and ledger in `.omt/` until the migration runs.
+
 To give a role its own persona, write `.omt3/roles/<role>.md`. The file content is the persona and the rules for that role, and it replaces the bundled persona. omt looks in `.omt3/roles/`, then in `~/.config/oh-my-t3/roles/`, then in the bundled personas.
 
 ## Choose a profile

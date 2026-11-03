@@ -58,7 +58,7 @@ Done when: no owner question is open.
 
 ### 5. Plan
 
-When `.omt3/.gitignore` is missing, run `omt init` first.
+When `$(omt paths --omt)/.gitignore` is missing, run `omt init` first.
 
 - LIGHT: run `omt plan new <slug> --light` and fill it yourself by [planning.md](../omt/references/planning.md). It needs no owner approval.
 - HEAVY: run the `omt-plan` skill with the slug before any plan file exists. It writes and reviews the plan, then returns here. The owner approves the plan before you build.

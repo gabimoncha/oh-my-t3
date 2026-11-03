@@ -886,7 +886,7 @@ Prints the absolute paths of the project state, resolved through `findProjectRoo
 
 - Without a flag it prints one `name: path` line for each path. The order is `root` (the project root), `omt` (`omtDir`), `plans` (`plansDir`), `grills` (`grillsDir`), `ledger` (`ledgerPath`), `evidence` (`evidenceDir`), `config` (`projectConfigPath`), and `shim` (`projectShimPath`).
 - `--json` prints an object with the same keys.
-- One of `--root`, `--plans`, `--grills`, `--ledger`, `--evidence`, `--config`, or `--shim` prints only that path and a newline, for use as `$(omt paths --evidence)`.
+- One of `--root`, `--omt`, `--plans`, `--grills`, `--ledger`, `--evidence`, `--config`, or `--shim` prints only that path and a newline, for use as `$(omt paths --evidence)`.
 - Two path flags, a path flag with `--json`, or a positional argument is a usage error (exit 2).
 - The command creates no path. Root resolution can read the worktree metadata from section 4.
 
@@ -2609,7 +2609,7 @@ The PR extras in `pr-extras.md`:
 - Coverage and CRAP (`review.crap: report`). Before step 3, run the coverage command once as `omt lock run coverage -- <command>`, with lcov output to `coverage-<slug>.lcov`. Each reviewer computes `CRAP = complexity² × (1 − coverage)³ + complexity` per added or changed function, with McCabe complexity, and coverage 0 without a coverage file. A function above 30 is a P2 finding with its three values.
 - Changed-flow QA (`review.verify: changed-flows`). At step 3, when the PR changes a screen, a CLI command, or an API route, dispatch one `qa` child with the changed flows, the build and run commands, and the changed paths. It changes no files and names the test file that covers each flow, or `none`. Each `NOT VERIFIED` flow becomes a P1 finding.
 - Test offers (`review.tests: offer`). At step 6, offer one e2e test per verified flow that no test covers, with its file path. After the owner's yes, the main thread writes the tests, one `qa` child runs them with `mode: "wait"`, and the tests go through one fix review before the commit.
-- Guardrails (`review.guardrails: propose`). After step 4 and the CI fixes, dispatch one read-only `guardrail` child with `mode: "wait"`, the merged findings, the CI failures, the rule-file list, and `.omt3/guardrails.md`. Per finding, it proposes a `check`, a `rule-fix`, or a `new-rule`, or gives a reason for none. The main thread appends each new proposal to `.omt3/guardrails.md` as `- [ ] G<k> <date> PR #<n> <class>: <proposal>. Where: <file>. Proof: <command or none>.`
+- Guardrails (`review.guardrails: propose`). After step 4 and the CI fixes, dispatch one read-only `guardrail` child with `mode: "wait"`, the merged findings, the CI failures, the rule-file list, and the path of `guardrails.md` in the state folder that `omt paths --omt` prints. A literal `.omt3/` path would create `.omt3/` in a project that has not migrated, and omt would stop reading its `.omt/`. Per finding, it proposes a `check`, a `rule-fix`, or a `new-rule`, or gives a reason for none. The main thread appends each new proposal to that file as `- [ ] G<k> <date> PR #<n> <class>: <proposal>. Where: <file>. Proof: <command or none>.`
 
 ### 15.5 Test policy
 

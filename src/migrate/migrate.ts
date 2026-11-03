@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFile, copyFile, cp, mkdir, readdir, readFile, readlink, rename, rm } from "node:fs/promises";
+import { appendFile, cp, mkdir, readdir, readFile, readlink, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { applyInstall } from "../install/apply.ts";
 import { isManagedCommand } from "../install/claudeHook.ts";
@@ -13,7 +13,7 @@ import type { FolderPair } from "../paths.ts";
 import type { CliContext } from "../types.ts";
 import { offlineChannel } from "../update/channel.ts";
 import { planHere, readProjectShim, shimRunsHere } from "../update/sync.ts";
-import { errorMessage } from "../util/errors.ts";
+import { errorMessage, OmtError } from "../util/errors.ts";
 import { errorCode, lstatIfExists, pathExists, readFileIfExists, realOrSelf, writeFileAtomic } from "../util/fs.ts";
 import { isRecord } from "../util/json.ts";
 
@@ -429,7 +429,10 @@ async function askDiffering(ctx: CliContext, target: MigrationTarget, files: str
   const keep: string[] = [];
   for (const rel of files) {
     const answer = (await ctx.prompt(`${rel} differs: keep the copy in ${target.current} (k) or take the copy in ${target.legacy} (t)? [k/t] `)).trim().toLowerCase();
-    (answer === "t" || answer === "take" ? take : keep).push(rel);
+    if (answer === "t" || answer === "take") take.push(rel);
+    else if (answer === "k" || answer === "keep") keep.push(rel);
+    // An empty or unclear answer must not drop the legacy copy, so the target stops before any change.
+    else throw new OmtError("migrate_answer", `no k or t for ${rel}; nothing changed, both folders stay`);
   }
   return { take, keep };
 }
@@ -441,7 +444,7 @@ async function copyInto(from: string, to: string): Promise<void> {
     await rm(to, { force: true });
     await cp(from, to, { verbatimSymlinks: true });
   } else {
-    await copyFile(from, to);
+    await writeFileAtomic(to, await readFile(from), { mode: (stat?.mode ?? 0o644) & 0o777 });
   }
 }
 

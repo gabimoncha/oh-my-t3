@@ -26,7 +26,7 @@ A worker's `DONE` is a claim until you or a `qa` task check it. For every `DONE`
 - `review`: `APPROVE` passes; `NOTES` are optional. `REQUEST_CHANGES`: fix each P0 to P2 finding. `BLOCK`: a P0 or a wrong approach stops the work for a re-plan. Read the diff of each path under `FIXES` before you act, and undo a fix that you disprove. A finding needs a concrete failure scenario; a CRAP finding gives its complexity, coverage, and CRAP values instead. Drop a finding that the code disproves, and say why in the next `--prior-file`.
 - `test`: `VERIFIED`: spot-check one `CHECKS` line against its log. `NOT VERIFIED`: fix each `FAILURES` item, then test again. `INCONCLUSIVE` is not a pass. Read the exit codes and the last lines of each failed log.
 - `research`: use `FINDINGS` only with their citations, and open one citation per child. Carry `UNKNOWN` into the answer.
-- `guardrail`: skip a proposal that `.omt3/guardrails.md` already holds. Append each new one as `- [ ] G<k> <date> PR #<n> <class>: <proposal>. Where: <file>. Proof: <command or none>.`
+- `guardrail`: skip a proposal that `$(omt paths --omt)/guardrails.md` already holds. Append each new one as `- [ ] G<k> <date> PR #<n> <class>: <proposal>. Where: <file>. Proof: <command or none>.`
 
 ## When the block is missing
 

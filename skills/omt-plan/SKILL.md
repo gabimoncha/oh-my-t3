@@ -57,7 +57,7 @@ Done when: a direction is chosen, and each edge case is accepted, changed, or dr
 
 ### 3. Write the plan
 
-`omt plan status <slug>` prints the absolute plan path, also from a worktree. Edit the plan at that path. When no plan exists, run `omt plan new <slug> --title "<title>" --profile <name>`, after `omt init` when `.omt3/.gitignore` is missing. Keep an existing plan: pass no `--force`. Fill every section yourself by [planning.md](../omt/references/planning.md).
+`omt plan status <slug>` prints the absolute plan path, also from a worktree. Edit the plan at that path. When no plan exists, run `omt plan new <slug> --title "<title>" --profile <name>`, after `omt init` when `$(omt paths --omt)/.gitignore` is missing. Keep an existing plan: pass no `--force`. Fill every section yourself by [planning.md](../omt/references/planning.md).
 
 - Under `## Research`, write each research question, its answer, and its sources.
 - Paste the output of `omt roles --plan <slug>` under `Roles`.

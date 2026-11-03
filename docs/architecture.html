@@ -970,7 +970,7 @@ OPEN:
   <text class="s" x="670" y="212">and doctor</text>
 </svg>
     </div>
-    <figcaption>Figure 6. Three layers. <code>configDir</code> is <code>$OMT_CONFIG_DIR</code>, else <code>$XDG_CONFIG_HOME/oh-my-t3code</code>, else <code>~/.config/oh-my-t3code</code>. The project root is the nearest ancestor with <code>.omt3</code> or <code>.git</code>. No env var sets a role or a limit.</figcaption>
+    <figcaption>Figure 6. Three layers. <code>configDir</code> is <code>$OMT_CONFIG_DIR</code>, else <code>$XDG_CONFIG_HOME/oh-my-t3</code>, else <code>~/.config/oh-my-t3</code>; while only the old <code>oh-my-t3code</code> folder exists, omt reads that one. The project root is the nearest ancestor with <code>.omt3</code>, <code>.omt</code>, or <code>.git</code>. No env var sets a role or a limit.</figcaption>
   </figure>
   <ul>
     <li>Each file is JSONC. Comments and trailing commas are allowed. A syntax error becomes one issue, and the loader skips that file. A missing file is not an error.</li>

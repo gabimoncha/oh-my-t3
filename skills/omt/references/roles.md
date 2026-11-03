@@ -35,4 +35,4 @@ A role whose first target has your own model is work that you can do yourself. `
 
 ## Custom roles
 
-A config can add or override a role, set `fast` for a model, a role, or a target, and give a role its own persona file `<role>.md` in `.omt3/roles/`. `omt-setup` makes these changes with the owner.
+A config can add or override a role, set `fast` for a model, a role, or a target, and give a role its own persona file `$(omt paths --omt)/roles/<role>.md`. `omt-setup` makes these changes with the owner.

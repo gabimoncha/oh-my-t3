@@ -132,6 +132,8 @@ omt install --project --hooks --yes
 
 The install writes the shim `.omt3/bin/omt`. From now on, agents in this project call the CLI as `.omt3/bin/omt`, for every channel. The commands below use that path. If `omt` is on `PATH` from a global install, `omt` works too.
 
+A project from an earlier release keeps its state in `.omt/` until `omt migrate` moves it, and the install then writes `.omt/bin/omt`. In such a project, use the paths that `omt paths` prints, and create nothing in `.omt3/`: once `.omt3/` exists, omt reads it and no longer reads `.omt/`. Run `omt migrate` to move the folder.
+
 Check the install:
 
 ```sh

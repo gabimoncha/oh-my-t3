@@ -68,6 +68,7 @@ test("a project with only .omt/ keeps working and prints one migrate hint", () =
   ok(root, ["ledger", "add", "--role", "explore", "--status", "completed"], dir);
   assert.ok(existsSync(join(dir, ".omt", "ledger.jsonl")));
 
+  assert.equal(ok(root, ["paths", "--omt"], dir).stdout, `${join(dir, ".omt")}\n`, "paths --omt names the folder in use");
   const list = ok(root, ["plan", "list"], dir);
   assert.match(list.stdout, /^old /m);
   assert.deepEqual(hintLines(list.stderr), [`hint: omt reads the old folder ${join(dir, ".omt")}; run "omt migrate" to move it`]);
@@ -482,4 +483,17 @@ test("a lock taken while migrate asks about a differing file skips the merge", a
   assert.ok(existsSync(lock));
   assert.equal(readFileSync(join(dir, ".omt", "plans", "old.md"), "utf8"), "# the old copy\n");
   assert.notEqual(readFileSync(join(dir, ".omt3", "plans", "old.md"), "utf8"), "# the old copy\n");
+});
+
+test("an empty answer about a differing file changes nothing", async () => {
+  const root = tempDir("omt-migrate-");
+  const dir = legacyProject(root);
+  ok(root, ["plan", "new", "old"], dir);
+  ok(root, ["migrate", "--yes"], dir);
+  writeFile(join(dir, ".omt", "plans", "old.md"), "# the old copy\n");
+  const before = { legacy: listing(join(dir, ".omt")), current: listing(join(dir, ".omt3")) };
+  const ctx = fakeContext({ cwd: dir, homedir: join(root, "home"), env: childEnv(root), isTTY: true, answer: "" });
+  assert.equal(await main(["migrate", "--yes"], ctx), 1);
+  assert.match(ctx.out(), /^failed   .*no k or t for plans\/old\.md; nothing changed, both folders stay$/m);
+  assert.deepEqual({ legacy: listing(join(dir, ".omt")), current: listing(join(dir, ".omt3")) }, before);
 });
