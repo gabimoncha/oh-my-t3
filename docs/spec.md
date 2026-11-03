@@ -526,7 +526,7 @@ Argument parsing uses `node:util` `parseArgs` with `strict: true` and `allowPosi
 | `lock` | `omt lock run <name> [--wait <seconds>] -- <command> [args...]`, `omt lock list` |
 | `paths` | `omt paths [--json] [--root \| --plans \| --grills \| --ledger \| --evidence \| --config \| --shim]` |
 | `worktree` | `omt worktree [check] [--json]`, `omt worktree setup [--dry-run] [--yes]` |
-| `git` | `omt git check <commit\|push\|pr\|merge> [--user <login>] [--host <host>] [--pr-author <login>] [--plan <slug>] [--profile <name>] [--json]` |
+| `git` | `omt git check <commit\|push\|pr\|merge> [--user <login>] [--host <host>] [--pr-author <login>] [--plan <slug>] [--profile <name>] [--json]`, `omt git behind [--ff]`, `omt git start (--plan <slug> \| --run <id>) [--force]`, `omt git commit -m <message> (--plan <slug> \| --run <id>) [options]`, `omt git pr --title <text> --body-file <file> (--plan <slug> \| --run <id>) [options]`, `omt git stack <sha>,<sha>... --title <text> --body-file <file> (--plan <slug> \| --run <id>) [options]` (section 5.15) |
 | `hook` | `omt hook user-prompt-submit` |
 
 In every flag that takes a file, `-` means standard input.
@@ -1243,6 +1243,10 @@ No other command calls `dailyCheck`. The hook and the agent commands (`brief`, `
 
 ### 5.15 `omt git`
 
+`omt git` has six subcommands. `check` prints a decision and acts on nothing. `behind` catches a branch up with no fetch. `start`, `commit`, `pr`, and `stack` record a run's start, then commit, push, and open PRs within the same decision. `src/commands/git.ts` parses the flags; the code is in `src/git/`.
+
+#### `omt git check`
+
 `omt git check <commit|push|pr|merge> [--user <login>] [--host <host>] [--pr-author <login>] [--plan <slug>] [--profile <name>] [--json]` prints the decision of the `workflow.git` policy (section 6.7) for one git action. The skills run it before each commit, push, PR, and merge. It writes nothing and makes no network call: the skills pass the user's GitHub login as `--user`, the login's host as `--host` (default `github.com`), and, as `--pr-author`, the author of an open PR from the branch that is not the user, else the user (section 15.1). Logins, owners, and hosts compare without case.
 
 - It resolves the profile as `omt profile show` does (section 5.9): `--profile`, then the plan header of `--plan`, then the project and user config, then `normal`.
@@ -1255,7 +1259,62 @@ No other command calls `dailyCheck`. The hook and the agent commands (`brief`, `
   4. `merge` gives the `merge` value on any branch, also outside a git repository.
   5. For `commit`, `push`, and `pr`: outside a git repository, on a detached HEAD, or with no default branch found, the decision is `ask`. `pr` on the default branch gives `ask`.
   6. Otherwise the key's value: `auto` or `ask`. `pullRequests: "off"` gives `off` for `push` and `pr`.
+- `decide()` in `src/git/policy.ts` holds this order. Each result also has a kind: `config` (step 1), `owner` (step 2), `policy` (a key's value, or an unset key), or `state` (no `origin` for `push` and `pr`, and step 5). `commit`, `pr`, and `stack` use the kind for `--yes`.
 - Text output is one line, `<decision>: <reason>`. `--json` prints `{ action, decision, branch, defaultBranch, host, owner, repo, user, prAuthor, key, value, reason, maxPrFiles }`. `maxPrFiles` is the profile's `workflow.git.maxPrFiles`, or `null` when it is unset or the config fails to load. `host` is the `origin` fetch URL's host. `branch`, `defaultBranch`, `host`, `owner`, `repo`, `user`, `prAuthor`, `key`, and `value` are `null` when unknown. Each decision exits 0.
+
+#### Shared rules of `behind`, `start`, `commit`, `pr`, and `stack`
+
+- The CLI spawns `git` and `gh` from `PATH` with `spawnSync` of `node:child_process`. It sends no data of its own. `commit`, `pr`, and `stack` run `gh`, and `pr` and `stack` run `git fetch`, `git ls-remote` (only `stack`), and `git push`. These commands contact the git host. `behind` and `start` make no network call.
+- Each decision prints one line, or a few lines, whose first word names it: `committed`, `created`, `updated`, `ask:`, `off:`, `split:`, `up to date`, `fast-forwarded`, `skipped:`, `start saved:`, `kept the start`, `left:`, or `note:`. Each decision exits 0. A usage error exits 2. A git or `gh` failure that is not a decision, such as a failed `git commit` hook or a failed `gh pr create`, exits 1 with an `OmtError` that holds the tool's first error line. Outside a git work tree, `start`, `commit`, `pr`, and `stack` exit 1.
+- The run id. `start`, `commit`, `pr`, and `stack` take exactly one of `--plan <slug>` and `--run <id>`. Both, or neither, exit 2. A run id matches `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`. The id names the start record. `--plan` also selects the plan's profile, as in `omt git check`.
+- Policy. `commit` runs the `commit` decision of `omt git check`, and `pr` and `stack` run the `push` and the `pr` decisions, in that order. The profile is `--profile`, else the plan header of `--plan`, else the config. When `origin` has a URL that `parseRemote` reads, the command reads the login with `gh api --hostname <origin host> user -q .login` and passes it as `--user`, with the origin host as `--host`. On a branch, it reads the open PRs with `gh pr list --repo <host>/<owner>/<repo> --head <branch> --state open --json author,headRefName,headRepositoryOwner,number,url,baseRefName --limit 100`, keeps the PRs whose head repository owner is the origin owner, and passes an author that is not the login, else the login, as `--pr-author`. A repo with no `origin` runs no `gh`. A `gh` failure, or a list of 100 PRs, gives `ask: <reason>`.
+- `off` prints `off: <reason>` and `ask` prints `ask: <reason>`, and the command changes nothing. A decision from a key's value names the key, as in `ask: workflow.git.branchCommits is "ask" in profile "normal" on branch feat/x`.
+- `--yes` means that the user approved this action in this run. It turns an `ask` or an `off` of kind `config`, `owner`, or `policy` into a go. It does not change a `state` decision, such as a detached HEAD, no `origin` for `pr`, or a PR from the default branch. For `pr` and `stack`, a `gh` failure is a `state` decision, because they need `gh` to go on. `--yes` does not add a path (`commit --include` does), and it does not allow a force push (`pr --force-with-lease` does). The skills pass `--yes` only after the user's answer or an explicit request in the user's message, and the CLI never changes the user's config.
+
+#### `omt git behind [--ff]`
+
+It finds the default branch as `omt git check` does and counts `git rev-list --count HEAD..<full ref>`, where the full ref is `refs/remotes/origin/<name>` or `refs/heads/<name>`. It makes no fetch.
+
+- Outside a git work tree: `skipped: the current folder is not in a git work tree`.
+- With no default branch: `skipped: no default branch found`.
+- When the count is 0: `up to date with <name>`.
+- With `--ff`, when `git status --porcelain` prints nothing and `git merge-base --is-ancestor HEAD <ref>` succeeds: it runs `git merge --ff-only --quiet <ref>` and prints `fast-forwarded <n> commits from <name>` (`1 commit` for one).
+- Otherwise: `ask: <n> commits behind <name>; <reason>`. The reason is `pass --ff to fast-forward`, `the tree has uncommitted changes`, or `the branch has commits that <name> does not have`.
+
+#### `omt git start (--plan <slug> | --run <id>) [--force]`
+
+It writes the start record `<git dir>/omt/start-<id>.json`, where `<git dir>` is `git rev-parse --absolute-git-dir` of the current checkout. A linked worktree has its own git dir, so each worktree has its own records. The write is atomic (`writeFileAtomic`). The record is `{ version: 1, id, createdAt, head, paths }`: `createdAt` is an ISO time, `head` is the commit of `HEAD` or `null`, and `paths` maps each path that `git status --porcelain=v1 -z --untracked-files=all` reports, relative to the top folder, to the SHA-256 of its content. A symbolic link gives `symlink:<SHA-256 of the link text>`, a folder (a submodule) gives `directory`, and a missing path gives `deleted`. A rename records both paths.
+
+- With an existing record and no `--force`, it keeps the record and prints `kept the start from <createdAt>`, so that a resumed run does not count its own edits as older changes.
+- Otherwise it writes the record and prints `start saved: <n> paths were already changed`.
+
+#### `omt git commit -m <message> (--plan <slug> | --run <id>) [--profile <name>] [--path <path>]... [--include <path>]... [--yes]`
+
+1. Policy: the `commit` decision, as in the shared rules.
+2. Start record. With no record for the id: `ask: no start record; run omt git start before the first edit`.
+3. Owned paths. For each path that `git status` reports now: a path that is not in the record is owned by the run. A path in the record whose content hash is the same is a path that the run left alone. A path in the record whose content hash changed had changes before the run, and the run changed it too.
+4. `--include <path>` (repeatable) adds a path of the third kind. An `--include` that names another path gives `ask: <path> is not a path that had changes before the run and changed again`.
+5. Selection. Without `--path`, the commit takes the owned paths and the third-kind paths. `--path <path>` (repeatable) limits it to the paths that the values name: the path itself, or each path below a folder. A `--path` that names none of them gives `ask: <path> is not a path that this run changed`. `--path` and `--include` are relative to the current folder; a value outside the repository exits 2. A selected third-kind path that `--include` does not name gives `ask: <path> had changes before the run, and the run changed it too`. With nothing selected: `skipped: the run changed no paths since omt git start`.
+6. Stage new files: `git --literal-pathspecs add -- <selected untracked paths>`, so that `git commit --only` knows them. It stages nothing else, and other staged changes stay as they are.
+7. Check: `git --literal-pathspecs commit --dry-run --porcelain -z --only -- <selected>`. A path that the commit would take and that is not selected gives `ask: the commit would also take <path>`. On that refusal, or on a failure of step 7 or 8, it runs `git reset -q -- <the new files of step 6>`, so that the index is as it was.
+8. Commit: `git --literal-pathspecs commit --only -m <message> -- <selected>`, in the top folder, with the repo's hooks. It prints `committed <short sha>: <n> files`, then one `left: <path>` line for each path of the start record that `git status` still reports.
+
+#### `omt git pr --title <text> --body-file <file> (--plan <slug> | --run <id>) [--profile <name>] [--base <branch>] [--ready] [--yes] [--force-with-lease]`
+
+1. Policy: the `push` and `pr` decisions, as in the shared rules. An `origin` URL that `parseRemote` cannot read, or a detached HEAD, gives `ask` even with `--yes`.
+2. Base: `--base`, else the base of the branch's open PR, else the default branch. With none: `ask: no base branch`. A base equal to the branch gives `ask: the base <base> is the branch itself`.
+3. Size. The limit is the profile's `workflow.git.maxPrFiles`. `0`, or no value, means no limit, and the command skips this step. Otherwise it runs `git fetch --quiet origin <base>`, then `git diff --name-only -z refs/remotes/origin/<base>...HEAD`. A failure gives `ask: cannot count the changed files: <message>`; a failure never counts as 0 files. Over the limit: `split: <n> files, limit <m>; pick cut commits and run omt git stack <sha>,...`, and it pushes nothing.
+4. Push: `git push origin HEAD:<branch>`, with `--force-with-lease` only when that flag is given. The skills pass that flag only after the owner's yes for a force push in this run. A push that the remote rejects gives `ask: the push was rejected: <the rejected line>; a force push needs the owner's yes`. Another push failure exits 1.
+5. PR. With an open PR from the branch: `updated <url>`. Otherwise it runs `gh pr create --repo <host>/<owner>/<repo> --base <base> --head <branch> --title <text> --body-file <file>`, with `--draft` unless `--ready` is given, and prints `created <url> (draft)` or `created <url> (ready)`. The skills pass `--ready` only when the user's message or the user's own `AGENTS.md` or `CLAUDE.md` asks for a ready PR. `--body-file -` reads the body from standard input.
+
+#### `omt git stack <sha>,<sha>... --title <text> --body-file <file> (--plan <slug> | --run <id>) [--profile <name>] [--base <branch>] [--ready] [--yes]`
+
+Each sha is the last commit of a lower slice, bottom first. The top slice ends at `HEAD` and keeps the run's branch. With `n - 1` cuts there are `n` slices: slice `k` below the top is the branch `<branch>-<k>`.
+
+1. Validate, with no change. Policy and base as in `omt git pr`. Each sha names a commit (else `ask: <sha> is not a commit`). After `git fetch --quiet origin <base>` (a failure gives `ask: cannot read origin/<base>: <message>`), each sha is an ancestor of the next, and the last of `HEAD`, and none equals the next (else `ask: <sha> is not an ancestor of <next>; list the cuts bottom first`). The first slice has a commit on top of `refs/remotes/origin/<base>`. With a limit (as in `omt git pr`), each slice changes at most `maxPrFiles` files: the first against `refs/remotes/origin/<base>` with `...`, each other slice against the cut below it. Over the limit: `split: slice <k> of <n> changes <c> files, limit <m>; pick more cut commits`. `git ls-remote --heads origin <slice refs>` shows each slice branch absent, or at its cut (else `ask: <slice> exists on origin at another commit`), and a local branch of that name is absent or at its cut. For each slice branch, the command reads its open PRs with `gh pr list` and runs the `push` decision with that branch and its PR author. Any failure prints `split:` or `ask:` and changes nothing.
+2. Push. It creates `<branch>-<k>` at each cut when that branch is missing, pushes each with `git push origin <slice>:<slice>`, bottom first, then pushes the top with `git push origin HEAD:<branch>`. A rejected push gives the `ask:` line of `omt git pr` and stops.
+3. PRs, bottom first. Each slice's base is the slice below, and the first slice's base is `<base>`. A slice with an open PR prints `updated <url>`; for the top slice, when that PR has another base, the command first runs `gh pr edit <number> --repo <host>/<owner>/<repo> --base <slice below>`. Otherwise it runs `gh pr create`, as a draft unless `--ready` is given, and prints `created <url> (draft)` or `created <url> (ready)`. A lower PR has the title `<title> (<k>/<n>)` and the body `Part <k> of <n>: <title>`, then one `- <subject>` line for each commit of the slice, on standard input. The top PR has the title and `--body-file`.
+4. Link. When `gh stack --help` exits 0, it runs `gh stack link --base <base> <numbers>` with `GH_REPO=<host>/<owner>/<repo>`; a failure prints `note: gh stack link failed: <message>; the PRs have chained bases only`. Otherwise it prints `note: gh stack is not installed; the PRs have chained bases only`.
 
 ## 6. Config
 

@@ -1,0 +1,40 @@
+#!/bin/sh
+# A fake gh for the omt git tests. It logs each call to $FAKE_GH_LOG and answers from files in $FAKE_GH_DIR.
+printf '%s\n' "$*" >> "$FAKE_GH_LOG"
+dir="$FAKE_GH_DIR"
+case "$1 $2" in
+  "api --hostname")
+    [ -f "$dir/login" ] || { echo "gh: not logged in" >&2; exit 1; }
+    cat "$dir/login"
+    ;;
+  "pr list")
+    head=""
+    while [ $# -gt 0 ]; do
+      [ "$1" = "--head" ] && head="$2"
+      shift
+    done
+    file="$dir/prs-$(printf '%s' "$head" | tr '/' '_').json"
+    if [ -f "$file" ]; then cat "$file"; else echo "[]"; fi
+    ;;
+  "pr create")
+    n=$(cat "$dir/next" 2>/dev/null || echo 1)
+    echo $((n + 1)) > "$dir/next"
+    while [ $# -gt 0 ]; do
+      [ "$1" = "--body-file" ] && [ "$2" = "-" ] && cat > "$dir/body-$n.txt"
+      shift
+    done
+    echo "https://github.com/alice/app/pull/$n"
+    ;;
+  "pr edit")
+    ;;
+  "stack --help")
+    [ -f "$dir/stack" ] || { echo "unknown command \"stack\" for \"gh\"" >&2; exit 1; }
+    ;;
+  "stack link")
+    printf 'GH_REPO=%s\n' "$GH_REPO" >> "$FAKE_GH_LOG"
+    ;;
+  *)
+    echo "fake gh: unexpected call: $*" >&2
+    exit 1
+    ;;
+esac

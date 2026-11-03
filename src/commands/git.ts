@@ -1,62 +1,102 @@
+import { behind } from "../git/behind.ts";
 import { parseRemote, readBranchState } from "../git/branch.ts";
-import type { RemoteRepo } from "../git/branch.ts";
-import type { CliContext, CommandRun, GitPolicy } from "../types.ts";
+import { commit } from "../git/commit.ts";
+import { loadConfigOrError } from "../git/gate.ts";
+import { ACTIONS, decide, maxPrFilesOf } from "../git/policy.ts";
+import type { Action } from "../git/policy.ts";
+import { pr, stack } from "../git/pr.ts";
+import { readCheckout, readStart, runIdFrom, writeStart } from "../git/start.ts";
+import type { CliContext, CommandRun } from "../types.ts";
 import { checkPositionals, parseArgs } from "../util/args.ts";
-import { OmtError, usageError } from "../util/errors.ts";
+import { usageError } from "../util/errors.ts";
 import { checkPlanSlug } from "../util/ids.ts";
 import { formatJson } from "../util/output.ts";
-import { loadEffectiveConfigReporting } from "./shared.ts";
 
-export const summary = "Check whether the git policy allows a commit, push, PR, or merge.";
+export const summary = "Check the git policy, catch up a branch, and commit, push, and open PRs within it.";
 
-export const usage = `Usage: omt git check <commit|push|pr|merge> [--user <login>] [--host <host>] [--pr-author <login>] [--plan <slug>] [--profile <name>] [--json]
+export const usage = `Usage: omt git check <commit|push|pr|merge> [--user <login>] [--host <host>]
+                     [--pr-author <login>] [--plan <slug>] [--profile <name>] [--json]
+       omt git behind [--ff]
+       omt git start (--plan <slug> | --run <id>) [--force]
+       omt git commit --message <text> (--plan <slug> | --run <id>) [--profile <name>]
+                      [--path <path>]... [--include <path>]... [--yes]
+       omt git pr --title <text> --body-file <file> (--plan <slug> | --run <id>)
+                  [--profile <name>] [--base <branch>] [--ready] [--yes] [--force-with-lease]
+       omt git stack <sha>,<sha>... --title <text> --body-file <file> (--plan <slug> | --run <id>)
+                     [--profile <name>] [--base <branch>] [--ready] [--yes]
 
-check reads the current branch, the default branch, and the owner of the
-origin remote's fetch and push URLs, and prints the decision of the profile's workflow.git
-policy for the action: auto (act with no question), ask (ask the owner
-first), or off (do not act). Only the user's own repos and PRs get auto:
-each origin URL is on --host and its owner is --user or is in
-workflow.git.owners, each push URL names the fetch URL's repo, and the
-PR author, when given, is --user. --json also prints maxPrFiles, the most
-changed files in one PR (0 means no limit, null means unset).
+Subcommands:
+  check <action>  print the decision of the profile's workflow.git policy for
+                  the action: auto (act with no question), ask (ask the owner
+                  first), or off (do not act). Only the user's own repos and
+                  PRs get auto: each origin URL is on --host and its owner is
+                  --user or is in workflow.git.owners, each push URL names the
+                  fetch URL's repo, and the PR author, when given, is --user.
+                  --json also prints maxPrFiles, the most changed files in one
+                  PR (0 means no limit, null means unset). Makes no network call.
+  behind          count the commits of the default branch that HEAD lacks, with
+                  no fetch. Prints "up to date with <name>", "fast-forwarded <n>
+                  commits from <name>", "ask: <n> commits behind <name>; <reason>",
+                  or "skipped: no default branch found"
+  start           save the run's start record in this checkout's git dir: HEAD
+                  and each path that is already changed, with its content hash.
+                  Prints "start saved: <n> paths were already changed", or "kept
+                  the start from <time>" when the record exists
+  commit          commit only the paths that the run changed since start, with
+                  git commit --only. Prints "committed <sha>: <n> files" and a
+                  "left: <path>" line for each path changed before the run, or
+                  "ask: <reason>", "off: <reason>", or "skipped: <reason>"
+  pr              push the branch and open a draft PR, or report the open PR.
+                  Prints "created <url> (draft|ready)", "updated <url>",
+                  "split: <n> files, limit <m>; ...", "ask: <reason>", or
+                  "off: <reason>"
+  stack           check every slice, then push each slice branch <branch>-<k>
+                  and open one PR per slice, each based on the slice below.
+                  Prints one "created" or "updated" line per slice, bottom
+                  first, and a "note:" line about gh stack
+
+commit, pr, and stack apply the check decision with the profile of --profile,
+else the plan header of --plan, else the config. They read the login with
+"gh api --hostname <host> user -q .login" and the branch's open PRs with
+"gh pr list", so they need gh when origin exists. pr and stack run git fetch
+and git push, and gh contacts the git host. Each decision exits 0.
 
 Options:
-  --user <login>       the user's GitHub login on --host
-  --host <host>        the GitHub host of the login (default github.com)
-  --pr-author <login>  the author of the branch's open PR
-  --plan <slug>        use the plan's selected profile
+  --user <login>       with check: the user's GitHub login on --host
+  --host <host>        with check: the host of the login (default github.com)
+  --pr-author <login>  with check: the author of the branch's open PR
+  --plan <slug>        use the plan's selected profile; with start, commit, pr,
+                       and stack, also the id of the start record
+  --run <id>           the id of the start record, for a run with no plan
   --profile <name>     override the selected profile for this command
-  --json               print JSON
+  --ff                 with behind: fast-forward a clean tree
+  --force              with start: replace an existing start record
+  -m, --message <text> with commit: the commit message
+  --path <path>        with commit: commit only these changed paths (repeatable)
+  --include <path>     with commit: also commit a path that had changes before
+                       the run and changed again (repeatable)
+  --yes                with commit, pr, and stack: the user approved this action
+                       in this run; turns an ask or an off into a go
+  --title <text>       with pr and stack: the PR title
+  --body-file <file>   with pr and stack: the PR body ("-" for stdin)
+  --base <branch>      with pr and stack: the base branch (default: the open
+                       PR's base, else the default branch)
+  --ready              with pr and stack: open ready PRs, not drafts
+  --force-with-lease   with pr: push with --force-with-lease; only after the
+                       owner's yes for a force push
+  --json               with check: print JSON
   -h, --help           print this help
 `;
 
-const ACTIONS = ["commit", "push", "pr", "merge"] as const;
-type Action = (typeof ACTIONS)[number];
+const SUBCOMMANDS = ["check", "behind", "start", "commit", "pr", "stack"] as const;
 
-type Decision = "auto" | "ask" | "off";
-type PolicyKey = Exclude<keyof GitPolicy, "owners" | "maxPrFiles">;
-
-function keyFor(action: Action, branch: string | undefined, defaultBranch: string | undefined): PolicyKey | null {
-  if (action === "merge") return "merge";
-  if (action === "pr") return "pullRequests";
-  if (branch === undefined || defaultBranch === undefined) return null;
-  if (branch === defaultBranch) return "defaultBranch";
-  return action === "commit" ? "branchCommits" : "pullRequests";
+function required(value: string | undefined, flag: string, subcommand: string): string {
+  if (value === undefined || value === "") throw usageError(`git ${subcommand} needs --${flag}`);
+  return value;
 }
 
-// An OmtError from config load or profile resolution means "ask", not a failed check.
-async function loadConfigOrError(ctx: CliContext, profile: string | undefined, plan: string | undefined) {
-  try {
-    return await loadEffectiveConfigReporting(ctx, { profile, plan });
-  } catch (error) {
-    if (!(error instanceof OmtError)) throw error;
-    ctx.stderr(`omt: ${error.message}\n`);
-    return error;
-  }
-}
-
-export const run: CommandRun = async (ctx) => {
-  const { values, positionals } = parseArgs(ctx.argv, {
+async function check(ctx: CliContext, argv: string[]): Promise<number> {
+  const { values, positionals } = parseArgs(argv, {
     plan: { type: "string" },
     profile: { type: "string" },
     user: { type: "string" },
@@ -64,11 +104,8 @@ export const run: CommandRun = async (ctx) => {
     "pr-author": { type: "string" },
     json: { type: "boolean" },
   });
-  const [subcommand, actionArg] = positionals;
-  if (subcommand !== "check") {
-    throw usageError(subcommand === undefined ? "git needs a subcommand: check" : `unknown git subcommand "${subcommand}"`, "use check");
-  }
-  checkPositionals(positionals, 2);
+  checkPositionals(positionals, 1);
+  const [actionArg] = positionals;
   if (actionArg === undefined || !(ACTIONS as readonly string[]).includes(actionArg)) {
     const what = actionArg === undefined ? "git check needs an action" : `unknown git action "${actionArg}"`;
     throw usageError(what, `use ${ACTIONS.join(", ")}`);
@@ -79,103 +116,109 @@ export const run: CommandRun = async (ctx) => {
   const loaded = await loadConfigOrError(ctx, values.profile, values.plan);
   const state = readBranchState(ctx);
   const remote = state.origin === undefined ? undefined : parseRemote(state.origin);
-  const pushRemotes = state.pushUrls.map(parseRemote);
   const user = values.user;
-  const loginHost = values.host ?? "github.com";
   const prAuthor = values["pr-author"];
-  const on = state.branch === undefined ? "" : ` on branch ${state.branch}`;
-  let maxPrFiles: number | null = null;
-  const print = (output: { decision: Decision; key: PolicyKey | null; value: string | null; reason: string }) => {
-    const full = {
-      action,
-      decision: output.decision,
-      branch: state.branch ?? null,
-      defaultBranch: state.defaultBranch ?? null,
-      host: remote?.host ?? null,
-      owner: remote?.owner ?? null,
-      repo: remote?.repo ?? null,
-      user: user ?? null,
-      prAuthor: prAuthor ?? null,
-      key: output.key,
-      value: output.value,
-      reason: output.reason,
-      maxPrFiles,
-    };
-    ctx.stdout(values.json === true ? formatJson(full) : `${full.decision}: ${full.reason}\n`);
-    return 0;
+  const result = decide({ action, state, loaded, user, host: values.host ?? "github.com", prAuthor });
+  const full = {
+    action,
+    decision: result.decision,
+    branch: state.branch ?? null,
+    defaultBranch: state.defaultBranch ?? null,
+    host: remote?.host ?? null,
+    owner: remote?.owner ?? null,
+    repo: remote?.repo ?? null,
+    user: user ?? null,
+    prAuthor: prAuthor ?? null,
+    key: result.key,
+    value: result.value,
+    reason: result.reason,
+    maxPrFiles: maxPrFilesOf(loaded),
   };
+  ctx.stdout(values.json === true ? formatJson(full) : `${full.decision}: ${full.reason}\n`);
+  return 0;
+}
 
-  if (loaded instanceof OmtError) {
-    return print({ decision: "ask", key: null, value: null, reason: `config error: ${loaded.message}; fix the config first` });
+const ID_OPTIONS = { plan: { type: "string" }, run: { type: "string" } } as const;
+const PR_OPTIONS = {
+  ...ID_OPTIONS,
+  profile: { type: "string" },
+  title: { type: "string" },
+  "body-file": { type: "string" },
+  base: { type: "string" },
+  ready: { type: "boolean" },
+  yes: { type: "boolean" },
+} as const;
+
+export const run: CommandRun = async (ctx) => {
+  const [subcommand, ...argv] = ctx.argv;
+  if (subcommand === undefined || !(SUBCOMMANDS as readonly string[]).includes(subcommand)) {
+    const what = subcommand === undefined ? "git needs a subcommand" : `unknown git subcommand "${subcommand}"`;
+    throw usageError(what, `use ${SUBCOMMANDS.join(", ")}`);
   }
-  const { config, profile, issues } = loaded;
-  maxPrFiles = profile.workflow.git?.maxPrFiles ?? null;
-  const configError = [...issues, ...profile.issues].find((issue) => issue.severity === "error");
-  const key = keyFor(action, state.branch, state.defaultBranch);
-  const value = key === null ? null : profile.workflow.git?.[key] ?? null;
-  const owners = profile.workflow.git?.owners ?? [];
-  const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
-  const isMine = (repo: RemoteRepo) => user !== undefined && (same(repo.owner, user) || owners.some((owner) => same(owner, repo.owner)));
-  const foreignPush = pushRemotes.find((push) => push !== undefined && (!same(push.host, loginHost) || !isMine(push)));
-  const otherRepoPush = remote === undefined
-    ? undefined
-    : pushRemotes.find((push) => push !== undefined && (!same(push.host, remote.host) || !same(push.owner, remote.owner) || !same(push.repo, remote.repo)));
-
-  let decision: Decision;
-  let reason: string;
-  if (configError !== undefined) {
-    const where = configError.path === "" ? configError.source : `${configError.source} ${configError.path}`;
-    decision = "ask";
-    reason = `config error in ${where}: ${configError.message}; fix the config first`;
-  } else if (state.origin === undefined && (action === "push" || action === "pr")) {
-    decision = "ask";
-    reason = "no origin remote";
-  } else if (state.origin !== undefined && remote === undefined) {
-    decision = "ask";
-    reason = "omt cannot read the owner from the origin remote URL";
-  } else if (remote !== undefined && (pushRemotes.length === 0 || pushRemotes.includes(undefined))) {
-    decision = "ask";
-    reason = "origin has an unreadable push URL; omt cannot read its owner";
-  } else if (remote !== undefined && user === undefined) {
-    decision = "ask";
-    reason = "pass --user <login> to check ownership";
-  } else if (remote !== undefined && !same(remote.host, loginHost)) {
-    decision = "ask";
-    reason = `the login is for ${loginHost}, the repo is on ${remote.host}`;
-  } else if (remote !== undefined && !isMine(remote)) {
-    decision = "ask";
-    reason = `${remote.owner}/${remote.repo} is not your repo; add the owner to workflow.git.owners to allow it`;
-  } else if (foreignPush !== undefined) {
-    decision = "ask";
-    reason = `a push URL of origin goes to owner ${foreignPush.owner} on ${foreignPush.host}, which is not yours`;
-  } else if (otherRepoPush !== undefined) {
-    decision = "ask";
-    reason = `a push URL of origin goes to another repo, ${otherRepoPush.owner}/${otherRepoPush.repo} on ${otherRepoPush.host}`;
-  } else if (prAuthor !== undefined && (user === undefined || !same(prAuthor, user))) {
-    decision = "ask";
-    reason = `the PR is by ${prAuthor}`;
-  } else if (key !== null && value === null) {
-    decision = "ask";
-    reason = `workflow.git.${key} is not set in profile "${profile.name}"`;
-  } else if (action === "merge") {
-    decision = value as Decision;
-    reason = `workflow.git.merge is "${String(value)}" in profile "${profile.name}"`;
-  } else if (!state.repo) {
-    decision = "ask";
-    reason = "the current folder is not in a git repository";
-  } else if (state.branch === undefined) {
-    decision = "ask";
-    reason = "HEAD is detached";
-  } else if (state.defaultBranch === undefined) {
-    decision = "ask";
-    reason = "no default branch found";
-  } else if (action === "pr" && state.branch === state.defaultBranch) {
-    decision = "ask";
-    reason = `${state.branch} is the default branch, and a PR cannot go from the default branch to itself`;
-  } else {
-    decision = value as Decision;
-    reason = `workflow.git.${String(key)} is "${String(value)}" in profile "${profile.name}"${on}`;
+  if (subcommand === "check") return check(ctx, argv);
+  if (subcommand === "behind") {
+    const { values } = parseArgs(argv, { ff: { type: "boolean" } }, { maxPositionals: 0 });
+    return behind(ctx, values.ff === true);
   }
-
-  return print({ decision, key, value, reason });
+  if (subcommand === "start") {
+    const { values } = parseArgs(argv, { ...ID_OPTIONS, force: { type: "boolean" } }, { maxPositionals: 0 });
+    const id = runIdFrom(values);
+    const checkout = readCheckout(ctx);
+    const existing = values.force === true ? undefined : await readStart(checkout, id);
+    if (existing !== undefined) {
+      ctx.stdout(`kept the start from ${existing.createdAt}\n`);
+      return 0;
+    }
+    const record = await writeStart(ctx, checkout, id);
+    const count = Object.keys(record.paths).length;
+    ctx.stdout(`start saved: ${count} ${count === 1 ? "path was" : "paths were"} already changed\n`);
+    return 0;
+  }
+  if (subcommand === "commit") {
+    const { values } = parseArgs(argv, {
+      ...ID_OPTIONS,
+      profile: { type: "string" },
+      message: { type: "string", short: "m" },
+      path: { type: "string", multiple: true },
+      include: { type: "string", multiple: true },
+      yes: { type: "boolean" },
+    }, { maxPositionals: 0 });
+    const id = runIdFrom(values);
+    return commit(ctx, {
+      id,
+      message: required(values.message, "message", "commit"),
+      profile: values.profile,
+      plan: values.plan,
+      paths: values.path ?? [],
+      includes: values.include ?? [],
+      yes: values.yes === true,
+    });
+  }
+  if (subcommand === "pr") {
+    const { values } = parseArgs(argv, { ...PR_OPTIONS, "force-with-lease": { type: "boolean" } }, { maxPositionals: 0 });
+    runIdFrom(values);
+    return pr(ctx, {
+      title: required(values.title, "title", "pr"),
+      bodyFile: required(values["body-file"], "body-file", "pr"),
+      profile: values.profile,
+      plan: values.plan,
+      base: values.base,
+      ready: values.ready === true,
+      yes: values.yes === true,
+      forceWithLease: values["force-with-lease"] === true,
+    });
+  }
+  const { values, positionals } = parseArgs(argv, PR_OPTIONS, { maxPositionals: 1 });
+  runIdFrom(values);
+  const [list] = positionals;
+  if (list === undefined) throw usageError("git stack needs <sha>,<sha>...", "name the last commit of each lower slice, bottom first");
+  return stack(ctx, list.split(","), {
+    title: required(values.title, "title", "stack"),
+    bodyFile: required(values["body-file"], "body-file", "stack"),
+    profile: values.profile,
+    plan: values.plan,
+    base: values.base,
+    ready: values.ready === true,
+    yes: values.yes === true,
+  });
 };

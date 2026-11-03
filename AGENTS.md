@@ -43,7 +43,7 @@ Run each command through `mise exec --` (or in a shell where mise is active), so
 - Runtime dependencies: none.
 - `src/` uses only `node:` built-in modules, because the npm bundle runs on Node. Scripts in `scripts/` and tests may use Bun APIs.
 - The dev dependencies are `@types/bun` and `tsrs`. `tsrs` is pinned to an exact version, because each release is a development build. It has native builds for macOS arm64 and Linux only.
-- Build scripts may download Bun cross-compile runtimes. The CLI sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor` after you set `update` in the user config. `omt update` runs the package manager or mise command of the channel that installed omt.
+- Build scripts may download Bun cross-compile runtimes. The CLI sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor` after you set `update` in the user config. `omt update` runs the package manager or mise command of the channel that installed omt. `omt git commit`, `omt git pr`, and `omt git stack` run `gh`, and `omt git pr` and `omt git stack` run `git fetch` and `git push`. These commands contact the git host of the `origin` remote (spec §5.15).
 
 ## Tests
 

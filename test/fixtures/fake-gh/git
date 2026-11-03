@@ -1,0 +1,25 @@
+#!/bin/sh
+# A git wrapper for the omt git tests. It logs push, fetch, and ls-remote to $FAKE_GIT_LOG and makes
+# no network call. A file "reject-push" in $FAKE_GH_DIR makes push fail. Other commands run the real git.
+case "$1" in
+  push)
+    printf '%s\n' "$*" >> "$FAKE_GIT_LOG"
+    if [ -f "$FAKE_GH_DIR/reject-push" ]; then
+      echo "To github.com:alice/app.git" >&2
+      echo " ! [rejected]        HEAD -> feat/x (fetch first)" >&2
+      echo "error: failed to push some refs to 'github.com:alice/app.git'" >&2
+      exit 1
+    fi
+    exit 0
+    ;;
+  fetch)
+    printf '%s\n' "$*" >> "$FAKE_GIT_LOG"
+    exit 0
+    ;;
+  ls-remote)
+    printf '%s\n' "$*" >> "$FAKE_GIT_LOG"
+    [ -f "$FAKE_GH_DIR/ls-remote" ] && cat "$FAKE_GH_DIR/ls-remote"
+    exit 0
+    ;;
+esac
+exec "$FAKE_REAL_GIT" "$@"
