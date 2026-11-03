@@ -2678,10 +2678,10 @@ Three GitHub Actions workflows run the tests, the release, and the site deploy. 
 | --- | --- | --- | --- |
 | `verify` | none | `contents: read` | Calls `./.github/workflows/ci.yml` as a reusable workflow. |
 | `build` | `verify` | `contents: read` | Checkout and mise. Reads the version with `jq` and fails when the tag is not `v` plus the `version` of `package.json`. Runs `bun install --frozen-lockfile` and `bun scripts/release.ts`. Fails unless `dist/release/github` holds 6 `.tar.gz` archives and `SHA256SUMS`, and `sha256sum -c SHA256SUMS` passes. Uploads `dist/release/npm` and `dist/release/github` as the artifact `release`, with root `dist/release`, `if-no-files-found: error`, and `retention-days: 7`. |
-| `npm` | `build` | `contents: read`, `id-token: write` | Runs in the environment `npm`. Downloads `release` to `dist/release`. Fails when `dist/release/npm/<pkg>/package.json` is missing for `oh-my-t3code`, `omt3`, or `oh-my-t3`. Sets up Node, then publishes each package. |
+| `npm` | `build` | `contents: read`, `id-token: write` | Runs in the environment `npm`. Downloads `release` to `dist/release`. Fails when `dist/release/npm/<pkg>/package.json` is missing for `omt3` or `oh-my-t3`. Sets up Node, then publishes each package. |
 | `github` | `build` | `contents: write` | Downloads `release` to `dist/release`. Creates or checks the GitHub release. |
 
-The `npm` job uses npm trusted publishing (OIDC). No npm token is stored. For each of `oh-my-t3`, `oh-my-t3code`, and `omt3`, it reads the version from the package's `package.json` and runs `npm view <pkg>@<version> version` outside the package folder:
+The `npm` job uses npm trusted publishing (OIDC). No npm token is stored. For each of `oh-my-t3` and `omt3`, it reads the version from the package's `package.json` and runs `npm view <pkg>@<version> version` outside the package folder:
 
 - Exit 0 with the version as output: the version is published. The job skips the package.
 - Exit 1 with `E404` in the output: the job runs `npm publish --access public --tag latest` in the package folder.
