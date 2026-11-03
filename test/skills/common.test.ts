@@ -80,6 +80,21 @@ for (const name of skillDirs()) {
   });
 }
 
+// GitHub's heading anchors: lower case, punctuation removed except - and _, each space a -.
+function anchors(markdown: string): Set<string> {
+  const prose = markdown.replace(/^```[\s\S]*?^```/gm, "");
+  const slugs = new Set<string>();
+  for (const match of prose.matchAll(/^#{1,6} (.+)$/gm)) {
+    slugs.add((match[1] ?? "").trim().toLowerCase().replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s/g, "-"));
+  }
+  return slugs;
+}
+
+function allLinks(markdown: string): string[] {
+  const prose = markdown.replace(/^```[\s\S]*?^```/gm, "").replace(/`[^`\n]*`/g, "");
+  return [...prose.matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)].map((match) => match[1] ?? "").filter((target) => !/^[a-z][a-z0-9+.-]*:/i.test(target));
+}
+
 test("every relative Markdown link under skills/ resolves to a file", () => {
   const broken: string[] = [];
   for (const file of walk(SKILLS_DIR).filter((path) => path.endsWith(".md"))) {
@@ -92,6 +107,33 @@ test("every relative Markdown link under skills/ resolves to a file", () => {
     }
   }
   assert.deepEqual(broken, []);
+});
+
+test("every #anchor in a skill link names a heading of its target file", () => {
+  const broken: string[] = [];
+  for (const file of walk(SKILLS_DIR).filter((path) => path.endsWith(".md"))) {
+    for (const link of allLinks(readFileSync(file, "utf8"))) {
+      const [pathPart = "", anchor] = link.split("#");
+      if (anchor === undefined || anchor === "") continue;
+      const target = pathPart === "" ? file : resolve(dirname(file), decodeURIComponent(pathPart));
+      if (!existsSync(target) || !target.endsWith(".md")) continue;
+      if (!anchors(readFileSync(target, "utf8")).has(anchor)) broken.push(`${relative(PACKAGE_ROOT, file)}: ${link}`);
+    }
+  }
+  assert.deepEqual(broken, []);
+});
+
+test("each numbered step of a workflow skill ends with a Done when line", () => {
+  const missing: string[] = [];
+  for (const name of skillDirs().filter((dir) => dir !== "omt")) {
+    const text = readFileSync(join(SKILLS_DIR, name, "SKILL.md"), "utf8");
+    const steps = text.split(/\n(?=### )/).slice(1).filter((step) => /^### (?:PR )?\d/.test(step));
+    for (const step of steps) {
+      const body = step.split(/\n(?=## )/)[0] ?? "";
+      if (!/\nDone when: /.test(body)) missing.push(`${name}: ${body.split("\n")[0]}`);
+    }
+  }
+  assert.deepEqual(missing, []);
 });
 
 test("each mode-check step calls t3_thread_configure, and no skill reads modes from orchestrator_capabilities (common)", () => {

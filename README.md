@@ -4,7 +4,7 @@
 
 [![npm](https://img.shields.io/npm/v/oh-my-t3)](https://www.npmjs.com/package/oh-my-t3) [![CI](https://github.com/gabimoncha/oh-my-t3/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gabimoncha/oh-my-t3/actions/workflows/ci.yml)
 
-oh-my-t3 adds plans, roles, task briefs, and review loops to the agents that you run in [T3 Code](https://t3.codes). You give the agent a goal, such as `ulw add OAuth to the API`. The agent reads the code, asks you its open questions, plans, and builds the change in its own thread. Then a child task from the other model family reviews the change, and another child task runs every check.
+oh-my-t3 adds plans, roles, task briefs, and review loops to the agents that you run in [T3 Code](https://t3.codes). You give the agent a goal, such as `start ulw add OAuth to the API`. The agent reads the code, asks you its open questions, plans, and builds the change in its own thread. Then a child task from the other model family reviews the change, and another child task runs every check.
 
 ## Names
 
@@ -44,7 +44,7 @@ omt install --project --hooks
 omt doctor --project
 ```
 
-The install lists the files that it will write and asks before it writes them. It hides these files from git. It also checks which harnesses you can run, Claude Code and Codex. When one is missing, the new config gets a `"harnesses"` key that skips the models of the missing harness. `--hooks` adds the `ulw` keyword to Claude Code. If you use only Codex, leave `--hooks` out. `doctor` must print no `FAIL` line.
+The install lists the files that it will write and asks before it writes them. It hides these files from git. It also checks which harnesses you can run, Claude Code and Codex. When one is missing, the new config gets a `"harnesses"` key that skips the models of the missing harness. `--hooks` adds the `start ulw` phrase to Claude Code. If you use only Codex, leave `--hooks` out. `doctor` must print no `FAIL` line.
 
 Restart the T3 agent sessions of the project. A running session does not load new skills.
 
@@ -85,7 +85,7 @@ In a T3 thread, type:
 $omt-ulw add rate limiting to the public API
 ```
 
-T3 changes `$omt-ulw` to the syntax of each provider, such as `/omt-ulw` in Claude Code. With the Claude Code hook, the keyword alone works: `ulw add rate limiting to the public API`.
+T3 changes `$omt-ulw` to the syntax of each provider, such as `/omt-ulw` in Claude Code. With the Claude Code hook, the phrase `start ulw` works too: `start ulw add rate limiting to the public API`. The hook starts nothing when a message only names ulw or ultrawork.
 
 The agent reads the code, asks its open questions in one batch, writes a plan in `.omt/plans/`, and builds the units itself. Then a model from the other family reviews the whole change and fixes small findings, and a qa task runs every check and device flow. In the default `normal` profile, the reviewer of a large run is the oracle, and it reviews again after each round of fixes.
 
@@ -148,7 +148,7 @@ The [walkthrough](docs/walkthrough.md) follows two real runs on this repository,
 
 - The config format and the CLI output can change.
 - A run has no task budget. At most 6 child tasks run at the same time by default (`limits.maxParallel`).
-- The `ulw` keyword works only in Claude Code. In Codex, type `$omt-ulw`.
+- The `start ulw` phrase works only in Claude Code. In Codex, type `$omt-ulw`.
 - `omt-swarm` needs a thread in `full-access` runtime mode and `default` interaction mode.
 - Child tasks share the checkout of the parent thread. A unit that an `execute` task builds runs in parallel only when its files do not overlap other edits.
 - If you use Codex child tasks, [set the Codex unload delay](docs/install.md#set-the-codex-unload-delay). Codex 0.163.0 keeps each finished child loaded for 30 minutes by default.

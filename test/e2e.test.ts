@@ -76,7 +76,7 @@ test("end to end: install, use every command in a project, then uninstall", () =
   assert.equal(stats.canDispatch, true);
   assert.match(ok(["ledger", "stats", "--plan", "demo"]), /^can dispatch: yes$/m);
 
-  const hook = JSON.parse(ok(["hook", "user-prompt-submit"], JSON.stringify({ prompt: "ulw add a demo endpoint" })));
+  const hook = JSON.parse(ok(["hook", "user-prompt-submit"], JSON.stringify({ prompt: "start ulw add a demo endpoint" })));
   assert.equal(hook.hookSpecificOutput.hookEventName, "UserPromptSubmit");
   assert.match(hook.hookSpecificOutput.additionalContext, /omt-ulw/);
   assert.equal(ok(["hook", "user-prompt-submit"], JSON.stringify({ prompt: "add a demo endpoint" })), "");

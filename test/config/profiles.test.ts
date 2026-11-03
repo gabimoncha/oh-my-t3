@@ -26,7 +26,7 @@ function setup() {
   return { ctx, userPath, projectPath, load, write };
 }
 
-test("the presets store a full normal workflow with the PR steps and sparse prototype overrides", () => {
+test("the presets store a full normal workflow with the PR extras off and sparse prototype overrides", () => {
   const { normal, prototype } = DEFAULT_CONFIG.profiles;
   assert.ok(normal && prototype);
   assert.deepEqual(Object.keys(DEFAULT_CONFIG.profiles), ["normal", "prototype"]);
@@ -34,11 +34,11 @@ test("the presets store a full normal workflow with the PR steps and sparse prot
   assert.deepEqual(Object.keys(normal).sort(), ["description", "workflow"]);
   assert.deepEqual(normal.workflow, {
     plan: { review: "two-families", testLayers: ["integration"] },
-    design: { variants: 3 },
+    design: { variants: 3, tool: "paper" },
     build: { review: "every-round", qa: "planned", failureProofs: "on", oracle: "heavy" },
     review: {
-      reviewers: "auto", families: "one", oracle: "on", fixLoop: "offer", ci: "fix", verify: "changed-flows",
-      tests: "offer", guardrails: "propose", crap: "report",
+      reviewers: "auto", families: "one", oracle: "on", fixLoop: "offer", ci: "off", verify: "off",
+      tests: "off", guardrails: "off", crap: "off",
     },
     git: { branchCommits: "auto", pullRequests: "auto", defaultBranch: "ask", merge: "ask", owners: [], maxPrFiles: 100 },
   });
@@ -48,7 +48,7 @@ test("the presets store a full normal workflow with the PR steps and sparse prot
     plan: { review: "one" },
     design: { variants: 1 },
     build: { review: "first-round", failureProofs: "off", oracle: "off" },
-    review: { reviewers: 1, oracle: "off", ci: "off", verify: "off", tests: "off", guardrails: "off", crap: "off" },
+    review: { reviewers: 1, oracle: "off" },
   });
   assert.deepEqual(DEFAULT_CONFIG.models, { "gpt-6.1-sol": { fast: true } });
   for (const role of Object.values(DEFAULT_CONFIG.roles)) {

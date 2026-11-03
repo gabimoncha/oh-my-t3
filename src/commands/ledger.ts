@@ -1,4 +1,4 @@
-import { findProjectRoot, ledgerPath, planPath } from "../paths.ts";
+import { findCheckoutRoot, findProjectRoot, ledgerPath, mainCheckoutOf, planPath } from "../paths.ts";
 import {
   appendLedger,
   closes,
@@ -6,13 +6,14 @@ import {
   isTerminal,
   LEDGER_STATUSES,
   ledgerStats,
+  openStarts,
   readLedger,
   requestId,
 } from "../ledger/ledger.ts";
 import type { PlanStatus } from "../plan/parse.ts";
 import { parsePlan } from "../plan/parse.ts";
 import type { CliContext, CommandRun, LedgerEntry, LedgerStats, Limits } from "../types.ts";
-import { usageError } from "../util/errors.ts";
+import { OmtError, usageError } from "../util/errors.ts";
 import { parseArgs, positiveInt } from "../util/args.ts";
 import { checkPlanSlug, checkUnitId } from "../util/ids.ts";
 import { readFileIfExists } from "../util/fs.ts";
@@ -21,12 +22,18 @@ import { loadEffectiveConfigReporting } from "./shared.ts";
 
 export const summary = "Record and list delegation events in .omt/ledger.jsonl.";
 
-export const usage = `Usage: omt ledger add --role <role> --status <status> [options]
+export const usage = `Usage: omt ledger done <requestId|taskId> [--verdict <word>] [--status <status>] [--task-id <id>] [--note <text>]
+       omt ledger settle-check
+       omt ledger add --role <role> --status <status> [options]
        omt ledger list [--plan <slug>] [--json]
        omt ledger stats [--plan <slug>] [--json]
        omt ledger request-id --plan <slug> --unit <id> --role <role> [--round <n>] [--attempt <n>]
 
 Subcommands:
+  done              close the open start that omt brief --save recorded, by its
+                    clientRequestId or task id; prints closed ... and a settle: line
+  settle-check      print settle: allowed, or settle: no (linked worktree);
+                    writes nothing
   add               append one entry to .omt/ledger.jsonl
   list              print the entries
   stats             print dispatched, active, and terminal counts, the limits,
@@ -47,6 +54,12 @@ Options for add:
   --provider <id>             provider instance id
   --model <id>                model id
   --verdict <text>            result verdict
+  --note <text>               free-form note
+
+Options for done:
+  --verdict <word>            the first word of the result block
+  --status <status>           completed (default), failed, cancelled, or interrupted
+  --task-id <id>              the T3 task id, recorded on the closing entry
   --note <text>               free-form note
 
 Other options:
@@ -183,6 +196,48 @@ async function stats(ctx: CliContext, root: string, values: Values) {
   return 0;
 }
 
+const DONE_STATUSES = ["completed", "failed", "cancelled", "interrupted"];
+
+// T3 runs the project's settle script in a settled thread's worktree, and a child that shares a linked
+// worktree has that worktree, so a run in a linked worktree settles no child.
+function settleLine(ctx: CliContext): string {
+  const checkout = findCheckoutRoot(ctx.cwd);
+  const linked = checkout !== undefined && mainCheckoutOf(checkout) !== undefined;
+  return linked ? "settle: no (linked worktree)\n" : "settle: allowed\n";
+}
+
+async function done(ctx: CliContext, root: string, values: Values, id: string | undefined) {
+  onlyFlags("done", values, ["verdict", "status", "task-id", "note"]);
+  if (id === undefined || id === "") throw usageError("ledger done needs a <requestId> or <taskId>");
+  const status = values.status ?? "completed";
+  if (!DONE_STATUSES.includes(status) || !isLedgerStatus(status)) {
+    throw usageError(`invalid --status "${status}"`, `use one of: ${DONE_STATUSES.join(", ")}`);
+  }
+  const path = ledgerPath(root);
+  const { entries } = await readLedger(path);
+  const start = openStarts(entries).findLast((entry) => entry.clientRequestId === id || entry.taskId === id);
+  if (start === undefined) throw new OmtError("no_open_child", `no open child matches ${id}`);
+  const entry: LedgerEntry = { ts: ctx.now().toISOString(), role: start.role, status };
+  const fields: Partial<LedgerEntry> = {
+    plan: start.plan,
+    unit: start.unit,
+    round: start.round,
+    attempt: start.attempt,
+    clientRequestId: start.clientRequestId,
+    taskId: values["task-id"] ?? start.taskId ?? (start.clientRequestId === undefined ? id : undefined),
+    provider: start.provider,
+    model: start.model,
+    verdict: values.verdict,
+    note: values.note,
+  };
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== undefined) (entry as unknown as Record<string, unknown>)[key] = value;
+  }
+  await appendLedger(path, entry);
+  ctx.stdout(`closed ${start.unit ?? "-"} ${start.role} r${start.round ?? 1} a${start.attempt ?? 1}\n${settleLine(ctx)}`);
+  return 0;
+}
+
 function printRequestId(ctx: CliContext, values: Values) {
   onlyFlags("request-id", values, ["plan", "unit", "role", "round", "attempt"]);
   const id = requestId(
@@ -197,12 +252,19 @@ function printRequestId(ctx: CliContext, values: Values) {
 }
 
 export const run: CommandRun = async (ctx) => {
-  const { values, positionals } = parseArgs(ctx.argv, OPTIONS, { maxPositionals: 1 });
-  const [subcommand] = positionals;
+  const { values, positionals } = parseArgs(ctx.argv, OPTIONS, { maxPositionals: 2 });
+  const [subcommand, id] = positionals;
+  if (id !== undefined && subcommand !== "done") throw usageError(`unexpected argument "${id}"`);
   if (values.plan !== undefined) checkPlanSlug(values.plan, "--plan");
   if (values.unit !== undefined) checkUnitId(values.unit);
   const root = findProjectRoot(ctx.cwd);
   switch (subcommand) {
+    case "done":
+      return done(ctx, root, values, id);
+    case "settle-check":
+      onlyFlags("settle-check", values, []);
+      ctx.stdout(settleLine(ctx));
+      return 0;
     case "add":
       return add(ctx, root, values);
     case "list":
@@ -212,8 +274,8 @@ export const run: CommandRun = async (ctx) => {
     case "request-id":
       return printRequestId(ctx, values);
     case undefined:
-      throw usageError("ledger needs a subcommand: add, list, stats, or request-id");
+      throw usageError("ledger needs a subcommand: done, settle-check, add, list, stats, or request-id");
     default:
-      throw usageError(`unknown ledger subcommand "${subcommand}"`, "use add, list, stats, or request-id");
+      throw usageError(`unknown ledger subcommand "${subcommand}"`, "use done, settle-check, add, list, stats, or request-id");
   }
 };

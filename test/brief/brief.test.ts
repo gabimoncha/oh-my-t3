@@ -458,7 +458,7 @@ test("fast role settings map Opus and print unsupported model notes through each
   }
 });
 
-test("brief --save writes the full brief and returns a short task and complete ledger command", async () => {
+test("brief --save writes the full brief, records the start, and returns a short task and the ledger done command", async () => {
   const project = makeProject();
   project.writeOmt("plans/p.md", "<!-- omt-plan v1 slug=p profile=prototype -->\n");
   project.writeOmt("bin/omt", "#!/bin/sh\n");
@@ -477,15 +477,18 @@ test("brief --save writes the full brief and returns a short task and complete l
   assert.deepEqual(output.fallbacks, full.fallbacks);
   assert.match(text, new RegExp(`^- CLI: Run omt as ${command.replaceAll(".", "\\.")}\\.$`, "m"));
   assert.match(text, /^- Tests: write no tests and no failure proofs\./m);
-  assert.equal(output.ledger?.dispatched,
-    `${command} ledger add --plan p --unit U4 --role qa --round 2 --attempt 3 --status dispatched --task-id <taskId> --client-request-id ${id} --provider codex --model gpt-6.1-sol`);
-  const recorded = await project.runOk(["ledger", "add", ...output.ledger.dispatched.split(" ledger add ")[1]!.replace("<taskId>", "task-u4").split(" ")]);
-  assert.equal((JSON.parse(recorded.ctx.out()) as { clientRequestId: string }).clientRequestId, id);
+  assert.equal(output.targetKey, "codex/gpt-6.1-sol");
+  assert.equal(output.ledger?.done, `${command} ledger done ${id} --verdict <VERDICT>`);
+  const started = JSON.parse((await project.runOk(["ledger", "list", "--plan", "p", "--json"])).ctx.out()) as { clientRequestId: string; status: string; targetKey: string }[];
+  assert.deepEqual(started.map((entry) => [entry.clientRequestId, entry.status, entry.targetKey]), [[id, "dispatched", "codex/gpt-6.1-sol"]]);
+  const closed = await project.runOk(["ledger", "done", id, "--verdict", "VERIFIED", "--task-id", "task-u4"]);
+  assert.match(closed.ctx.out(), /^closed U4 qa r2 a3\nsettle: /);
+  assert.match((await project.runOk(["ledger", "stats", "--plan", "p"])).ctx.out(), /^active: 0$/m);
   assert.equal(existsSync(join(project.cwd, ".omt", "evidence", "briefs", `.${id}.md.tmp`)), false);
   assert.deepEqual(readdirSync(join(project.cwd, ".omt", "evidence", "briefs")), [`${id}.md`]);
 });
 
-test("brief --save uses the brief hash without both plan and unit, and omits unset ledger values", async () => {
+test("brief --save uses the brief hash without both plan and unit, and records no start", async () => {
   const project = makeProject();
   for (const flags of [[], ["--plan", "p"], ["--unit", "U4"]]) {
     const argv = ["brief", "execute", "--task", "x", "--json", ...flags];
@@ -496,11 +499,7 @@ test("brief --save uses the brief hash without both plan and unit, and omits uns
     assert.equal(readFileSync(path, "utf8"), full.delegateTask.task);
     assert.ok(output.delegateTask.task.includes(path));
     assert.equal(output.delegateTask.clientRequestId, undefined);
-    assert.ok(output.ledger);
-    assert.ok(output.ledger.dispatched.includes("--task-id <taskId>"));
-    assert.doesNotMatch(output.ledger.dispatched, /undefined|null|--client-request-id/);
-    assert.equal(output.ledger.dispatched.includes("--plan p"), flags.includes("--plan"));
-    assert.equal(output.ledger.dispatched.includes("--unit U4"), flags.includes("--unit"));
+    assert.equal(output.ledger, undefined);
     assert.match(full.delegateTask.task, /^- CLI: Run omt as omt\.$/m);
   }
 });

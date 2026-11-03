@@ -16,18 +16,19 @@
           ]
         },
         "design": {
-          "variants": 3
+          "variants": 3,
+          "tool": "paper"
         },
         "review": {
           "reviewers": "auto",
           "families": "one",
           "oracle": "on",
           "fixLoop": "offer",
-          "ci": "fix",
-          "verify": "changed-flows",
-          "tests": "offer",
-          "guardrails": "propose",
-          "crap": "report"
+          "ci": "off",
+          "verify": "off",
+          "tests": "off",
+          "guardrails": "off",
+          "crap": "off"
         },
         "git": {
           "branchCommits": "auto",
@@ -57,12 +58,7 @@
         },
         "review": {
           "reviewers": 1,
-          "oracle": "off",
-          "ci": "off",
-          "verify": "off",
-          "tests": "off",
-          "guardrails": "off",
-          "crap": "off"
+          "oracle": "off"
         },
         "build": {
           "review": "first-round",

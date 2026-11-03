@@ -145,7 +145,7 @@ test("profile CLI resolves a retired pr-review selection to normal with a warnin
     assert.equal(result.stderr.match(retired)?.length, 1);
     const shown = JSON.parse(result.stdout);
     assert.equal(shown.profile, "normal");
-    assert.equal(shown.workflow.review.ci, "fix");
+    assert.equal(shown.workflow.review.ci, "off");
   }
   const created = run("plan", "new", "demo", "--profile", "pr-review");
   assert.equal(created.code, 0, created.stderr);

@@ -4,7 +4,7 @@ This page describes how omt builds a goal, plans, researches, designs, runs para
 
 ## Build a goal
 
-`omt-ulw` (or the `ulw` keyword) runs the build flow. The main thread, the T3 thread that runs the skill, does the work in one context:
+`omt-ulw` (or the phrase `start ulw` with the Claude Code hook) runs the build flow. The main thread, the T3 thread that runs the skill, does the work in one context:
 
 1. It checks the interaction mode and the branch. If your message is a question and not a goal, it runs `omt-research` instead.
 2. It reads the code. It sends only broad reads to `explore` tasks, in parallel.

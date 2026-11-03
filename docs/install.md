@@ -103,7 +103,7 @@ omt install --project --hooks
 omt doctor --project
 ```
 
-The install shows its plan first and asks before it writes. Add `--yes` to skip the question. Add `--dry-run` to print the plan and write nothing. `--hooks` adds the Claude Code hook that arms ultrawork with the `ulw` keyword. Leave it out if you use only Codex.
+The install shows its plan first and asks before it writes. Add `--yes` to skip the question. Add `--dry-run` to print the plan and write nothing. `--hooks` adds the Claude Code hook that starts ultrawork on the phrase `start ulw` or `start ultrawork`. Leave it out if you use only Codex.
 
 ### Harness detection
 
@@ -143,7 +143,7 @@ The install writes these paths in the project root:
 | `.claude/skills/<skill>` | A relative symlink to the copy, for Claude Code. |
 | `.omt/config.jsonc`, `.omt/plans/` | The project config and the plans directory, as `omt init` creates them. The config gets a `"harnesses"` key when a harness is missing. |
 | `.omt/bin/omt` | The shim: a shell script that runs the CLI that made the install. The next section lists its forms. |
-| `.claude/settings.local.json` | The `ulw` hook entry, only with `--hooks`. The hook calls `.omt/bin/omt`. |
+| `.claude/settings.local.json` | The ultrawork hook entry, only with `--hooks`. The hook calls `.omt/bin/omt`. |
 | `.omt/install.json`, `.omt/backups/` | The manifest and the backups. |
 
 Agents in the project call the CLI as `.omt/bin/omt` when `omt` is not on `PATH`.
@@ -266,7 +266,7 @@ omt install
 
 `omt install` shows its plan and asks before it writes, as the project install does. The plan includes the [harness detection](#harness-detection) of the project install, and the user config gets the same `"harnesses"` key when a harness is missing.
 
-To arm ultrawork with the `ulw` keyword in Claude Code, also install the hook:
+To start ultrawork with the phrase `start ulw` in Claude Code, also install the hook:
 
 ```sh
 omt install --hooks

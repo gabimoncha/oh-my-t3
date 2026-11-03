@@ -56,7 +56,7 @@ export const WORKFLOW_RULES = {
     review: { values: ["two-families", "one", "owner"] },
     testLayers: { items: ["integration", "e2e", "unit"] },
   },
-  design: { variants: { minimum: 1, maximum: 5 } },
+  design: { variants: { minimum: 1, maximum: 5 }, tool: { values: ["paper", "html"] } },
   build: {
     review: { values: ["every-round", "first-round", "off"] },
     qa: { values: ["planned", "off"] },

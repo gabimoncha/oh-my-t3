@@ -33,12 +33,12 @@ function setup(project = '{ "version": 1, "profile": "normal" }', user?: string)
   return ctx;
 }
 
-test("profile preview computes the actual thirteen preset differences without changing the saved default", async () => {
+test("profile preview computes the actual eight preset differences without changing the saved default", async () => {
   const ctx = setup();
   const ui = page(await editorState(ctx));
   ui.put("prototype", await explainProfile(ctx, "prototype"));
   ui.run('app.explain = prototype; app.profile = "prototype"; index();');
-  assert.equal(ui.run("previewDifferences().size"), 13);
+  assert.equal(ui.run("previewDifferences().size"), 8);
   assert.equal(ui.run("app.state.selectedProfile"), "normal");
   assert.equal(ui.run("totalQueued()"), 0);
   assert.equal(ui.run('displayedLeaf(["workflow", "build", "review"]).value'), "first-round");
@@ -135,7 +135,7 @@ test("profile cards list the values that a profile changes from its parent", asy
   const ctx = setup();
   const ui = page(await editorState(ctx));
   assert.equal(ui.run('profileChanges("normal").length > 0'), true);
-  assert.equal(ui.run('profileChanges("prototype").length'), 13);
+  assert.equal(ui.run('profileChanges("prototype").length'), 8);
   assert.equal(ui.run('JSON.stringify(profileChanges("prototype").find(c => c.rel.join(".") === "workflow.build.review"))'),
     JSON.stringify({ rel: ["workflow", "build", "review"], value: "first-round", before: "every-round" }));
 });

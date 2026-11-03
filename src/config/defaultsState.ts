@@ -61,6 +61,26 @@ export function isCompleteDefaults(layer: ConfigLayer): boolean {
   return !Object.values(layer.profiles).some((profile) => profile === null || profile.description === undefined);
 }
 
+// A snapshot from an older release lacks the workflow keys that a later release added. Each missing key takes
+// its current default, so the snapshot stays valid, and the defaults review still lists the key as new.
+export function withNewWorkflowKeys<T extends ConfigLayer>(layer: T): T {
+  const workflow = layer.profiles?.normal?.workflow;
+  if (workflow == null) return layer;
+  const defaults: Record<string, Record<string, unknown>> = DEFAULT_CONFIG.profiles.normal?.workflow as unknown as Record<string, Record<string, unknown>>;
+  const current: Record<string, Record<string, unknown> | undefined> = workflow as Record<string, Record<string, unknown> | undefined>;
+  const filled: Record<string, Record<string, unknown>> = {};
+  for (const group of Object.keys(WORKFLOW_RULES)) {
+    if (group === "git") continue;
+    const values = current[group];
+    if (values == null) continue;
+    filled[group] = { ...defaults[group], ...values };
+  }
+  return {
+    ...layer,
+    profiles: { ...layer.profiles, normal: { ...layer.profiles?.normal, workflow: { ...workflow, ...filled } } },
+  } as T;
+}
+
 export function parseDefaultsSnapshot(text: string, path: string): DefaultsSnapshot {
   let value: unknown;
   try {
@@ -74,7 +94,7 @@ export function parseDefaultsSnapshot(text: string, path: string): DefaultsSnaps
   });
   if (!isRecord(value) || value.version !== 1 || typeof value.cliVersion !== "string" || !isRecord(raw) || raw.update !== undefined) throw invalid();
   const { layer, issues } = validateLayer(raw, path);
-  if (issues.some((issue) => issue.severity === "error") || !isCompleteDefaults(layer)) throw invalid();
+  if (issues.some((issue) => issue.severity === "error") || !isCompleteDefaults(withNewWorkflowKeys(layer))) throw invalid();
   return { version: 1, cliVersion: value.cliVersion, config: layer as OmtConfig };
 }
 
@@ -85,7 +105,7 @@ export async function activeDefaults(ctx: Context): Promise<{ config: OmtConfig;
     if (text !== undefined) {
       const manifest = parseManifest(text, path);
       if (manifest.acceptedDefaults !== undefined) {
-        return { config: parseDefaultsSnapshot(JSON.stringify(manifest.acceptedDefaults), path).config, source: path };
+        return { config: withNewWorkflowKeys(parseDefaultsSnapshot(JSON.stringify(manifest.acceptedDefaults), path).config), source: path };
       }
     }
   }

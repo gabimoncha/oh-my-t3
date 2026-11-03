@@ -208,7 +208,7 @@ Suggest these tasks, in this order. Each runs in a T3 thread of the project.
    $omt-ulw add a --version flag to the CLI
    ```
 
-   With the Claude Code hook, `ulw add a --version flag to the CLI` works too. A small task gets a LIGHT run: a short plan that the main thread builds itself, one review child, and one QA child.
+   With the Claude Code hook, `start ulw add a --version flag to the CLI` works too. A small task gets a LIGHT run: a short plan that the main thread builds itself, one review child, and one QA child.
 
 2. A review of the uncommitted changes:
 
