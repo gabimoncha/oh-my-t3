@@ -373,6 +373,7 @@ test("every default role resolves when its models are advertised", () => {
     "oracle": ["codex", "gpt-6-astra", {"reasoningEffort": "medium"}],
     "qa": ["codex", "gpt-6.1-sol", {"reasoningEffort": "medium", "serviceTier": "priority"}],
     "guardrail": ["claudeAgent", "claude-opus-5-5", {"effort": "high"}],
+    "judge": ["codex", "gpt-6.1-sol", {"reasoningEffort": "medium", "serviceTier": "priority"}],
     "writing": ["claudeAgent", "claude-opus-5-5", {"effort": "medium"}],
     "design": ["claudeAgent", "claude-opus-5-5", {"effort": "medium"}],
     "ui": ["claudeAgent", "claude-opus-5-5", {"effort": "low"}],
@@ -394,6 +395,15 @@ test("every default role resolves when its models are advertised", () => {
     assert.equal(resolution.fallbacks.length, config.chain.length - 1, name);
     assert.equal(resolution.attempts.filter((attempt) => !attempt.ok).length, 0, name);
   }
+});
+
+test("climb tier two selects the other judge family instead of repeating tier one", () => {
+  const judge = DEFAULT_CONFIG.roles.judge;
+  assert.ok(judge);
+  const first = resolveRole("judge", judge, caps());
+  const second = resolveRole("judge", judge, caps(), { against: "codex" });
+  assert.equal(first.delegateTask?.target.providerInstanceId, "codex");
+  assert.equal(second.delegateTask?.target.providerInstanceId, "claudeAgent");
 });
 
 test("explore reports both missing models with the older fixture", () => {

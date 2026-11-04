@@ -113,14 +113,14 @@ Done when: the review child returned a result block and `omt ledger done` record
 
 ### 9. Read the fix diff and fix
 
-Read the reviewer's unstaged fix diff (`git diff` and `git status --porcelain` of the scope paths) before QA starts, then stage it. Undo a fix that you disprove, and say why in the next `--prior-file`.
+Read the reviewer's unstaged fix diff (`git diff` and `git status --porcelain` of the scope paths) before QA starts, then stage it. Undo a fix that you disprove or that adds code the plan does not need, and say why in the next `--prior-file`.
 
 Keep a finding that breaks a done condition, a plan requirement, or correctness for inputs that the plan covers. Drop a style preference, a state that the plan rules out, and a missing test that the plan does not name. Never drop a finding because it is rare. Record each dropped finding with its reason under `Log` and in the next `--prior-file`.
 
 Fix each kept finding yourself, and run the verify commands of the units that the fix touches.
 
 - `BLOCK` for a wrong approach, or a finding whose fix changes the plan: mark the unit `blocked`, then re-plan it (step 5) or ask the owner.
-- With `build.review: every-round`, run step 8 again with the next `--round`, until it returns `APPROVE` or the run reaches `maxReviewRounds`. With `first-round`, run no second review.
+- With `build.review: every-round`, run step 8 again with the next `--round`, until it returns `APPROVE`, its open findings are all P3, or the run reaches `maxReviewRounds`. With `first-round`, run no second review.
 - When findings stay open after the last review, ask the owner.
 - With the oracle, mark `F2` done when it returns `APPROVE`, or when you drop every finding of the last oracle round.
 
@@ -150,7 +150,7 @@ The report contains:
 
 - What changed, by file or area.
 - Each done condition with its command, exit code, and log path from the QA run.
-- The review verdict, the reviewer's fixes, and the findings that you fixed or dropped, with the reason.
+- The verdict and `SCORE` of each review round, the reviewer's fixes, and the findings that you fixed or dropped, with the reason. Put the same rounds in the PR body as a `## Review rounds` table.
 - The QA verdict and each re-run, with each screenshot as a Markdown image with its absolute path, grouped by screen.
 - The commit hash and the PR URL, or the reason that the git policy gave.
 - Open items: blocked units, open findings, and decisions left.

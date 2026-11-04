@@ -7,8 +7,8 @@ import { SKILLS_DIR } from "./shared.ts";
 // Word targets from plans/skill-trim.md. A file may exceed its target by 10%. A key that ends in /*.md
 // is the total of the files in that folder.
 const TARGETS: Record<string, number> = {
-  "omt/SKILL.md": 300,
-  "omt-ulw/SKILL.md": 1_800,
+  "omt/SKILL.md": 320,
+  "omt-ulw/SKILL.md": 1_850,
   "omt-plan/SKILL.md": 1_300,
   "omt-research/SKILL.md": 700,
   "omt-code-review/SKILL.md": 1_100,
@@ -16,16 +16,17 @@ const TARGETS: Record<string, number> = {
   "omt-design/SKILL.md": 700,
   "omt-setup/SKILL.md": 1_000,
   "omt-swarm/SKILL.md": 1_500,
+  "omt-climb/SKILL.md": 1_300,
   "omt/references/delegation.md": 1_600,
   "omt/references/roles.md": 500,
   "omt/references/brief.md": 300,
   "omt/references/results.md": 500,
   "omt/references/worktrees.md": 500,
   "omt/references/planning.md": 350,
-  "omt/references/roles/*.md": 2_600,
-  "omt/references/results/*.md": 240,
+  "omt/references/roles/*.md": 2_700,
+  "omt/references/results/*.md": 310,
 };
-const TOTAL = 16_000;
+const TOTAL = 17_600;
 
 // Strings that the trim removes from every skill outside omt-swarm, whose top-level track threads still
 // use omt ledger add and t3_thread_wait.

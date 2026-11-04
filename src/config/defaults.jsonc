@@ -261,6 +261,29 @@
         }
       ]
     },
+    "judge": {
+      "description": "Score blind-labeled screenshots or outputs out of 10 in each category of a climb, with the main flaw of each. Edits nothing.",
+      "access": "read-only",
+      "result": "score",
+      "t3Role": "review",
+      "interactionMode": "plan",
+      "runtimeMode": "inherit",
+      "crossFamily": true,
+      "chain": [
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6.1-sol",
+          "effort": "medium"
+        },
+        {
+          "provider": "claudeAgent",
+          "driver": "claudeAgent",
+          "model": "claude-opus-5-5",
+          "effort": "medium"
+        }
+      ]
+    },
     "writing": {
       "description": "Write or edit documentation and other prose.",
       "access": "edit",

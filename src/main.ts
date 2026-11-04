@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import pkg from "../package.json" with { type: "json" };
 import * as brief from "./commands/brief.ts";
+import * as climb from "./commands/climb.ts";
 import * as config from "./commands/config.ts";
 import * as detect from "./commands/detect.ts";
 import * as doctor from "./commands/doctor.ts";
@@ -47,6 +48,7 @@ export const COMMANDS: Readonly<Record<string, CommandModule>> = {
   route,
   brief,
   plan,
+  climb,
   profile,
   ledger,
   lock,
@@ -56,11 +58,11 @@ export const COMMANDS: Readonly<Record<string, CommandModule>> = {
   hook,
 };
 
-const STATE_COMMANDS = new Set(["plan", "ledger", "brief", "route", "init"]);
+const STATE_COMMANDS = new Set(["plan", "climb", "ledger", "brief", "route", "init"]);
 // hook runs on each prompt, and update and migrate report legacy folders themselves.
 const NO_LEGACY_HINT = new Set(["hook", "update", "migrate"]);
 // Run from a folder outside any project, these commands would write plans, ledger entries, or evidence paths there.
-const PROJECT_COMMANDS = new Set(["plan", "profile", "ledger", "brief", "lock"]);
+const PROJECT_COMMANDS = new Set(["plan", "climb", "profile", "ledger", "brief", "lock"]);
 
 // scripts/build.ts defines OMT_BUILD as "bundle" or "binary". The sources run without it.
 declare const OMT_BUILD: string | undefined;

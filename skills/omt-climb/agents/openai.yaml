@@ -1,0 +1,5 @@
+interface:
+  display_name: "omt climb"
+  short_description: "Change, check, and score in rounds until every judge meets the target."
+policy:
+  allow_implicit_invocation: false
