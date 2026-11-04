@@ -103,8 +103,8 @@ function Header() {
   return (
     <header className="header wrap">
       <a className="brand" href="/" aria-label="oh-my-t3, home">
-        <img src="/icon-32.svg" width={32} height={32} alt="" />
-        <span>oh-my-t3</span>
+        <span>oh-my-</span>
+        <img className="brand-t3" src="/img/t3-icon.png" width={32} height={32} alt="" />
       </a>
       <nav aria-label="Main">
         <button

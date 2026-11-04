@@ -189,12 +189,38 @@ h3 {
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
   font-family: var(--display);
   font-weight: 700;
   font-size: 22px;
   line-height: 26px;
   text-decoration: none;
+}
+
+.brand-t3 {
+  width: 30px;
+  height: 30px;
+  animation: t3-drop 1100ms cubic-bezier(0.3, 1.6, 0.5, 1) 300ms both;
+}
+
+@keyframes t3-drop {
+  0% {
+    transform: translateY(-40px) rotate(-18deg) scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-t3 {
+    animation: none;
+  }
 }
 
 .menu-button {
@@ -1496,7 +1522,7 @@ html:not(.js) .m-dim {
   }
 
   .brand {
-    gap: 12px;
+    gap: 5px;
     font-size: 24px;
     line-height: 28px;
   }
