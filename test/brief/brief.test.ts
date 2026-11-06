@@ -288,7 +288,7 @@ test("loadResultContract reads and trims the contract for a result kind", async 
 });
 
 test("renderBrief gives every role its test policy, CLI, and shared-build rules", () => {
-  for (const role of ["execute", "ui", "writing", "design", "qa", "review", "oracle", "plan-review", "guardrail", "explore", "research", "plan", "custom"]) {
+  for (const role of ["execute", "ui", "writing", "design", "qa", "review", "oracle", "plan-review", "guardrail", "judge", "explore", "research", "plan", "custom"]) {
     const text = renderBrief(input({ role, cliCommand: "/project/.omt3/bin/omt" }), PERSONA, CONTRACT);
     assert.match(text, /^- CLI: Run omt as \/project\/\.omt3\/bin\/omt\.$/m);
     const tests = text.split("\n").find((line) => line.startsWith("- Tests:"));

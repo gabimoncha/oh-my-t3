@@ -152,7 +152,8 @@
             "test",
             "research",
             "plan",
-            "guardrail"
+            "guardrail",
+            "score"
           ]
         },
         "t3Role": {

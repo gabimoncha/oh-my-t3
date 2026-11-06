@@ -23,6 +23,8 @@ On git actions, reply style, tests, and model choice, the user's own instruction
 
 `omt-swarm` builds a plan as separate worktree threads. It installs only with `omt install --with omt-swarm`.
 
+`omt-climb` repeats change, check, and score until each judge meets a target. Start it only when the user names it.
+
 Each skill name works as a composer mention: `$omt-ulw` becomes `/omt-ulw` in Claude and Cursor, `/skill:omt-ulw` in Pi, and stays `$omt-ulw` in Codex.
 
 For the CLI, run `omt help` and `omt help <command>`. The shared T3 rules are in [delegation.md](references/delegation.md), the roles in [roles.md](references/roles.md), and the result blocks in [results.md](references/results.md).

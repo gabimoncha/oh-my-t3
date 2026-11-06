@@ -5,7 +5,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { PACKAGE_ROOT } from "../helpers.ts";
 import { SKILLS_DIR, readSkill } from "./shared.ts";
 
-const USER_INVOKED = ["omt", "omt-swarm"];
+const USER_INVOKED = ["omt", "omt-climb", "omt-swarm"];
 
 function parseFrontmatter(text: string): Record<string, string> {
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(text);
@@ -52,6 +52,7 @@ function relativeLinks(markdown: string): string[] {
 test("the bundled skills are all present", () => {
   assert.deepEqual(skillDirs().sort(), [
     "omt",
+    "omt-climb",
     "omt-code-review",
     "omt-design",
     "omt-plan",

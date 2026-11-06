@@ -256,6 +256,10 @@ export function planPath(root: string, slug: string): string {
   return join(plansDir(root), `${slug}.md`);
 }
 
+export function climbPath(root: string, slug: string): string {
+  return join(plansDir(root), `${slug}.climb.json`);
+}
+
 export function grillsDir(root: string): string {
   return join(omtDir(root), "grills");
 }

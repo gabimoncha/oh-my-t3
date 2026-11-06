@@ -144,11 +144,11 @@ Expect these lines, with paths in the user's project:
 
 ```text
 PASS  runtime    <runtime>
-PASS  config     11 roles
+PASS  config     12 roles
 PASS  defaults   current defaults
 PASS  harnesses  claudeAgent, codex
-PASS  skills     7 skills installed in <project>/.agents/skills
-PASS  links      7 links in <project>/.claude/skills
+PASS  skills     8 skills installed in <project>/.agents/skills
+PASS  links      8 links in <project>/.claude/skills
 PASS  hooks      Claude UserPromptSubmit hook in <project>/.claude/settings.local.json
 PASS  shim       <project>/.omt3/bin/omt
 PASS  exclude    omt block in <project>/.git/info/exclude
@@ -302,7 +302,7 @@ In these steps, `omt` means the command of the install. With a project install, 
    omt doctor --project | grep -E '^PASS +skills '
    ```
 
-   Check: the command prints `PASS  skills     7 skills installed in <folder>`, or 8 with `omt-swarm`. If it prints nothing, run the doctor command without the pipe, and do the fix that its `skills` line prints.
+   Check: the command prints `PASS  skills     8 skills installed in <folder>`, or 9 with `omt-swarm`. If it prints nothing, run the doctor command without the pipe, and do the fix that its `skills` line prints.
 
 4. Review the defaults changes. `omt update` and `--skills-only` show the difference and ask before accepting it. `--yes` also accepts the current defaults, so get approval for that before you pass it.
 
