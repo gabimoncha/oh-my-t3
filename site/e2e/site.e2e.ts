@@ -23,6 +23,9 @@ test("the page renders with the current brand, no errors, and no sideways scroll
   await expect(page).toHaveTitle("oh-my-t3: give the agent a goal, get back reviewed work");
   await expect(page.getByRole("link", { name: "oh-my-t3, home" })).toBeVisible();
   await expect(page.locator('nav[aria-label="Main"] a[href="https://github.com/gabimoncha/oh-my-t3"]')).toHaveText("GitHub");
+  await expect(page.getByRole("link", { name: "GitHub", exact: true }).first()).toBeVisible();
+  const githubLabel = page.locator(".nav-github-label");
+  expect(await githubLabel.evaluate((el) => el.getBoundingClientRect().width > 1)).toBe(testInfo.project.name !== "mobile");
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", "oh-my-t3: give the agent a goal, get back reviewed work");
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://omt3.dev/");
   await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", "https://omt3.dev/");

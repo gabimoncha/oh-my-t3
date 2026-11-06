@@ -261,6 +261,34 @@ h3 {
   color: var(--ink);
 }
 
+nav[aria-label="Main"] {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.nav-github {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  color: var(--text-2);
+  text-decoration: none;
+}
+
+.nav-github:hover {
+  color: var(--ink);
+}
+
+.nav-github-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* Hero */
 
 .hero {
@@ -1544,6 +1572,23 @@ html:not(.js) .m-dim {
   .nav-links a {
     padding: 0;
     font-size: 16px;
+  }
+
+  nav[aria-label="Main"] {
+    gap: 32px;
+  }
+
+  .nav-github {
+    padding: 0;
+    font-size: 16px;
+  }
+
+  .nav-github-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
   }
 
   h1 br {
