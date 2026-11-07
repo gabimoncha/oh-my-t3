@@ -50,6 +50,10 @@ test("new writes the climb file and rejects a bad slug, a duplicate without --fo
   await assert.rejects(run(ctx.at(["new", "x", "--target", "9"])), omtExit(2));
   await assert.rejects(run(ctx.at(["new", "x", "--target", "9", "--judge", "sol@0"])), omtExit(2));
   await assert.rejects(run(ctx.at(["new", "x", "--target", "9", "--judge", "sol", "--judge", "sol@2"])), omtExit(2));
+  await assert.rejects(
+    run(ctx.at(["new", "x", "--target", "9", "--judge", "sol", "--max-rounds", "0"])),
+    (error: Error) => error.message.startsWith("--max-rounds must be a positive integer"),
+  );
   await climb(ctx, ["new", "ui", "--target", "8", "--judge", "sol", "--force"]);
   assert.equal(climbFile(ctx).target, 8);
 });

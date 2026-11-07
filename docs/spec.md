@@ -1969,9 +1969,9 @@ NOTES:
 - <what you could not open or judge, or none>
 ```
 
-A `review` or `oracle` result gives `SCORE` from 0 to 10 for the whole change after its fixes. `omt-ulw` reports the verdict and score of each round, and puts them in the PR body as a `## Review rounds` table. A `judge` result scores every label in every category of the task; `omt climb score --result-file` reads its `SCORES` block (section 5.17).
+A `review` or `oracle` result gives `SCORE` from 0 to 10 for the whole change after its fixes. `omt-ulw` reports the verdict and score of each round, and puts them as a `## Review rounds` table in the body of the PR that `omt git pr` creates. `omt git pr` does not change the body of an existing PR. A `judge` result scores every label in every category of the task; `omt climb score --result-file` reads its `SCORES` block (section 5.17).
 
-A `qa` result lists each command under `CHECKS` with its exit code and key output line, and each log, screenshot, and recording under `EVIDENCE`; `qa` writes no tests, so the contract has no test list. A `review` or `oracle` result lists the fixes that the reviewer made under `FIXES`, with their paths, or `none` when its access is read-only; `FINDINGS` holds only the findings that it reports. Worker `NOTES` are optional. A review or oracle finding needs a concrete failure scenario. When CRAP is requested, a CRAP finding instead names the changed function and its complexity, coverage, and CRAP values. This exception applies in every round.
+A `qa` result lists each command under `CHECKS` with its exit code and key output line, and each log, screenshot, and recording under `EVIDENCE`; `qa` writes no tests, so the contract has no test list. A `review` or `oracle` result lists the fixes that the reviewer made under `FIXES`, with their paths, or `none` when its access is read-only; `FINDINGS` holds only the findings that it reports. Worker `NOTES` are optional. A review or oracle finding needs a concrete failure scenario. When CRAP is requested, a CRAP finding instead names the changed function and its complexity, coverage, and CRAP values. This exception applies in every round. A P3 scope finding (code, tests, options, or guards that the objective does not need) instead names the unneeded part and why the objective does not need it.
 
 Severity meanings for review findings: P0 breaks the build, loses data, or opens a security hole. P1 is a wrong result in a normal path. P2 is a wrong result in an edge case, a named missing test, or a requested CRAP finding above 30. P3 is style or clarity.
 
@@ -2626,7 +2626,7 @@ Design exclusion. No model reviews design artifacts. `review`, `oracle`, and `pl
 - Tier 1 is the `judge` role without `--against`; tier 2 is the `judge` role with `--against <tier 1 driver>`. A tier scores a round only when `next:` names it, so the costly judges score only after the less expensive tiers meet the target.
 - A capture command or a `qa` child makes the screenshots. The baseline and the references are captured once and reused in every round.
 - The target, the round limit, and the judges change only after the owner's yes. On `plateau` or `limit`, the skill shows the status and asks the owner.
-- In step 4 a judge finding outside the Objective is declined and logged. Step 6 runs `omt-ulw` steps 8 to 12 and puts `omt climb status <slug> --markdown` in the PR body.
+- In step 4 a judge finding outside the Objective is declined and logged. Step 6 runs `omt-ulw` steps 8 to 12 and puts `omt climb status <slug> --markdown` in the body of the PR that it creates.
 
 `omt-swarm`:
 

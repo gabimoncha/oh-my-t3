@@ -75,6 +75,6 @@ Done when: `next:` is `met`, or the owner chose how to go on.
 
 ### 6. Finish
 
-Run `omt-ulw` steps 8 to 12 with this plan. The review and QA children check behavior; the judges already scored looks. Put the output of `omt climb status <slug> --markdown` in the PR body. The report adds the climb table and each declined finding.
+Run `omt-ulw` steps 8 to 12 with this plan. The review and QA children check behavior; the judges already scored looks. When step 12 creates the PR, put the output of `omt climb status <slug> --markdown` in its body. The report adds the climb table and each declined finding.
 
 Done when: the report has each gate with its evidence, the climb table, and the PR URL or the policy reason.

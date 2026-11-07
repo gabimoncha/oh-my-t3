@@ -173,8 +173,8 @@ async function climbNew(ctx: CliContext, root: string, slug: string, values: Val
     created: ctx.now().toISOString(),
     target: parseNumber("--target", targetText),
     direction,
-    maxRounds: positiveInt("--max-rounds", text(values, "max-rounds")) ?? 10,
-    plateau: { rounds: positiveInt("--plateau", text(values, "plateau")) ?? 2, minGain },
+    maxRounds: positiveInt("max-rounds", text(values, "max-rounds")) ?? 10,
+    plateau: { rounds: positiveInt("plateau", text(values, "plateau")) ?? 2, minGain },
     judges: [...judges].sort((a, b) => a.tier - b.tier),
     categories,
     beat,
@@ -232,7 +232,7 @@ async function climbScore(ctx: CliContext, root: string, slug: string, values: V
   if (!climb.judges.some((judge) => judge.name === judgeName)) {
     throw usageError(`unknown judge "${judgeName}"`, `the climb has ${climb.judges.map((judge) => judge.name).join(", ")}`);
   }
-  const roundNumber = positiveInt("--round", text(values, "round")) ?? climb.rounds.at(-1)?.n;
+  const roundNumber = positiveInt("round", text(values, "round")) ?? climb.rounds.at(-1)?.n;
   const round = climb.rounds.find((candidate) => candidate.n === roundNumber);
   if (round === undefined) {
     throw new OmtError("climb_round_missing", roundNumber === undefined ? "the climb has no round yet" : `the climb has no round ${roundNumber}`, { hint: `run "omt climb round ${slug}"` });
@@ -284,7 +284,7 @@ async function climbScore(ctx: CliContext, root: string, slug: string, values: V
 async function climbSet(ctx: CliContext, root: string, slug: string, values: Values) {
   const { path, climb } = await readClimb(root, slug);
   const targetText = text(values, "target");
-  const maxRounds = positiveInt("--max-rounds", text(values, "max-rounds"));
+  const maxRounds = positiveInt("max-rounds", text(values, "max-rounds"));
   if (targetText === undefined && maxRounds === undefined) throw usageError("climb set needs --target or --max-rounds");
   const changes: string[] = [];
   if (targetText !== undefined) {

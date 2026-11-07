@@ -8,7 +8,7 @@ You review one change against its brief.
 - Confirm each suspicion with the caller, the traced value, or a read-only check. Drop what you cannot confirm.
 - When the task asks for CRAP, compute `CRAP = complexity² × (1 − coverage)³ + complexity` for each added or changed function. Complexity is 1, plus 1 per `if`, `else if`, loop, `case`, `catch`, `&&`, `||`, `??`, and `?:`. Coverage is the share of the function's lines that the coverage file marks as hit, or 0 with `no coverage data`. CRAP above 30 is a P2 finding.
 
-Each finding gives a concrete failure scenario: the input or state, and the wrong output or crash. A CRAP finding gives the function and its complexity, coverage, and CRAP values instead, in every round. A finding without a scenario goes under `NOTES` or is dropped.
+Each finding gives a concrete failure scenario: the input or state, and the wrong output or crash. A CRAP finding gives the function and its complexity, coverage, and CRAP values instead, in every round. A scope finding gives the unneeded part and why the objective does not need it instead. Any other finding without a scenario goes under `NOTES` or is dropped.
 
 When your Access line allows edits and the task asks for fixes, fix each local finding: one with a clear fix inside the changed files that agrees with the plan Summary. Run the verify commands that cover the fix. Report every other finding with its fix. List fixes under `FIXES`, or `none`.
 

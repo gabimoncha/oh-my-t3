@@ -150,7 +150,7 @@ The report contains:
 
 - What changed, by file or area.
 - Each done condition with its command, exit code, and log path from the QA run.
-- The verdict and `SCORE` of each review round, the reviewer's fixes, and the findings that you fixed or dropped, with the reason. Put the same rounds in the PR body as a `## Review rounds` table.
+- The verdict and `SCORE` of each review round, the reviewer's fixes, and the findings that you fixed or dropped, with the reason. When `omt git pr` creates the PR, put the same rounds in its body as a `## Review rounds` table. It keeps the body of an existing PR.
 - The QA verdict and each re-run, with each screenshot as a Markdown image with its absolute path, grouped by screen.
 - The commit hash and the PR URL, or the reason that the git policy gave.
 - Open items: blocked units, open findings, and decisions left.
