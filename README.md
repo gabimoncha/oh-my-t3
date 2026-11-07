@@ -1,4 +1,4 @@
-<img src="assets/banner.png" width="1280" alt="oh-my-t3. Give the agent a goal. Get back reviewed work. A metro line climbs through the stations Plan, Delegate, Review, Verify, and Done.">
+<img src="assets/banner.png" width="1280" alt="oh-my- followed by the T3 Code icon. Give the agent a goal. Get back reviewed work. A metro line climbs through Research, Plan, Build, Fix, and Merged. A delegate line goes from Build up to Review and back into Fix, and a loop at Fix goes out to Verify.">
 
 # oh-my-t3
 

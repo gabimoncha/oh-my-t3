@@ -44,7 +44,15 @@ Each slot layer is named `copy:<section>.<item>`. The desktop and mobile artboar
 5. Workflow names. The steps are now Give a goal, Plan, Build, Review, Test and report. The hero diagram labels Delegate and Verify are now Build and Test. The diagram geometry did not change.
 6. Versions. "This is version 0.1." and "T3 Code v0.1.0 or later." are now slots with `{version}` and `{minimum version}`.
 
-Not changed: the `Banner · 1280x640` artboard (the source of the exported public banner), the `Site · motion` notes, and all repository files outside this note.
+Not changed in this pass: the `Banner · 1280x640` artboard, the `Site · motion` notes, and all repository files outside this note.
+
+## Banner redesign
+
+The artboard `Banner · 1280x640 · v2` is now the source of `assets/banner.png` and `site/public/og.png`. Both files are the same 1280x640 PNG. The older `Banner · 1280x640` artboard is kept for reference only.
+
+- Wordmark: "oh-my-" followed by the T3 Code app icon, as in the site header. The T and the 3 inside the icon sit on the text baseline.
+- Metro diagram: the main line goes Research, Plan, Build, Fix, Merged. A delegate line goes from Build straight up to Review, turns 90° and joins Fix. A loop at Fix goes out to Verify and back.
+- Color: three colors only. The main line is indigo `#6662D6`, the delegate line is light amber `#FADDA4`, and all stations are white rings. Station labels are grey `#C9C9D2`. Only the "Delegate" label is amber. Merged is a white terminus in an indigo ring, with a larger white label.
 
 ## Screenshots
 
