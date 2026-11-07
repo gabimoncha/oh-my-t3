@@ -116,15 +116,25 @@ function result(ctx: CliContext, state: UpdateState, mode: "check" | "apply", ca
   return daily;
 }
 
-// At most one request a day, and none unless mode is check or apply. Callers pass
+function isSet(value: string | undefined): boolean {
+  return value !== undefined && value !== "" && value !== "0" && value.toLowerCase() !== "false";
+}
+
+// An absent key means check, except in CI and where the user set the npm opt-out variable.
+export function effectiveUpdateMode(mode: UpdateMode | undefined, env: Env): UpdateMode {
+  if (mode !== undefined) return mode;
+  return isSet(env.CI) || isSet(env.NO_UPDATE_NOTIFIER) ? "off" : "check";
+}
+
+// At most one request a day, and none with mode off. Callers pass
 // loadConfig(ctx).config.update, which drops the project layer's key, so a cloned
-// repository cannot turn on network calls.
+// repository cannot change the mode.
 export async function dailyCheck(
   ctx: CliContext,
   opts: { mode: UpdateMode | undefined; fetch?: typeof fetch },
 ): Promise<DailyResult | undefined> {
-  const mode = opts.mode;
-  if (mode === undefined || mode === "off") return undefined;
+  const mode = effectiveUpdateMode(opts.mode, ctx.env);
+  if (mode === "off") return undefined;
   const previous = await readState(ctx);
   const now = ctx.now().getTime();
   if (previous !== undefined) {

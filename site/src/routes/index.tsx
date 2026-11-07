@@ -345,7 +345,7 @@ function States() {
         <h3>Two parts</h3>
         <p>The skills tell the agent how to plan, build, review, and test.</p>
         <p>The omt CLI does the fixed steps: the config, the model for each role, the task briefs, and the ledger.</p>
-        <p className="muted">No runtime dependencies or telemetry. Update checks are opt-in.</p>
+        <p className="muted">No runtime dependencies or telemetry. One update check a day, which you can turn off.</p>
       </div>
     </section>
   );

@@ -65,6 +65,8 @@ export function childEnv(root: string): NodeJS.ProcessEnv {
     TMPDIR: tmp,
     TMP: tmp,
     TEMP: tmp,
+    // The daily update check is on by default; a test that needs it removes this variable.
+    NO_UPDATE_NOTIFIER: "1",
   };
 }
 
@@ -139,7 +141,6 @@ export function fakeContext(overrides: FakeContextOptions = {}): FakeContext {
   const ctx: CliContext = {
     argv: [],
     cwd,
-    env: { HOME: home },
     homedir: home,
     stdout: (text) => {
       stdout += text;
@@ -162,6 +163,8 @@ export function fakeContext(overrides: FakeContextOptions = {}): FakeContext {
     runtimeVersion: process.versions.bun ?? process.versions.node,
     version: "0.1.0",
     ...rest,
+    // The daily update check is on by default; a test that needs it passes NO_UPDATE_NOTIFIER: undefined.
+    env: { HOME: home, NO_UPDATE_NOTIFIER: "1", ...rest.env },
   };
   return { ...ctx, out: () => stdout, err: () => stderr, prompts };
 }

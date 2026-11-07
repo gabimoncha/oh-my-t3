@@ -13,13 +13,14 @@ Use the first one that exists: `omt` on `PATH`, `.omt3/bin/omt` or `.omt/bin/omt
 ## What a child is
 
 - A child gets only its task text, so the brief is its full context ([brief.md](brief.md)).
-- A child works in your checkout. Run editing children in parallel only when their scopes are disjoint.
+- A child works in your checkout on this machine. Run editing children in parallel only when their scopes are disjoint.
 - A child may keep or narrow your modes, never widen them. From a `plan` thread you can dispatch only children in `plan` interaction mode.
 - Children never commit, push, or create branches.
+- Pass no `environmentId` to `delegate_task`, `t3_thread_launch`, or `create_threads`: run state is local.
 
 ## Your interaction mode
 
-Each skill that dispatches work checks its modes first. It calls `t3_thread_configure` with no arguments. It returns this thread's `modelSelection`, `runtimeMode`, and `interactionMode`. With `modelSelection`, the same tool sets the thread's model. Pass no `threadId` and no `modelSelection`, so that the call only reads. Keep the driver of `modelSelection`, such as `claudeAgent` or `codex`, as your family. On ACP providers whose T3 tools are missing, call it with:
+Each skill that dispatches work checks its modes first. It calls `t3_thread_configure` with no arguments. It returns this thread's `modelSelection`, `runtimeMode`, and `interactionMode`. Pass no `threadId` and no `modelSelection`, so that the call only reads. Keep the driver of `modelSelection`, such as `claudeAgent` or `codex`, as your family. On ACP providers whose T3 tools are missing, call it with:
 
 ```sh
 ELECTRON_RUN_AS_NODE=1 "$T3_ACP_MCP_NODE" ${T3_ACP_MCP_ENTRYPOINT:+"$T3_ACP_MCP_ENTRYPOINT"} acp-mcp-call t3_thread_configure '{}'
@@ -69,7 +70,7 @@ When `summary` is `Child task completed without an assistant result.`, read the 
 
 ## Releasing children
 
-A finished child stays loaded until T3 releases it after 30 idle minutes. Settle each child when you are done with it:
+Settle each child when you are done with it, or T3 keeps it loaded for 30 idle minutes:
 
 - Settle a child when `omt ledger done` prints `settle: allowed`, and `task_status` shows a terminal status, `hasPendingChildRuns: false`, and `hasPendingQuestion: false`. In `plan` mode, `omt ledger settle-check` prints the same line.
 - Call `t3_thread_organize` with `action: "settle"` and the child's `childThreadId`, never the `taskId`. A settle error never stops the run.
@@ -110,4 +111,4 @@ When `omt lock run` exits 75, run `omt lock list`. When an active child of this 
 
 ## Top-level threads
 
-`delegate_task` makes children. Only when the user asks for separate threads, use `t3_thread_launch` (one thread with its own `workspaceStrategy`) or `create_threads` (up to 20 threads in your checkout). `omt-swarm` is that request.
+`delegate_task` makes children. Only when the user asks for separate threads, use `t3_thread_launch` (one thread with its own `workspaceStrategy`) or `create_threads` (threads in your checkout). `omt-swarm` is that request.

@@ -335,21 +335,23 @@ omt no longer shows a plan as a page, so the `visuals` key has no effect. `omt-p
 
 ## Check for updates
 
-The `update` key turns on a check for a new omt version. Set it in the user config:
+omt checks for a new version once a day. To stop the check, set the `update` key in the user config:
 
 ```jsonc
 {
-  "update": "check"
+  "update": "off"
 }
 ```
 
 | Value | Effect |
 | --- | --- |
-| `off` | No check. An absent key means `off`. |
-| `check` | `omt install` and `omt doctor` ask the npm registry for the latest version, at most once a day. `omt doctor` prints an `update` line. When a new version is out, `omt install` prints `note: omt <version> is out; run omt update`. |
+| `off` | No check. |
+| `check` | The default. `omt install` and `omt doctor` ask the npm registry for the latest version, at most once a day. `omt doctor` prints an `update` line. When a new version is out, `omt install` prints `note: omt <version> is out; run omt update`. |
 | `apply` | The same check. When a new version is out and the command runs at a terminal, `omt install` and `omt doctor` then run `omt update --yes`, once for each new version. Without a terminal, they print only the note. The automatic update also accepts the current defaults. |
 
-Only the user config can set the key. In the project config, omt prints the warning `update is read only from the user config; remove it from <file>` and ignores the key. So a cloned repository cannot turn on network calls. The user starter config holds the key as a comment.
+Only the user config can set the key. In the project config, omt prints the warning `update is read only from the user config; remove it from <file>` and ignores the key. So a cloned repository cannot change the mode. The user starter config holds the key as a comment.
+
+When the user config has no `update` key and the `CI` or `NO_UPDATE_NOTIFIER` variable is set, omt does not check. A value of `0` or `false` does not count. CI jobs and machines without network access thus send no request. An `update` key in the user config wins over these variables.
 
 omt asks the registry only in `omt install`, `omt doctor`, and `omt update`. The hook and the commands that agents call, such as `omt brief` and `omt roles`, never use the network. omt saves the result of the check in `update-check.json`, in the folder of the user config. A failed check, for example when the machine is offline, gives an `INFO` line in `omt doctor` and does not change its exit code. omt tries again the next day. [Update omt](install.md#update-omt) explains the update itself.
 
