@@ -25,6 +25,7 @@ import * as update from "./commands/update.ts";
 import * as worktree from "./commands/worktree.ts";
 import type { CliBuild, CliContext, CommandRun } from "./types.ts";
 import { legacyHint } from "./migrate/hint.ts";
+import { versionSkewHint } from "./update/skew.ts";
 import { findProjectRoot, hasProjectMarker, omtDir, shadowedWorktreeState } from "./paths.ts";
 import { errorMessage, OmtError, usageError } from "./util/errors.ts";
 
@@ -59,6 +60,8 @@ export const COMMANDS: Readonly<Record<string, CommandModule>> = {
 const STATE_COMMANDS = new Set(["plan", "ledger", "brief", "route", "init"]);
 // hook runs on each prompt, and update and migrate report legacy folders themselves.
 const NO_LEGACY_HINT = new Set(["hook", "update", "migrate"]);
+// hook runs on each prompt, and these commands install, check, or sync the skills themselves.
+const NO_SKEW_HINT = new Set(["hook", "install", "uninstall", "update", "migrate", "doctor"]);
 // Run from a folder outside any project, these commands would write plans, ledger entries, or evidence paths there.
 const PROJECT_COMMANDS = new Set(["plan", "profile", "ledger", "brief", "lock"]);
 
@@ -228,6 +231,10 @@ export async function main(argv: string[], overrides: Partial<CliContext> = {}):
     }
     if (!NO_LEGACY_HINT.has(first)) {
       const hint = legacyHint(ctx);
+      if (hint !== undefined) ctx.stderr(hint);
+    }
+    if (!NO_SKEW_HINT.has(first)) {
+      const hint = await versionSkewHint(ctx);
       if (hint !== undefined) ctx.stderr(hint);
     }
     return await command.run({ ...ctx, argv: rest });

@@ -363,6 +363,8 @@ To update by hand, run the install command of your channel from [Install the CLI
 
 `omt install` and `omt doctor` check for a new version once a day and print a note when one is out. To stop the check, set `"update": "off"` in the user config. [The `update` key](configuration.md#check-for-updates) explains it.
 
+If the skills come from another release than the CLI, for example after `npm i -g oh-my-t3@latest`, the agent commands print `hint: the user skills come from omt <old>, and this omt is <new>; run "omt update --skills-only" to sync them` to stderr. Run that command to fix it.
+
 ## Set the Codex unload delay
 
 Do this if you use Codex children, with either install mode. Open T3 Code Settings, Providers, Codex, and set Launch arguments to `-c thread_unload_delay_secs=60`, with no quotes.
