@@ -8,6 +8,7 @@ import { SKILLS_DIR } from "./shared.ts";
 // so each rule here is one short phrase in the file that owns the rule.
 const RULES: { file: string; rule: string; pattern: RegExp }[] = [
   { file: "omt/references/delegation.md", rule: "children never commit, push, or create branches", pattern: /Children never commit, push, or create branches\./ },
+  { file: "omt/references/delegation.md", rule: "a run stays on one machine", pattern: /Pass no `environmentId` to `delegate_task`, `t3_thread_launch`, or `create_threads`/ },
   { file: "omt/references/delegation.md", rule: "only qa drives a device", pattern: /Only `qa` drives a device/ },
   { file: "omt/references/delegation.md", rule: "a force push asks the owner", pattern: /A force push always asks the owner/ },
   { file: "omt/references/delegation.md", rule: "never settle your own thread or a top-level thread", pattern: /Never settle your own thread, a top-level thread/ },

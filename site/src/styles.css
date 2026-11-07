@@ -189,12 +189,38 @@ h3 {
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
   font-family: var(--display);
   font-weight: 700;
   font-size: 22px;
   line-height: 26px;
   text-decoration: none;
+}
+
+.brand-t3 {
+  width: 30px;
+  height: 30px;
+  animation: t3-drop 1100ms cubic-bezier(0.3, 1.6, 0.5, 1) 300ms both;
+}
+
+@keyframes t3-drop {
+  0% {
+    transform: translateY(-40px) rotate(-18deg) scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-t3 {
+    animation: none;
+  }
 }
 
 .menu-button {
@@ -233,6 +259,34 @@ h3 {
 
 .nav-links a:hover {
   color: var(--ink);
+}
+
+nav[aria-label="Main"] {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.nav-github {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  color: var(--text-2);
+  text-decoration: none;
+}
+
+.nav-github:hover {
+  color: var(--ink);
+}
+
+.nav-github-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* Hero */
@@ -1496,7 +1550,7 @@ html:not(.js) .m-dim {
   }
 
   .brand {
-    gap: 12px;
+    gap: 5px;
     font-size: 24px;
     line-height: 28px;
   }
@@ -1518,6 +1572,23 @@ html:not(.js) .m-dim {
   .nav-links a {
     padding: 0;
     font-size: 16px;
+  }
+
+  nav[aria-label="Main"] {
+    gap: 32px;
+  }
+
+  .nav-github {
+    padding: 0;
+    font-size: 16px;
+  }
+
+  .nav-github-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
   }
 
   h1 br {

@@ -99,7 +99,7 @@ export interface OmtConfig {
   roles: Record<string, RoleConfig>;
   limits: Limits;
   harnesses?: string[]; // the driver kinds that routing may use; absent means every driver
-  update?: UpdateMode; // absent means "off"
+  update?: UpdateMode; // absent means "check", or "off" when CI or NO_UPDATE_NOTIFIER is set
 }
 
 export interface ConfigLayer {

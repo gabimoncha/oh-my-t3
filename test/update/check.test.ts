@@ -58,14 +58,33 @@ for (const hours of [23, 24, 25]) {
   });
 }
 
-for (const mode of [undefined, "off"] as const) {
-  test(`dailyCheck: no request with mode ${String(mode)}`, async () => {
+const OFFLINE: { name: string; mode: "off" | undefined; env: Record<string, string | undefined> }[] = [
+  { name: "mode off", mode: "off", env: { NO_UPDATE_NOTIFIER: undefined } },
+  { name: "no mode and NO_UPDATE_NOTIFIER=1", mode: undefined, env: { NO_UPDATE_NOTIFIER: "1" } },
+  { name: "no mode and CI=true", mode: undefined, env: { NO_UPDATE_NOTIFIER: undefined, CI: "true" } },
+];
+
+for (const { name, mode, env } of OFFLINE) {
+  test(`dailyCheck: no request with ${name}`, async () => {
     const root = tempDir();
-    const ctx = fakeContext({ root });
+    const ctx = fakeContext({ root, env });
     let calls = 0;
     const request = (async () => { calls += 1; return new Response(captured); }) as unknown as typeof fetch;
     assert.equal(await dailyCheck(ctx, { mode, fetch: request }), undefined);
     assert.equal(calls, 0);
     assert.equal(existsSync(updateStatePath(ctx.env, ctx.homedir)), false);
+  });
+}
+
+for (const value of [undefined, "", "0", "false"]) {
+  test(`dailyCheck: no mode checks by default with CI=${JSON.stringify(value)}`, async () => {
+    const root = tempDir();
+    const ctx = fakeContext({ root, env: { NO_UPDATE_NOTIFIER: undefined, CI: value } });
+    let calls = 0;
+    const request = (async () => { calls += 1; return new Response(captured); }) as unknown as typeof fetch;
+    const result = await dailyCheck(ctx, { mode: undefined, fetch: request });
+    assert.equal(calls, 1);
+    assert.equal(result?.mode, "check");
+    assert.equal(existsSync(updateStatePath(ctx.env, ctx.homedir)), true);
   });
 }

@@ -7,6 +7,12 @@
       "icon": "configure",
       "runOnWorktreeCreate": true,
       "async": false
+    },
+    {
+      "name": "Site dev server",
+      "command": "cd site && mise exec -- bun run dev --port 3030 --strictPort",
+      "icon": "play",
+      "previewUrl": "http://localhost:3030/"
     }
   ]
 }

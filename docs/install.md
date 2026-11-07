@@ -361,7 +361,9 @@ The sync keeps a skill that you edited, and prints `kept <skill>  (<reason>)`. `
 
 To update by hand, run the install command of your channel from [Install the CLI](#install-the-cli) with `@latest` or a version, such as `npm i -g oh-my-t3@latest`. For a one-shot install, run the project install again with the new version, such as `npx omt3@<version> install --project`. Then run `omt update --skills-only` to sync the skills.
 
-To get a note when a new version is out, set `"update": "check"` in the user config. [The `update` key](configuration.md#check-for-updates) explains it.
+`omt install` and `omt doctor` check for a new version once a day and print a note when one is out. To stop the check, set `"update": "off"` in the user config. [The `update` key](configuration.md#check-for-updates) explains it.
+
+If the skills come from another release than the CLI, for example after `npm i -g oh-my-t3@latest`, the agent commands print `hint: the user skills come from omt <old>, and this omt is <new>; run "omt update --skills-only" to sync them` to stderr. Run that command to fix it.
 
 ## Set the Codex unload delay
 

@@ -1,4 +1,4 @@
-<img src="assets/banner.png" width="1280" alt="oh-my-t3. Give the agent a goal. Get back reviewed work. A metro line climbs through the stations Plan, Delegate, Review, Verify, and Done.">
+<img src="assets/banner.png" width="1280" alt="oh-my- followed by the T3 Code icon. Give the agent a goal. Get back reviewed work. A metro line climbs through Research, Plan, Build, Fix, and Merged. A delegate line goes from Build up to Review and back into Fix, and a loop at Fix goes out to Verify.">
 
 # oh-my-t3
 
@@ -131,7 +131,7 @@ The setup works with Bun and pnpm, and never overwrites a file. Commit the new f
 
 ## How it works
 
-omt has two parts. The skills tell the agent how to plan, build, review, and test. The `omt` CLI does the steps that must give the same result each time: it merges the config, picks a model for each role, writes the task briefs, records each task start and result in the ledger, and commits and opens draft PRs within your git policy. The CLI has no runtime dependencies and sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor` after you set `update` in the user config. `omt update` runs the package manager or mise command of the channel that installed omt. `omt git commit`, `omt git pr`, and `omt git stack` run `gh`, and `omt git pr` and `omt git stack` run `git push`, so they contact the git host of the `origin` remote.
+omt has two parts. The skills tell the agent how to plan, build, review, and test. The `omt` CLI does the steps that must give the same result each time: it merges the config, picks a model for each role, writes the task briefs, records each task start and result in the ledger, and commits and opens draft PRs within your git policy. The CLI has no runtime dependencies and sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor`, unless you set `"update": "off"` in the user config or set `CI` or `NO_UPDATE_NOTIFIER`. `omt update` runs the package manager or mise command of the channel that installed omt. `omt git commit`, `omt git pr`, and `omt git stack` run `gh`, and `omt git pr` and `omt git stack` run `git push`, so they contact the git host of the `origin` remote.
 
 T3 gives each agent session tools to start, check, and cancel child tasks on any provider and model. Each child task is a T3 thread, so you can watch it in T3. omt adds roles, model routing, briefs, review loops, and limits. It does not change T3.
 
