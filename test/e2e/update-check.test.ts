@@ -35,15 +35,28 @@ test("U7 check: doctor reports B and agent commands send no request", async () =
   assert.equal(reg.requests.length, before, "the hook must send no request with an empty daily cache");
 }, LONG);
 
-test("U7 default: install and doctor send no request without the update key", async () => {
+test("U7 default: install and doctor check without the update key, and CI or NO_UPDATE_NOTIFIER stops it", async () => {
   const tool = tools();
-  const reg = await releaseRegistry("u7-offline-", tool, { next: true });
+  const reg = await releaseRegistry("u7-default-", tool, { next: true });
   const cli = join(reg.root, "release", "npm", "oh-my-t3code", "dist", "cli.js");
-  for (const args of [["install", "--yes"], ["doctor"]]) {
-    const env = reg.env(args[0]!, tool.nodePath);
+  const envFor = (name: string, extra: NodeJS.ProcessEnv) => {
+    const env: NodeJS.ProcessEnv = reg.env(name, tool.nodePath);
+    delete env.CI;
+    delete env.NO_UPDATE_NOTIFIER;
+    Object.assign(env, extra);
     writeFile(userConfigPath(env, env.HOME!), "{}\n");
-    const output = await run(tool.node, [cli, ...args], reg.root, env);
-    assert.ok(output.length > 0);
-    assert.deepEqual(reg.requests, [], `${args[0]} must stay offline by default`);
+    return env;
+  };
+  const doctor = await run(tool.node, [cli, "doctor"], reg.root, envFor("doctor", {}));
+  assert.ok(doctor.includes(`omt ${reg.nextVersion} is out; run omt update`));
+  assert.deepEqual(reg.requests, ["/-/package/oh-my-t3/dist-tags"]);
+
+  for (const extra of [{ CI: "true" }, { NO_UPDATE_NOTIFIER: "1" }]) {
+    for (const args of [["install", "--yes"], ["doctor"]]) {
+      const before = reg.requests.length;
+      const output = await run(tool.node, [cli, ...args], reg.root, envFor(`${args[0]}-${Object.keys(extra)[0]}`, extra));
+      assert.ok(output.length > 0);
+      assert.equal(reg.requests.length, before, `${args[0]} with ${JSON.stringify(extra)} must send no request`);
+    }
   }
 }, LONG);

@@ -17,7 +17,7 @@ This page is the reference for the code, the skills, and the tests. [`design.md`
 - Comments: only for a non-obvious reason that the code cannot show.
 - File writes: atomic, except the ledger and lock metadata (section 5.10). Write a temp file in the same directory, then rename. Create parent directories as needed. When the target exists, the temp file gets the target's mode before the rename, so a 0600 file stays 0600. Each ledger entry is one `appendFile` call, so concurrent appends do not overwrite each other.
 - When the target of a write is an authorized symlink, write next to its real path (`fs.realpath`) and rename onto the real path, so the symlink stays a symlink. Project plan mutations and project installer writes must resolve inside the project root. Resolve existing ancestors and dangling links before this check. Git exclude files follow Git's storage location and are exempt from this containment rule. Ledger and lock files reject symlinks below the selected checkout or Git storage root. They open the leaf with `O_NOFOLLOW`, then verify that the descriptor is a regular file with one hard link and matches the directory entry before any content change.
-- The CLI sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor` after you set `update` in the user config. `omt update` runs the package manager or mise command of the channel that installed omt. Build scripts may download Bun cross-compile runtimes. The generated worktree setup runner (section 5.11) starts a package manager too, when T3 runs it.
+- The CLI sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor`, unless you set `"update": "off"` in the user config or set `CI` or `NO_UPDATE_NOTIFIER`. `omt update` runs the package manager or mise command of the channel that installed omt. Build scripts may download Bun cross-compile runtimes. The generated worktree setup runner (section 5.11) starts a package manager too, when T3 runs it.
 
 `package.json` scripts:
 
@@ -510,6 +510,7 @@ Shadowed state. Before `plan`, `ledger`, `brief`, `route`, and `init` run, the C
 No project. Before `plan`, `profile`, `ledger`, `brief`, and `lock` run, the CLI looks for a `.omt3`, `.omt`, or `.git` entry in the current directory and its parents. When it finds none, it prints one line to stderr: `warning: no .omt3, .omt, or .git found above <cwd>; omt uses it as the project root. Run omt from the project or worktree folder.` The command still runs.
 
 Legacy folders. Releases before the rename kept project state in `.omt/` and the user folder in `oh-my-t3code`. While only the legacy folder exists, `omtDir` and `configDir` return it, so omt reads and writes it as before. Before every command except `hook`, `update`, and `migrate` (and help and version, which return earlier), the CLI calls `legacyFolders` and, when it finds one or both, prints one line to stderr: `hint: <phrase>[; <phrase>]; run "omt migrate" to move it` (`them` for two). The phrase is `omt reads the old folder <legacy>`, or `the old folder <legacy> sits beside <current>` when both exist. `omt doctor` reports the same text as a `WARN` line with the id `folders`. `omt migrate` (section 5.16) moves the folders.
+
 
 ## 5. CLI
 
@@ -1191,9 +1192,9 @@ export async function recordApplyAttempt(ctx: CliContext, latest: string): Promi
 
 - `fetchLatest` sends `GET <registry>/-/package/oh-my-t3/dist-tags` with the header `accept: application/json`. `<registry>` is `npm_config_registry`, else `NPM_CONFIG_REGISTRY`, else `https://registry.npmjs.org`, without a trailing slash. omt reads no `.npmrc`. The request sends no cookie, token, or id. The response field `latest` must match `^\d+\.\d+\.\d+$`. Any other response is an error. `fetch` is the Node 22 global, and tests pass their own.
 - The timeout is 3000 ms in `dailyCheck` and 10000 ms in `omt update`, through `AbortSignal.timeout`.
-- `dailyCheck` returns `undefined`, and reads no file and sends no request, when `opts.mode` is absent or `off`. Each caller passes the `config.update` of the loaded config. Otherwise it reads `updateStatePath()` (section 4). When `checkedAt` is less than 24 hours before `ctx.now()` and not in the future, it returns the cached result. Else it fetches, writes the state atomically, and returns the result. It writes the state also after a failure, so an offline machine tries once a day. A state file that cannot be read or parsed, or that has no valid `checkedAt`, counts as absent. A failed state write does not throw, and the next run fetches again.
+- `dailyCheck` returns `undefined`, and reads no file and sends no request, when `effectiveUpdateMode(opts.mode, ctx.env)` is `off`. Each caller passes the `config.update` of the loaded config. Otherwise it reads `updateStatePath()` (section 4). When `checkedAt` is less than 24 hours before `ctx.now()` and not in the future, it returns the cached result. Else it fetches, writes the state atomically, and returns the result. It writes the state also after a failure, so an offline machine tries once a day. A state file that cannot be read or parsed, or that has no valid `checkedAt`, counts as absent. A failed state write does not throw, and the next run fetches again.
 - `omt update` without `--skills-only` always fetches, because the user asked for it, unless the caller passes a `latest`, as auto-apply does. It writes the state file only on its apply path.
-- `dailyCheck` reads only the user config's `update` key, because the project config's key is dropped (section 6.2). So a cloned repository cannot turn on network calls.
+- `dailyCheck` reads only the user config's `update` key, because the project config's key is dropped (section 6.2). So a cloned repository cannot change the mode.
 
 Skill sync. The sync runs the install planner (section 14.2) with `InstallOptions.sync: true`. With `sync`:
 
@@ -1261,7 +1262,7 @@ Exit codes: 0 for success. 1 for a registry failure (not with `--skills-only`), 
 
 JSON. With `--yes` or `--dry-run`, `--json` prints `{ "current", "latest", "channel": { "kind", "label", "package" }, "action": "run" | "repin" | "hint" | "none", "command": string | null, "hint": string | null, "switch": { "from", "to", "commands" } | null, "updated": boolean, "scopes": ScopeResult[], "defaults": [{ "scope", "root"?, "changed", "applied", "changes": DefaultsChange[] }], "restart": boolean }`. `ScopeResult` is the result per scope of the sync. `--check --json` prints `{ "current", "latest", "outdated", "channel", "action", "command", "hint", "switch" }`. `command` is the install command, and `switch` is the `PackageSwitch` of the action, or `null`. `channel.package` stays the installed package, `oh-my-t3code` before a switch. With `--json`, all text output goes to stderr, and stdout holds only the JSON. The summary per scope and the restart line are then only in the JSON, as `scopes` and `restart`. A failure (the registry, the update command, or a version mismatch) prints no JSON, only the error and its hint on stderr.
 
-Daily check in install and doctor. The check is on when the user config sets `update` to `check` or `apply` (section 6.2).
+Daily check in install and doctor. `effectiveUpdateMode(mode, env)` in `src/update/check.ts` gives the mode. A `mode` from the user config wins (section 6.2). Without one, the mode is `off` when `CI` or `NO_UPDATE_NOTIFIER` holds a value other than empty, `0`, or `false` (any case), and `check` otherwise. The check is on when the mode is `check` or `apply`.
 
 - `omt doctor` and `omt doctor --project` add the check `update` after `defaults` (section 14.7). With the check off, there is no `update` line. A failure is never `FAIL`.
 - `omt install` prints `note: omt <latest> is out; run omt update` after the summary or `Everything is up to date.`, when the daily result is outdated. It prints no note after a refusal, a conflict, or `--dry-run`.
@@ -1436,7 +1437,7 @@ A missing file is not an error. Each file is JSONC (section 7). Profile selectio
   - `crossFamily` stays unset, which counts as `false`. `fast` stays unset, so model settings can apply.
 - Each limit field replaces the old value.
 - `harnesses` replaces the old value as a whole. Absent in every layer, `config.harnesses` stays unset, which means no filter (section 8.3).
-- `update` replaces the old value. Absent in every layer, `config.update` stays unset, which means `off`. It is not a profile field, and the defaults leave it unset.
+- `update` replaces the old value. Absent in every layer, `config.update` stays unset, which means `check`, or `off` in CI (section 5.14). It is not a profile field, and the defaults leave it unset.
 - `profile` replaces the selected name. `models` merges per model and field.
 - Profiles merge per name. An existing profile keeps fields that a layer omits. `workflow` merges per group and key, `limits` per key, `roles` per role and field, and `models` per model and field. Arrays, including `chain` and `testLayers`, replace the old array.
 - A new profile needs `description`. `null` removes a custom profile, with a warning when it does not exist. Removing `normal` or `prototype` is an error.
@@ -1509,7 +1510,7 @@ Default profile: `normal`. Default models: `{ "gpt-6.1-sol": { "fast": true } }`
 
 `src/config/starter.ts` exports two strings. `omt config init` and `omt install` write the user starter. `omt init` writes the project starter. Both are sparse. They hold `$schema`, `version`, empty `roles` and `limits` objects, and comments with one example override, a commented `"profile": "prototype"` line, and a pointer to `omt config show --defaults`. After the `"profile"` line, each starter has a commented `"profiles"` example: a profile `fast-proto` with `description`, `"extends": "prototype"`, `"workflow": { "build": { "failureProofs": "on" } }`, and `"roles": { "execute": { "fast": true } }`, and a comment that points to `omt profile show <name>`. The `$schema` URL is `https://raw.githubusercontent.com/gabimoncha/oh-my-t3/main/schema/omt.schema.json`.
 
-Only the user starter has a commented `// "update": "check",` line after the `limits` object, with the comment `// Check for a new omt once a day in omt install and omt doctor (asks the npm registry).`
+Only the user starter has a commented `// "update": "off",` line after the `limits` object, with the comments `// omt install and omt doctor check for a new omt once a day (they ask the npm registry).` and `// Set "off" to stop the check, or "apply" to also update at a terminal.`
 
 ### 6.6 JSON Schema
 

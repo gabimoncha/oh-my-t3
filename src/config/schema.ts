@@ -91,7 +91,7 @@ export const CONFIG_SCHEMA = {
     visuals: RETIRED,
     update: {
       enum: [...UPDATE_VALUES],
-      description: "Check for a new omt once a day in omt install and omt doctor (asks the npm registry). apply also applies a found update. Read only from the user config. Default off.",
+      description: "Check for a new omt once a day in omt install and omt doctor (asks the npm registry). apply also applies a found update. Read only from the user config. Default check; off when CI or NO_UPDATE_NOTIFIER is set.",
     },
     harnesses: {
       type: "array",
