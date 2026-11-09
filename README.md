@@ -111,6 +111,8 @@ The agent can start the first six skills itself. You start `omt` by name.
 
 `omt-swarm` is opt-in. It builds a plan whose units split into independent tracks, each in its own worktree thread, then merges them into one draft pull request. Install it with `omt install --with omt-swarm`, and start it by name.
 
+`omt-climb` turns a goal into a score and repeats change, check, and score until every judge meets a target. The judges are a command, such as an eval, or models that score screenshots from blind labels, the least expensive model first. Start it by name.
+
 `omt-grill`, `omt-help`, `omt-loop`, and `omt-show` were removed. `omt-plan` runs the stress test of `omt-grill`, and `omt-setup` answers the questions of `omt-help`. `omt install` and `omt update` remove the old folders.
 
 A plan and its ledger stay in `.omt3/` after context compaction and across sessions, so one plan can run for days. A profile in `.omt3/config.jsonc` can change the models, the checks, and the limits. See [Configure roles and profiles](docs/configuration.md), or ask `$omt-setup` to make the change.

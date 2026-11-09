@@ -80,6 +80,16 @@ The owner set this rule. A person runs omt from a terminal, and an agent runs th
 
 `omt-setup` follows from this rule. A person who does not know the commands asks in plain words. The skill runs the same commands that the person would run and shows their text output, so the person can check every answer and every change. It answers questions too: the separate `omt-help` skill is retired, because its answers came from the same read commands.
 
+### A climb scores what a test cannot pass or fail
+
+`omt-ulw` needs done conditions that pass or fail. Some goals have only a score: an eval pass count, a context size, or the look of a UI. Theo Browne's T3 Code redesign (2026-11) used Claude Code's `/goal` with a council of three model judges that scored screenshots against Claude Code and Codex until each gave 9.5 or more. It worked, but one Opus thread ran for about 18 hours and called every judge in every round.
+
+`omt-climb` keeps that loop and moves its cost. The CLI keeps the scores and decides the next action, so the main thread spends no tokens on bookkeeping. Judges join in tiers: the least expensive judge scores each round, and the costly judges score only after the lower tiers meet the target, which Theo did by hand. Judges see letter labels, not the target or earlier scores, because Theo suspected that a judge who knew the goal scored higher, and he saw the competitor scores drift up with unchanged screenshots. So the baseline is scored again in every round, and its drift is subtracted. The run asks the owner at a plateau or at the round limit, because a higher target only adds rounds.
+
+This is the one place where a model judges looks. The owner chooses the judges and the target, and the owner still reviews `docs/design/`. The skill starts only by name, because a climb can run for hours.
+
+The same research changed the reviewers. Theo's `council` skill asks each reviewer for a score out of 10 per round and puts the rounds in the PR body. His `sol-loop` skill stops on a round of nits and flags code that the intent does not need. So a `review` result now has a `SCORE` line, the review and oracle personas report scope creep as P3, and `omt-ulw` ends its review loop when only P3 findings stay open.
+
 ### Defaults change after review
 
 Each release ships one current default configuration. Dated sets made users manage a history of model choices, and those copies could become stale. `doctor` and `update` now show the difference from the last accepted defaults and ask before applying it.

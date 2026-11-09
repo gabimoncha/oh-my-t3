@@ -59,6 +59,7 @@ src/
   brief/                 templates.ts, render.ts
   plan/                  template.ts, parse.ts
   ledger/                ledger.ts
+  climb/                 climb.ts: the climb file, blind labels, and the next action (section 5.17)
   profile/               resolve.ts
   lock/                  lock.ts
   git/                   branch.ts (section 5.15)
@@ -74,6 +75,7 @@ src/
                          update.ts adds the update command (section 5.14)
                          git.ts adds the git command (section 5.15)
                          migrate.ts adds the migrate command (section 5.16)
+                         climb.ts adds the climb command (section 5.17)
                          shared.ts holds the helpers that commands share and exports no `run`
 scripts/
   build-schema.ts        writes schema/omt.schema.json from src/config/schema.ts
@@ -91,6 +93,7 @@ skills/
   omt/                   router skill and shared references
   omt-ulw/ omt-plan/ omt-design/ omt-code-review/ omt-research/ omt-setup/
   omt-swarm/             opt-in: installs only with omt install --with omt-swarm (section 14.1)
+  omt-climb/             user-invoked: the hill climb (section 15.2)
 test/
   helpers.ts             temp dirs and a fake CliContext
   run.ts                 command helpers
@@ -98,6 +101,7 @@ test/
   config/profiles.test.ts profile validation and merging
   profile/               resolve.test.ts, profile.test.ts
   lock/                  lock.test.ts
+  climb/                 climb.test.ts: omt climb (section 5.17)
   git.test.ts            omt git check decisions
   git-commit.test.ts      omt git start and commit
   git-pr.test.ts          omt git pr and stack, with a fake gh
@@ -120,8 +124,8 @@ export type Access = "read-only" | "edit";
 export type InteractionMode = "inherit" | "default" | "plan";
 export type RuntimeMode = "inherit" | "approval-required" | "auto-accept-edits" | "auto" | "full-access";
 export type T3Role = "implementation" | "research" | "review" | "design" | "test" | "general";
-export type ResultKind = "work" | "review" | "test" | "research" | "plan" | "guardrail";
-export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan", "guardrail"];
+export type ResultKind = "work" | "review" | "test" | "research" | "plan" | "guardrail" | "score";
+export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan", "guardrail", "score"];
 
 export interface Rung {
   provider?: string; // T3 provider instance id, for example "claudeAgent"
@@ -483,6 +487,7 @@ export class OmtError extends Error {
 | `projectRolesDir(root)` | `<root>/.omt3/roles` |
 | `plansDir(root)` | `<root>/.omt3/plans` |
 | `planPath(root, slug)` | `<root>/.omt3/plans/<slug>.md` |
+| `climbPath(root, slug)` | `<root>/.omt3/plans/<slug>.climb.json`, the climb file (section 5.17) |
 | `grillsDir(root)` | `<root>/.omt3/grills` |
 | `grillPath(root, slug)` | `<root>/.omt3/grills/<slug>.md` |
 | `ledgerPath(root)` | `<root>/.omt3/ledger.jsonl` |
@@ -505,9 +510,9 @@ export class OmtError extends Error {
 
 All worktrees of one repository share one `.omt3` in the main checkout. It holds the config, the plans, the ledger, the evidence, and the shim. So a build thread in one worktree finds the plan that a planning thread wrote in another. A worktree's own `.omt3` never wins. Git writes `gitdir:` as a real path. `findProjectRoot` rebuilds the main checkout under the nearest ancestor of the worktree whose real path holds it, so a cwd in a worktree and a cwd in the main checkout give the same root string, such as `/var/...` and not `/private/var/...`.
 
-Shadowed state. Before `plan`, `ledger`, `brief`, `route`, and `init` run, the CLI calls `shadowedWorktreeState(cwd)`. When it returns a value, the CLI prints two lines to stderr: `warning: <dir> holds plans or a ledger that omt no longer reads; move them to <omtDir(main)>`, then `hint: if git tracks them, untrack them with "git rm --cached" and commit; <basename of omtDir(main)>/.gitignore keeps plans out of git`. It moves no file. A worktree copy of a plan usually comes from a commit of the main copy, so the hint names the fix.
+Shadowed state. Before `plan`, `climb`, `ledger`, `brief`, `route`, and `init` run, the CLI calls `shadowedWorktreeState(cwd)`. When it returns a value, the CLI prints two lines to stderr: `warning: <dir> holds plans or a ledger that omt no longer reads; move them to <omtDir(main)>`, then `hint: if git tracks them, untrack them with "git rm --cached" and commit; <basename of omtDir(main)>/.gitignore keeps plans out of git`. It moves no file. A worktree copy of a plan usually comes from a commit of the main copy, so the hint names the fix.
 
-No project. Before `plan`, `profile`, `ledger`, `brief`, and `lock` run, the CLI looks for a `.omt3`, `.omt`, or `.git` entry in the current directory and its parents. When it finds none, it prints one line to stderr: `warning: no .omt3, .omt, or .git found above <cwd>; omt uses it as the project root. Run omt from the project or worktree folder.` The command still runs.
+No project. Before `plan`, `climb`, `profile`, `ledger`, `brief`, and `lock` run, the CLI looks for a `.omt3`, `.omt`, or `.git` entry in the current directory and its parents. When it finds none, it prints one line to stderr: `warning: no .omt3, .omt, or .git found above <cwd>; omt uses it as the project root. Run omt from the project or worktree folder.` The command still runs.
 
 Legacy folders. Releases before the rename kept project state in `.omt/` and the user folder in `oh-my-t3code`. While only the legacy folder exists, `omtDir` and `configDir` return it, so omt reads and writes it as before. Before every command except `hook`, `update`, and `migrate` (and help and version, which return earlier), the CLI calls `legacyFolders` and, when it finds one or both, prints one line to stderr: `hint: <phrase>[; <phrase>]; run "omt migrate" to move it` (`them` for two). The phrase is `omt reads the old folder <legacy>`, or `the old folder <legacy> sits beside <current>` when both exist. `omt doctor` reports the same text as a `WARN` line with the id `folders`. `omt migrate` (section 5.16) moves the folders.
 
@@ -532,6 +537,7 @@ Argument parsing uses `node:util` `parseArgs` with `strict: true` and `allowPosi
 | `route` | `omt route <role> [--capabilities <file>] [--against <provider\|driver\|auto>] [--plan <slug>] [--profile <name>] [--unit <id>]` |
 | `brief` | `omt brief <role> (--task <text> \| --task-file <file>) [options]` |
 | `plan` | `omt plan new <slug> [--title <text>] [--light] [--max-parallel <n>] [--profile <name>] [--force]`, `omt plan profile <slug> <name\|none>`, `omt plan mark <slug> <id> <done\|open\|blocked>`, `omt plan limit <slug> <n\|none>`, `omt plan status [<slug>] [--json]`, `omt plan list [--json]` |
+| `climb` | `omt climb new <slug> --target <n> --judge <name>[@<tier>]... [options]`, `omt climb round <slug> [--subject <name>]... [--json]`, `omt climb score <slug> --judge <name> [options]`, `omt climb set <slug> [--target <n>] [--max-rounds <n>]`, `omt climb status <slug> [--json \| --markdown]` (section 5.17) |
 | `ledger` | `omt ledger done <requestId\|taskId> [--verdict <word>] [--status <status>] [--task-id <id>] [--note <text>]`, `omt ledger settle-check`, `omt ledger add [options]`, `omt ledger list [--plan <slug>] [--json]`, `omt ledger stats [--plan <slug>] [--json]`, `omt ledger request-id --plan <slug> --unit <id> --role <role> [--round <n>] [--attempt <n>]` |
 | `profile` | `omt profile list [--json]`, `omt profile show [<name>] [--plan <slug>] [--profile <name>] [--json]` |
 | `lock` | `omt lock run <name> [--wait <seconds>] -- <command> [args...]`, `omt lock list` |
@@ -1375,6 +1381,38 @@ Merge (both folders exist). A legacy file is included when the current folder ha
 
 Move of the user folder. `rename` the legacy folder, then replace its prefix in the strings of `install.json`. A failure renames it back. It moves last, because the project targets come from its `projects.json`.
 
+### 5.17 `omt climb`
+
+```text
+Usage: omt climb new <slug> --target <n> --judge <name>[@<tier>]... [--direction up|down]
+                     [--max-rounds <n>] [--plateau <n>] [--min-gain <n>]
+                     [--category <name>]... [--beat <subject>]... [--force]
+       omt climb round <slug> [--subject <name>]... [--json]
+       omt climb score <slug> --judge <name> [--round <n>]
+                       (--score <n> [--subject <name>] | --category <name>=<n>... [--subject <name>] | --result-file <file>)
+       omt climb set <slug> [--target <n>] [--max-rounds <n>]
+       omt climb status <slug> [--json | --markdown]
+```
+
+`omt climb` keeps the scores of an `omt-climb` run and decides its next action, so that the skill spends no tokens on bookkeeping. The logic is in `src/climb/climb.ts`, and the command in `src/commands/climb.ts`. The climb file is `<omtDir>/plans/<slug>.climb.json` (`climbPath`, section 4). It is JSON of version 1, written atomically through `projectWriteTarget`, so `plans/` in `.omt3/.gitignore` keeps it out of git. A slug matches the plan slug regex (section 5.5). Judge, subject, and category names match `^[a-z0-9][a-z0-9-]{0,31}$`. A flag that does not apply to the subcommand exits 2. `new`, `round`, `score`, and `set` hold the lock file `<climb file>.lock`, created with an exclusive open, for the whole read-modify-write, because judges finish in parallel. A command waits up to 10 seconds for the lock and then exits 1 with `climb_locked`, with a hint to remove the file when no climb command runs. omt never removes a lock that it does not hold, because two waiters could both remove a stale lock and then a live one. `score` reads `--result-file` input before it takes the lock.
+
+The file holds `version`, `slug`, `created`, `target`, `direction` (`up` or `down`), `maxRounds`, `plateau` (`rounds` and `minGain`), `judges` (`name` and `tier`, sorted by tier), `categories`, `beat`, `rounds` (`n`, `key`, `started`, and `labels`, a map from a blind label to a subject), and `scores` (`round`, `judge`, `subject`, `value`, optional `categories`, and `ts`). A file that is not valid JSON or not of this shape exits 1 with `climb_damaged`.
+
+- `new` needs `--target` and at least one `--judge <name>[@<tier>]`. The tier is 1 to 9, default 1. Defaults: direction `up`, 10 rounds, a plateau window of 2 rounds, and a least gain of 0.2. A duplicate judge, category, or `--beat` subject, `--beat current`, a negative `--min-gain`, or a value that is not a number exits 2. An existing file exits 1 unless `--force` is given. It prints the path.
+- `round` starts the next round with the subject `current` and each `--subject`. It exits 1 when the last round has no score, or when the next round passes `maxRounds`. It exits 2 when a `--beat` subject is missing, or for `--subject current`. It assigns the letters `A`, `B`, ... to the subjects in an order shuffled by the SHA-256 of `<slug>:<round>`, so the order changes between rounds and a test can predict it. Each round also gets a `key` of 8 random hex characters. The skill names the judges' file folder and brief unit with it, so that a judge sees no round number. It prints `round <n>`, `key <key>`, and one line `<label>  <subject>` per subject, or `{ round, key, labels }` with `--json`.
+- `score` records the scores of one declared judge (an unknown judge exits 2) for the latest round or `--round`. It takes exactly one of `--score <n>`, repeated `--category <name>=<n>`, or `--result-file <file>` (`-` for stdin). `--subject` (default `current`) applies to the first two and must be a subject of the round. A result file holds a `SCORES:` block (section 11); each line `- <label>: <category>=<n> ...` or `- <label>: <n>` names a label of the round, else the command exits 1. With declared categories, a category set must hold each declared category and no other, else exit 2. The value of a category set is its worst category: the lowest for `up`, the highest for `down`. A new score replaces the score of the same round, judge, and subject. It prints `recorded <judge> r<round> <subject> <value>` per score, and warns on stderr when a result has no score for `current`, or none for `baseline` in a round that has it.
+- `set` changes `--target`, `--max-rounds`, or both. A limit below the current round exits 2.
+- `status` prints the target, the round, a table of each judge and subject by round, and the lines `next: <action>[ tier <t>]` and `reason: <text>`. `--json` prints the same as an object with `path`, and `--markdown` prints a `## Climb` section with one table row per judge and subject, for a PR body.
+
+Calibration. When a judge scored the subject `baseline` in a round, its `current` value in that round is the raw value minus the drift: the judge's baseline value in that round minus its baseline value in the first round in which it scored the baseline. A round without a baseline score from the judge gets no correction. The status table shows a corrected value as `<value> (<raw>)`.
+
+The next action, from the last round `R`:
+
+1. `round`: no round has started.
+2. `score` with a tier: no judge scored `current` in `R` (tier 1), or a judge of a tier at or below the highest tier that scored in `R` has no score.
+3. A judge of those tiers fails when its corrected value is below the target (`up`) or above it (`down`), or when for a `--beat` subject it has no score or a raw score that is not worse than its raw `current` score. With no failure, the action is `judge-tier` with the next higher tier, or `met` when no higher tier exists.
+4. With a failure: `limit` when `R` is at least `maxRounds`; else `plateau` when `R` is above the window `w` and the gain from round `R - w` to `R` is below `minGain`. The gain uses the judges that scored `current` in both rounds, and compares the lowest corrected value among them (the highest for `down`). Else `change` with tier 1.
+
 ## 6. Config
 
 ### 6.1 Files and layering
@@ -1401,7 +1439,7 @@ A missing file is not an error. Each file is JSONC (section 7). Profile selectio
 - Allowed role keys and values:
   - `description`: a non-empty string of at most 300 characters.
   - `access`: `read-only` or `edit`.
-  - `result`: `work`, `review`, `test`, `research`, `plan`, or `guardrail`. The retired kind `grill` is an error that says to use `review`.
+  - `result`: `work`, `review`, `test`, `research`, `plan`, `guardrail`, or `score`. The retired kind `grill` is an error that says to use `review`.
   - `t3Role`: `implementation`, `research`, `review`, `design`, `test`, or `general`.
   - `interactionMode`: `inherit`, `default`, or `plan`.
   - `runtimeMode`: `inherit`, `approval-required`, `auto-accept-edits`, `auto`, or `full-access`.
@@ -1479,11 +1517,14 @@ For a role without `crossFamily`, rung 2 runs only when T3 refuses rung 1. For a
 | `oracle` | edit | review | review | default | true | codex/gpt-6-astra medium, claudeAgent/claude-opus-5-5 medium |
 | `qa` | edit | test | test | default | false | codex/gpt-6.1-sol medium, claudeAgent/claude-sonnet-5-5 low |
 | `guardrail` | read-only | guardrail | review | plan | false | claudeAgent/claude-opus-5-5 high, codex/gpt-6-astra high |
+| `judge` | read-only | score | review | plan | true | codex/gpt-6.1-sol medium, claudeAgent/claude-opus-5-5 medium |
 | `writing` | edit | work | implementation | default | false | claudeAgent/claude-opus-5-5 medium, codex/gpt-6-astra medium |
 | `design` | edit | work | design | default | false | claudeAgent/claude-opus-5-5 medium, codex/gpt-6-astra high |
 | `ui` | edit | work | implementation | default | false | claudeAgent/claude-opus-5-5 low, codex/gpt-6.1-sol high |
 
 `review` and `oracle` have `edit` access, so that the reviewer fixes each local finding itself and reports the rest (section 11).
+
+`judge` scores the subjects of an `omt-climb` round (section 15.2). It starts on Sol at medium effort, the least expensive rung, and `omt-climb` reaches its Opus rung for a second tier with `--against codex`. It is cross-family so that `--against` selects the other family; without that flag it keeps its configured order.
 
 `qa` starts on Sol at medium effort and falls back to Sonnet at low effort. It has `edit` access only so that it can run commands and write logs; its brief forbids edits in the repository (section 9.2).
 
@@ -1499,6 +1540,7 @@ Role descriptions (shown to agents in `omt roles` and in skills):
 - `oracle`: Attack the finished change from the family other than the main implementer's, fix local findings, and report the rest before it counts as done.
 - `qa`: Run the given check commands and device flows, and return each exit code with its log and screenshots. Edits nothing.
 - `guardrail`: Turn review findings into deterministic checks and rule fixes, so that the next change cannot repeat them.
+- `judge`: Score blind-labeled screenshots or outputs out of 10 in each category of a climb, with the main flaw of each. Edits nothing.
 - `writing`: Write or edit documentation and other prose.
 - `design`: Design screens and flows in Paper, and write a design spec that UI units cite.
 - `ui`: Implement one UI unit from its design spec or task requirements, inside its scope.
@@ -1864,6 +1906,7 @@ OPEN:
 ```text
 VERDICT: APPROVE | REQUEST_CHANGES | BLOCK
 SUMMARY: <one or two sentences>
+SCORE: <0 to 10>/10
 FINDINGS:
 - [P0|P1|P2|P3] <path>:<line> <problem>. Fix: <fix>.
 FIXES:
@@ -1914,7 +1957,21 @@ NOTES:
 - <each finding with no proposal and why, or none>
 ```
 
-A `qa` result lists each command under `CHECKS` with its exit code and key output line, and each log, screenshot, and recording under `EVIDENCE`; `qa` writes no tests, so the contract has no test list. A `review` or `oracle` result lists the fixes that the reviewer made under `FIXES`, with their paths, or `none` when its access is read-only; `FINDINGS` holds only the findings that it reports. Worker `NOTES` are optional. A review or oracle finding needs a concrete failure scenario. When CRAP is requested, a CRAP finding instead names the changed function and its complexity, coverage, and CRAP values. This exception applies in every round.
+`score.md`:
+
+```text
+VERDICT: SCORED | INCONCLUSIVE
+SCORES:
+- <label>: <category>=<0 to 10> <category>=<0 to 10>; or <label>: <0 to 10> when the task names no category
+FINDINGS:
+- <label> <category>: <the flaw that costs the most points>. Fix: <fix>.
+NOTES:
+- <what you could not open or judge, or none>
+```
+
+A `review` or `oracle` result gives `SCORE` from 0 to 10 for the whole change after its fixes. `omt-ulw` reports the verdict and score of each round, and puts them as a `## Review rounds` table in the body of the PR that `omt git pr` creates. `omt git pr` does not change the body of an existing PR. A `judge` result scores every label in every category of the task; `omt climb score --result-file` reads its `SCORES` block (section 5.17).
+
+A `qa` result lists each command under `CHECKS` with its exit code and key output line, and each log, screenshot, and recording under `EVIDENCE`; `qa` writes no tests, so the contract has no test list. A `review` or `oracle` result lists the fixes that the reviewer made under `FIXES`, with their paths, or `none` when its access is read-only; `FINDINGS` holds only the findings that it reports. Worker `NOTES` are optional. A review or oracle finding needs a concrete failure scenario. When CRAP is requested, a CRAP finding instead names the changed function and its complexity, coverage, and CRAP values. This exception applies in every round. A P3 scope finding (code, tests, options, or guards that the objective does not need) instead names the unneeded part and why the objective does not need it.
 
 Severity meanings for review findings: P0 breaks the build, loses data, or opens a security hole. P1 is a wrong result in a normal path. P2 is a wrong result in an edge case, a named missing test, or a requested CRAP finding above 30. P3 is style or clarity.
 
@@ -2188,7 +2245,7 @@ The plan lists the user config and the manifest only when they exist. Two names 
 
 `omt doctor` first reviews pending defaults for the active install, unless the config has errors. `--project` selects the project snapshot. Without that flag, an active project snapshot takes precedence over the user snapshot. `--yes` accepts defaults. `--dry-run` writes nothing and skips daily checks and automatic updates. JSON adds `defaults: { changed, applied, changes }`.
 
-Then doctor runs these checks and prints one line per check, such as `PASS  config  11 roles`:
+Then doctor runs these checks and prints one line per check, such as `PASS  config  12 roles`:
 
 | Id | PASS | WARN | FAIL | INFO |
 | --- | --- | --- | --- | --- |
@@ -2436,7 +2493,7 @@ User scope and project scope never read or write each other's files, except the 
 - Every relative link in a skill must resolve to a file in the repository. A test checks this.
 - Write for agents. Front-load the trigger words in each description. Give each step a completion criterion. State the target behavior instead of a ban where possible.
 - On git actions, reply style, tests, and model choice, the user's own instructions win over omt defaults: the user's message first, then the user's `AGENTS.md` or `CLAUDE.md`. omt owns the workflow steps. The rule lives in the section "User instructions win" of `delegation.md`, and the router repeats it.
-- Word budgets. `test/skills/budget.test.ts` holds a word target for each skill file and each reference folder. A file may exceed its target by 10%, and all files in `skills/` together have at most 16,000 words. No file outside `skills/omt-swarm/` contains `gh pr checks ... --watch`, `ready PR`, `omt ultrawork:`, `t3_thread_configuration`, `ledger.dispatched`, `omt ledger add`, `shasum`, or `t3_thread_wait`. `test/skills/contract.test.ts` checks a short list of safety rules, one phrase each, in the file that owns the rule.
+- Word budgets. `test/skills/budget.test.ts` holds a word target for each skill file and each reference folder. A file may exceed its target by 10%, and all files in `skills/` together have at most 17,600 words. No file outside `skills/omt-swarm/` contains `gh pr checks ... --watch`, `ready PR`, `omt ultrawork:`, `t3_thread_configuration`, `ledger.dispatched`, `omt ledger add`, `shasum`, or `t3_thread_wait`. `test/skills/contract.test.ts` checks a short list of safety rules, one phrase each, in the file that owns the rule.
 
 Git actions. The `workflow.git` policy (section 6.7) is the owner's standing approval for each action that it marks `auto`. The skills act on git only through the CLI (section 5.15), which applies the policy, reads the user's login with `gh`, and checks who owns the repo and its open PRs. The rules live in the section "Git actions" of `delegation.md`:
 
@@ -2455,13 +2512,14 @@ Pull requests. When a skill creates a PR, it links the PR with `link_pull_reques
 
 | Skill | Invocation | Purpose |
 | --- | --- | --- |
-| `omt` | user | Router. Lists the workflow skills and when to use each, names `omt-swarm` as opt-in, and links the shared references. |
+| `omt` | user | Router. Lists the workflow skills and when to use each, names `omt-swarm` as opt-in and `omt-climb` as user-started, and links the shared references. |
 | `omt-ulw` | model | Ultrawork build flow in 13 steps: mode and branch check, question or goal, explore, frame, ask question batches, plan, design check, build in the main thread, one review child, the fix diff and fixes, one QA child, failed-check fixes, ship and report. Trigger words: start ulw, start ultrawork, ulw, build or fix with subagents in T3. |
 | `omt-plan` | model | Plan only, also when `omt-ulw` calls it: explore in the main thread, ask owner question batches, an optional stress test of the goal, write the plan and the approved test list with `## Summary` last, review by `plan.review` with 1 `plan-review` child and at most 2 rounds, and show the summary. Trigger words include stress-test and edge cases. |
 | `omt-design` | model | Draw `design.variants` variants per screen with the `design.tool` tool, in the main thread or in 1 routed `design` child, show screenshots by screen, apply owner steering until approval, write `docs/design/<slug>.md` in the main thread, and build the screens on request. |
 | `omt-code-review` | model | Review uncommitted changes, a branch, a commit, or a PR with report-only children: 1 reviewer for a small diff, or 2 to 4 grouped reviewers and 1 oracle for a large diff. The main thread merges the findings and makes every approved fix. PRs use the steps in section 15.4. |
 | `omt-research` | model | A cited answer: the main thread answers a narrow question itself, and a broad question gets 2 to 4 parallel read-only children whose claims the main thread checks. |
 | `omt-setup` | model | Help and setup. Answers questions about omt from the output of read commands, and sets up, configures, or updates omt through the CLI: the doctor check, the harnesses, defaults review, worktree setup, profile and role edits, and an update. It shows each command or edit first, runs `--dry-run` where the command has it, and passes `--yes` only after the user agrees. |
+| `omt-climb` | user | Hill climb: frame the scorer, target, judges, gates, and limits with the owner, then repeat a round (blind labels from `omt climb round`, judge children of the tier that `next:` names, `omt climb score`) and a change until `omt climb status` gives `met`, `plateau`, or `limit`. It installs by default. Only the user starts it, with `disable-model-invocation: true` and `allow_implicit_invocation: false`. It ends with `omt-ulw` steps 8 to 12. |
 | `omt-swarm` | user, opt-in | Build one plan as parallel tracks in separate worktree threads, review every track diff with 1 child, merge, run 1 QA child, and open one draft PR. A default install leaves it out; `omt install --with omt-swarm` installs it (section 14.1). Invoking it is the explicit user request that T3 requires for new threads. |
 
 `omt-grill` and `omt-help` are retired. The stress test of `omt-plan` step 2a replaces `omt-grill`, and step 3 of `omt-setup` replaces `omt-help`. The `grill` role and the `grill` result kind are retired (section 6.2). `omt paths --grills` and the `grills/` line of `.omt3/.gitignore` stay, so that old grill files stay readable.
@@ -2536,7 +2594,7 @@ Every plan has a `## Summary` of at most 15 lines for the owner, in plain words 
 - It shows every screenshot as a Markdown image with its absolute path, grouped by screen, asks which variant to keep for each screen and what to change, and ends the turn. It applies the owner's words verbatim and repeats until the owner approves one variant for each screen. A child gets each new round with the owner's words in the task and every earlier round in `--prior-file`.
 - The main thread writes `docs/design/<slug>.md`, also when a child drew, with exact values from the Paper file or the mockup source, the approved variant of each screen, and the owner's last words. Each unit that builds this UI cites the spec and uses the `ui` role. When the owner asks, the skill writes a LIGHT plan with one `ui` unit per screen and runs `omt-ulw` steps 7 to 12.
 
-Design exclusion. No model reviews design artifacts. `review`, `oracle`, and `plan-review` tasks leave `docs/design/` out. `omt-ulw` QA and review tasks of `ui` units leave out `docs/design/` and every check that compares the result with the design, and keep the code and behavior checks. `omt-code-review` leaves `docs/design/` out of its groups and its count, lists the design files for the owner, and stops when only design files changed. Code review of `ui` units stays.
+Design exclusion. No model reviews design artifacts. `review`, `oracle`, and `plan-review` tasks leave `docs/design/` out. `omt-ulw` QA and review tasks of `ui` units leave out `docs/design/` and every check that compares the result with the design, and keep the code and behavior checks. `omt-code-review` leaves `docs/design/` out of its groups and its count, lists the design files for the owner, and stops when only design files changed. Code review of `ui` units stays. One exception: in `omt-climb`, `judge` children score screenshots of the running app, because the owner chose the climb's judges and target. They still never read `docs/design/`.
 
 `omt-code-review`:
 
@@ -2561,6 +2619,14 @@ Design exclusion. No model reviews design artifacts. `review`, `oracle`, and `pl
 - It writes only by its write rules: show the command or the edit, run `--dry-run` first when the command has it, ask, pass `--yes` or make the edit only after the user agrees, and run the step's check after the write.
 - Step 3 answers a question and writes nothing. It sorts the question and runs its read commands first: the router's workflow list, `omt help <command>`, `omt config show`, `omt config explain`, `omt profile list`, `omt profile show <name>`, `omt roles`, `omt detect`, the doctor command, and `omt update --check`. Every fact in the answer comes from a command that it ran in that turn, the router, or one linked doc on GitHub (`install`, `configuration`, `commands`, `workflows`, `walkthrough`, or `design`).
 - The other steps read the doctor and map each line that is not `PASS` to a step: harnesses (`omt detect`, with `--capabilities` in a T3 thread), defaults review, worktree setup, a profile or role edit, or an update. A plain "set up omt" runs the doctor, harness, defaults, and worktree steps, then checks whether Anthropic's optional `frontend-design` skill is available and recommends the official skill when it is missing. Setup never installs it without the user's request, and a missing skill does not block setup or UI work.
+
+`omt-climb`:
+
+- Judges are blind: a judge task names no target, no round, no earlier score, and no hint about which label is the change, and each round gives the same rubric and categories. Subject files are copied to `<evidence>/climb-<key>/<label>-<k>.<ext>`, and a judge brief uses `--unit J-<name>-<key>` with no `--round`.
+- Tier 1 is the `judge` role without `--against`; tier 2 is the `judge` role with `--against <tier 1 driver>`. A tier scores a round only when `next:` names it, so the costly judges score only after the less expensive tiers meet the target.
+- A capture command or a `qa` child makes the screenshots. The baseline and the references are captured once and reused in every round.
+- The target, the round limit, and the judges change only after the owner's yes. On `plateau` or `limit`, the skill shows the status and asks the owner.
+- In step 4 a judge finding outside the Objective is declined and logged. Step 6 runs `omt-ulw` steps 8 to 12 and puts `omt climb status <slug> --markdown` in the body of the PR that it creates.
 
 `omt-swarm`:
 
@@ -2643,12 +2709,13 @@ Required coverage:
 - Brief: every section, omitted sections, access and delegation lines, plan mode, per-role test policy, CLI and shared-build lines, template lookup, title, and JSON payload. Also cover saved bytes, request-id and hash paths, the short pointer, complete ledger command, unavailable-route writes, profile flags with missing plan files, the device line for every role except `qa`, the `qa` access and test lines, and an unknown-role exit for `verify`, `quick`, and `deep`.
 - Plan: the template with `## Tests`, every checkbox state, counts, next unit, `complete`, profile headers, plan profile switches, and effective status output, and each dependency warning: an unknown unit, a self-dependency, a cycle, units inside code fences, and the `warning:` lines and the JSON `warnings` field of `omt plan status`, including the `max-tasks` header warning. `plan limit --tasks` and `plan new --max-tasks` exit 2 and change no file.
 - Ledger: append, list, stats, a malformed line, `requestId` sanitizing with round and attempt, `done` by request id and task id with `stats` agreeing, `settle-check` in a linked worktree, and the start record, limit exit 75, resend, concurrent briefs, `--fallback`, `--tried`, and `--strict` of `omt brief` (`test/commands/brief-ledger.test.ts`). `canDispatch` depends only on `active` and `maxParallel`, also after many dispatched entries, and stats ignores a config `maxTasksPerRun` and a plan `max-tasks`.
+- Climb: `test/climb/climb.test.ts` covers `new` validation, blind labels and `--result-file` mapping, the open-round and limit guards of `round`, each next action (`round`, `score`, `judge-tier`, `change`, `met`, `limit`, `plateau`), drift correction, `--beat`, `--direction down`, `set`, concurrent `score` commands under the lock, a new key per round, and damaged climb files.
 - Hook: a detection matrix (inside a code block, inside quotes, `ulwx`, `$ulw`, `ULTRAWORK`, a prompt with `<!-- omt-brief`, a prompt that starts with `Act as the `, a prompt that starts with `/omt-ulw`, a prompt that starts with `<task-notification>`, negated keywords and the two-word window, a 200,000-character negated prompt), invalid JSON, the output shape, and the build-contract text of the pointer.
 - Install: create, idempotent rerun, conflict without and with `--force`, a locally modified managed skill, backups outside the skill roots, `--dry-run` and a declined prompt write nothing, non-TTY without `--yes`, roots that resolve to the same directory, hook add and update that keep other settings, an unchanged hook writes nothing, a symlinked `settings.json` stays a symlink, `--hooks` refused for a temp `cliPath`, uninstall removes only managed paths, and `--purge`.
 - Project install: the files of section 14.8, an idempotent rerun, `--dry-run`, the exclude file for a `.git` directory and a worktree `.git` file, block replacement, no `.git`, `--no-git-exclude` (also on a reinstall, and its `.omt3/.gitignore` restore), the conditional `.omt3` and `settings.local.json` lines, the hook in `settings.local.json`, uninstall with a locally modified skill and `--purge`, `--targets gemini` (exit 2), a temp `cliPath`, and the shim conflict and update. Also: a copied project, a moved clone round trip, a tracked manifest with paths outside the root, a symlinked path to the root, the home directory as the root (exit 2), a dangling settings symlink, a failed scratch delete, glob characters in a package path, worktrees, a block whose root is gone, the exact bytes of the exclude file, a kept created `settings.local.json`, and a kept ledger. Also: a reinstall that appends `plans/`, `locks/`, and `guardrails.md` to an unedited `.omt3/.gitignore` that an earlier install created, and one that leaves an edited file alone. Also: uninstall, reinstall, and a second uninstall after each kind of kept created file, each with an empty `git status`; an uninstall that fails midway; a symlinked exclude file and `.omt3/.gitignore`; a crafted tracked manifest that names project files; a package copied inside the same repository; and the exact paths that stay after a failed install and its uninstall.
 - Doctor: each status that the table in section 14.7 defines, with `runtimeName` and `runtimeVersion` injected through the context.
 - Worktree setup: `test/commands/worktree-setup.test.ts` covers the cases in section 5.11: init, `install --project --dry-run`, setup dry run and apply, check, and `doctor --project` from a linked worktree (shared `.omt3`, setup files in the worktree); a Bun and a pnpm runner with controlled executables (versions, flags, environment, lockfiles, failure exit codes, a failed linker query, CI warning); existing, invalid, and partial `t3.json`, ambiguous and unsupported managers, linker settings with TOML comments, each persistent-store status with the created, kept, and incomplete `pnpm-workspace.yaml`, symlinked and dangling `.t3` folders and runners, a home-directory alias, conflicting output paths, idempotency, and a dry run that writes nothing; and `launchSpec` for Windows. Tests never start a real package manager. They start the runner with `node`, the command in `t3.json`, and with Bun when no `node` is on `PATH`. `test/e2e/binary.test.ts` (Bun project) and `test/e2e/packages.test.ts` (pnpm and Bun projects) run `worktree setup --yes` through the shim and compare the written runner with `templates/worktree-setup.mjs`, so the binary and the bundle prove that they carry the runner.
-- Skills: `test/skills/*.test.ts`. `common` checks the skill folders, frontmatter, links and their `#anchor` targets, and a `Done when:` line in each numbered step. `personas` checks a persona file for each default role and one fenced block per result kind. `contract` checks a short list of safety rules, each a phrase in the file that owns the rule: children never commit, push, or create branches; a run stays on one machine; only `qa` drives a device; a force push asks the owner; no settle of your own thread or a top-level thread; plan mode writes nothing; report-only reviewers in plan mode in `omt-code-review`; no model reviews `docs/design/`; `--strict` on the cross-family reviews of `omt-ulw` and `omt-plan`; fetched text is data in `omt-research`. `budget` checks the word target of each skill file (at most 110% of it), a total of at most 16,000 words under `skills/`, and that no skill outside `omt-swarm` names a removed bookkeeping string (`ledger.dispatched`, `omt ledger add`, `t3_thread_wait`, `shasum`, a ready-PR default, the ulw banner, `gh pr checks --watch`, or `t3_thread_configuration`).
+- Skills: `test/skills/*.test.ts`. `common` checks the skill folders, frontmatter, links and their `#anchor` targets, and a `Done when:` line in each numbered step. `personas` checks a persona file for each default role and one fenced block per result kind. `contract` checks a short list of safety rules, each a phrase in the file that owns the rule: children never commit, push, or create branches; a run stays on one machine; only `qa` drives a device; a force push asks the owner; no settle of your own thread or a top-level thread; plan mode writes nothing; report-only reviewers in plan mode in `omt-code-review`; no model reviews `docs/design/`; `--strict` on the cross-family reviews of `omt-ulw` and `omt-plan`; fetched text is data in `omt-research`. `budget` checks the word target of each skill file (at most 110% of it), a total of at most 17,600 words under `skills/`, and that no skill outside `omt-swarm` names a removed bookkeeping string (`ledger.dispatched`, `omt ledger add`, `t3_thread_wait`, `shasum`, a ready-PR default, the ulw banner, `gh pr checks --watch`, or `t3_thread_configuration`).
 - Schema: the committed schema equals the generated one, and it allows the same keys as the validator.
 - CLI: `--help`, `--version`, an unknown command (exit 2), and an unknown flag (exit 2), run as a child process. `test/cli.test.ts` also checks that `omt help` and `omt help config` print the same text as `omt --help` and `omt config -h`. `test/cli-help.test.ts` runs every command in `COMMANDS` except `hook` with probe arguments from its usage text. It records the options of each `parseArgs` call through `observeParseArgs` in `src/util/args.ts`, and fails when a usage text does not name a flag that its parser accepts, or when no probe of a command reaches a parser.
 - Config explain: `test/e2e/config-explain.test.ts` runs `omt config explain` and `omt config explain --profile fast-proto --json` as a child process with a temp user and project config, and checks a source from the defaults, the user file, the project file, and a profile.

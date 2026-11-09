@@ -57,6 +57,16 @@ In T3 plan mode, the main thread writes nothing: it leaves out `--save`, records
 
 `omt-swarm` needs a thread in `full-access` runtime mode and `default` interaction mode.
 
+## Climb to a target score
+
+`omt-climb` turns a goal into a score and repeats change, check, and score until every judge meets a target. Start it by name. It is useful when a check can give a number but not a pass: an eval with a pass count, a benchmark, a bundle size, or the look of a UI.
+
+1. The main thread asks for the scorer, the target, the judges and their tiers, the gates (such as the test suite), and the round limit.
+2. A scorer is a command that prints a number, or `judge` tasks that score screenshots or outputs out of 10 in each category. Judges see only letter labels, such as `A` and `B`, and never the target, the round, or earlier scores. The baseline (the code before the first change) and any competitor screenshots are scored in every round, and a judge's baseline score corrects its drift.
+3. Tier 1, the least expensive judge, scores each round. A higher tier, such as Opus, scores only after the lower tiers meet the target. This keeps most of the cost on the less expensive model.
+4. `omt climb status` says what comes next. The run stops at `met`, or asks you at `plateau` (the score stopped rising) or `limit` (the round limit).
+5. The run ends with the build steps 8 to 12: one review task and one qa task check the behavior, and the PR body gets the climb table.
+
 ## Review a pull request
 
 In a T3 thread, run the skill:
