@@ -16,8 +16,6 @@ To change the landing page in `site/`, read [site/AGENTS.md](site/AGENTS.md) fir
 
 ## Commands
 
-Run each command through `mise exec --` (or in a shell where mise is active), so that the Bun version that `mise.toml` pins runs.
-
 | Command | Use |
 | --- | --- |
 | `bun install` | Install the dev dependencies. |
