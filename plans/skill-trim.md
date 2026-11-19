@@ -43,7 +43,7 @@ Owner decisions are the numbered questions at the end. The decisions below are s
 - MD8. Plan hashes go. The reviewer reads the plan file at its path. One checkout holds the plan, and no other writer changes it during a review.
 - MD9. Fixed report formats become lists of contents. Examples: the ulw step 12 report, the code-review evidence file, the research answer, and the plan hand-off. Result blocks of children stay fixed, because the main thread parses them.
 - MD10. Profiles stay. They are not in the approved verdicts. The skills name `--profile` once, and `omt brief` applies the profile's limits itself. That removes the four-bullet "selected profile and no plan file" block from `omt-plan`, `omt-design`, and `omt-grill`.
-- MD11. The CLI does the fallback. `omt brief ... --fallback` picks the first target in the resolved routing order that this unit, role, and round have not tried yet, and closes the superseded attempt. In default mode the ledger holds the tried targets. In plan mode the agent passes them back with `--tried <targetKey>`. `--strict` stops when the only target left is in the `--against` family. This replaces the manual rung steps (`roles.md`, "Fall back to the next rung") and the family checks in four skills.
+- MD11. The CLI does the fallback. `omt brief ... --fallback` picks the first target in the resolved routing order that this unit, role, and round have not tried yet, and closes the superseded attempt. In default mode the ledger holds the tried targets. In plan mode the agent passes them back with `--tried <targetKey>`. `--strict` stops when the only target left is in the `--against` family. This replaces the manual candidate steps (`roles.md`, "Fall back to the next candidate") and the family checks in four skills.
 - MD12. The branch check (`delegation.md:37-52`) becomes `omt git behind [--ff]`.
 - MD13. The CLI runs `gh` for the login, the PR authors, and the PR calls. `AGENTS.md` ("Dependencies") and spec §5.15 ("makes no network call") change to say that `omt git commit` and `omt git pr` run `gh` and `git push`, which contact the git host.
 - MD14. The `omt` router drops its CLI table and says: run `omt help` and `omt help <command>`. That command exists today.
@@ -111,7 +111,7 @@ With `--save --json`, `--plan`, and `--unit`, the command now also does these st
 5. Record. It appends a `dispatched` entry with plan, unit, role, round, attempt, `clientRequestId`, provider, model, and the new field `targetKey`, with no `taskId`.
 6. Output. It prints `targetKey` and `ledger.done` in place of `ledger.dispatched`: `<cli> ledger done <clientRequestId> --verdict <VERDICT>`.
 
-A target key names one target in the resolved order, such as `codex/gpt-6-astra` or `instance:codex/gpt-6-astra`. The resolved order is the routing order after the `--against` reorder (spec §8.3). In it, a rung that names only a driver gives two targets: first the `driverKind` target, then the same rung with `providerInstanceId` set to the driver.
+A target key names one target in the resolved order, such as `codex/gpt-6-astra` or `instance:codex/gpt-6-astra`. The resolved order is the routing order after the `--against` reorder (spec §8.3). In it, a candidate that names only a driver gives two targets: first the `driverKind` target, then the same candidate with `providerInstanceId` set to the driver.
 
 New flags:
 

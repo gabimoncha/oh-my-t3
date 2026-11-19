@@ -293,7 +293,7 @@ Restart your agent sessions in T3 Code after the install. A running session does
 | `~/.config/oh-my-t3/install.json` | The manifest of what the install added. |
 | `~/.config/oh-my-t3/backups/` | Backups of anything that the install replaced or edited. |
 | `~/.claude/settings.json` | One `UserPromptSubmit` hook entry, only with `--hooks`. Other settings stay unchanged. |
-| `.omt3/` in a project | The project config, plans, ledger, locks, local guardrail proposals, and evidence files. |
+| `.omt3/` in a project | The project config, plans, ledger, locks, and evidence files. |
 
 Each installed skill directory holds a `.omt-managed.json` marker. The install never overwrites a path that it does not manage, unless you pass `--force`. With `--force`, it moves the old path to the backups directory first.
 

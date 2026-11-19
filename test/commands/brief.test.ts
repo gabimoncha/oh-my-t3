@@ -52,8 +52,8 @@ test("brief --json holds exactly the delegate_task fields, without clientRequest
   assert.equal(output.delegateTask.interactionMode, "default");
   assert.equal(output.delegateTask.runtimeMode, "inherit");
   assert.equal(output.delegateTask.title, "review: Check the diff.");
-  assert.deepEqual(output.delegateTask.target, { providerInstanceId: "codex", model: "gpt-6-astra", options: { reasoningEffort: "medium" } });
-  assert.deepEqual(output.fallbacks, [{ providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "medium" } }]);
+  assert.deepEqual(output.delegateTask.target, { providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh", serviceTier: "priority" } });
+  assert.deepEqual(output.fallbacks, [{ providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "high" } }]);
   assert.match(output.delegateTask.task, /^<!-- omt-brief v1 role=review round=1 depth=1\/1 -->/);
   assert.equal(ctx.err(), "");
 });
@@ -136,7 +136,7 @@ test("brief fails on an unknown role and on an unavailable role with --json", as
   assert.equal(unavailable.code, 1);
   assert.equal(unavailable.ctx.out(), "");
   assert.match(unavailable.ctx.err(), /role oracle is unavailable/);
-  assert.match(unavailable.ctx.err(), /rung 1: provider grok cannot run child tasks/);
+  assert.match(unavailable.ctx.err(), /candidate 1: provider grok cannot run child tasks/);
 });
 
 test("brief --json --capabilities resolves the target against T3", async () => {
@@ -144,7 +144,7 @@ test("brief --json --capabilities resolves the target against T3", async () => {
   assert.deepEqual(parse(ctx.out()).delegateTask.target, {
     providerInstanceId: "claudeAgent",
     model: "claude-opus-5-5",
-    options: { effort: "low" },
+    options: { effort: "medium" },
   });
 });
 
@@ -196,15 +196,15 @@ test("brief --json --against puts the other family first and prints the notes to
   const codex = await project.runOk(["brief", "review", "--task", "Check U1.", "--against", "codex", "--json"]);
   const output = parse(codex.ctx.out());
   assert.deepEqual(Object.keys(output), ["delegateTask", "fallbacks", "targetKey"]);
-  assert.deepEqual(output.delegateTask.target, { providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "medium" } });
-  assert.deepEqual(output.fallbacks, [{ providerInstanceId: "codex", model: "gpt-6-astra", options: { reasoningEffort: "medium" } }]);
+  assert.deepEqual(output.delegateTask.target, { providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "high" } });
+  assert.deepEqual(output.fallbacks, [{ providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh", serviceTier: "priority" } }]);
   assert.equal(codex.ctx.err(), "note: cross-family: worker family codex; other families first\n");
 
   const claude = await project.run(["brief", "review", "--task", "Check U1.", "--against", "claudeAgent", "--json"]);
   assert.deepEqual(parse(claude.ctx.out()).delegateTask.target, {
     providerInstanceId: "codex",
-    model: "gpt-6-astra",
-    options: { reasoningEffort: "medium" },
+    model: "gpt-6.2-sol",
+    options: { reasoningEffort: "xhigh", serviceTier: "priority" },
   });
 });
 
@@ -212,7 +212,7 @@ test("brief --json --against auto takes the unit's worker from the ledger", asyn
   const project = makeProject();
   project.writeOmt(
     "ledger.jsonl",
-    `${JSON.stringify({ ts: "2026-10-06T00:00:00.000Z", role: "execute", status: "dispatched", plan: "p", unit: "U1", provider: "codex", model: "gpt-6.1-sol" })}\n`,
+    `${JSON.stringify({ ts: "2026-10-06T00:00:00.000Z", role: "execute", status: "dispatched", plan: "p", unit: "U1", provider: "codex", model: "gpt-6.2-sol" })}\n`,
   );
   const { ctx } = await project.runOk(
     ["brief", "review", "--task", "Check U1.", "--plan", "p", "--unit", "U1", "--against", "auto", "--json"],

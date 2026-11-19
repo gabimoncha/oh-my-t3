@@ -1,4 +1,4 @@
-import type { ResolvedTarget, RoleResolution, RolesReport, Rung, RungAttempt } from "../types.ts";
+import type { ResolvedTarget, RoleResolution, RolesReport, Candidate, CandidateAttempt } from "../types.ts";
 
 const HEADER = ["ROLE", "STATUS", "TARGET", "ACCESS", "MODE", "CROSS"];
 // Minimum widths and gaps reproduce the example table in docs/spec.md section 5.3.
@@ -19,17 +19,17 @@ export function formatTarget(target: ResolvedTarget): string {
   return head + options.join("");
 }
 
-function rungLabel(rung: Rung): string {
-  return `${rung.provider ?? rung.driver ?? "?"}/${rung.model}`;
+function candidateLabel(candidate: Candidate): string {
+  return `${candidate.provider ?? candidate.driver ?? "?"}/${candidate.model}`;
 }
 
-// Lines under a role: why earlier rungs were skipped, and the notes of the chosen rung.
+// Lines under a role: why earlier candidates were skipped, and the notes of the chosen candidate.
 function detailLines(resolution: RoleResolution): string[] {
   const chosen = resolution.attempts.findIndex((a) => a.ok);
-  const shown: RungAttempt[] = chosen < 0 ? resolution.attempts : resolution.attempts.slice(0, chosen + 1);
+  const shown: CandidateAttempt[] = chosen < 0 ? resolution.attempts : resolution.attempts.slice(0, chosen + 1);
   const lines: string[] = [];
   for (const a of shown) {
-    const prefix = `  rung ${a.index + 1} ${rungLabel(a.rung)}: `;
+    const prefix = `  candidate ${a.index + 1} ${candidateLabel(a.candidate)}: `;
     for (const note of a.notes) lines.push(prefix + note);
     if (a.reason !== undefined) lines.push(prefix + a.reason);
   }

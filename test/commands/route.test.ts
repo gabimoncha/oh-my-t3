@@ -20,12 +20,12 @@ test("route prints an unverified RouteOutput and exits 0", async () => {
     access: "edit",
     result: "review",
     delegateTask: {
-      target: { providerInstanceId: "codex", model: "gpt-6-astra", options: { reasoningEffort: "medium" } },
+      target: { providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh", serviceTier: "priority" } },
       role: "review",
       interactionMode: "default",
       runtimeMode: "inherit",
     },
-    fallbacks: [{ providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "medium" } }],
+    fallbacks: [{ providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "high" } }],
     notes: [],
   });
 });
@@ -36,7 +36,7 @@ test("route --capabilities resolves against the provider instances", async () =>
   assert.deepEqual(output.delegateTask?.target, {
     providerInstanceId: "claudeAgent",
     model: "claude-opus-5-5",
-    options: { effort: "low" },
+    options: { effort: "medium" },
   });
 });
 
@@ -48,7 +48,7 @@ test("route prints an unavailable role without delegateTask and exits 1", async 
   const output = JSON.parse(ctx.out()) as RouteOutput;
   assert.equal(output.status, "unavailable");
   assert.equal(output.delegateTask, undefined);
-  assert.match(output.notes[0] ?? "", /^rung 1: provider grok cannot run child tasks: /);
+  assert.match(output.notes[0] ?? "", /^candidate 1: provider grok cannot run child tasks: /);
 });
 
 test("route fails on an unknown role and needs exactly one role", async () => {
@@ -71,10 +71,10 @@ test("route --against reorders a cross-family role and prints the note", async (
   assert.deepEqual(againstCodex.delegateTask?.target, {
     providerInstanceId: "claudeAgent",
     model: "claude-opus-5-5",
-    options: { effort: "medium" },
+    options: { effort: "high" },
   });
   assert.deepEqual(againstCodex.fallbacks, [
-    { providerInstanceId: "codex", model: "gpt-6-astra", options: { reasoningEffort: "medium" } },
+    { providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh", serviceTier: "priority" } },
   ]);
 });
 
@@ -87,10 +87,10 @@ test("route --against auto reads the worker from the ledger", async () => {
   project.writeOmt(
     "ledger.jsonl",
     ledger([
-      { plan: "p", unit: "U1", role: "execute", provider: "codex", model: "gpt-6.1-sol" },
+      { plan: "p", unit: "U1", role: "execute", provider: "codex", model: "gpt-6.2-sol" },
       { plan: "p", unit: "U2", role: "execute", provider: "claudeAgent", model: "claude-opus-5-5" },
       { plan: "p", unit: "U3", role: "execute", provider: "claudeAgent", model: "claude-opus-5-5" },
-      { plan: "p", unit: "U2", role: "review", provider: "codex", model: "gpt-6-astra" },
+      { plan: "p", unit: "U2", role: "review", provider: "codex", model: "gpt-6.2-astra" },
     ]) + "not json\n",
   );
   const unit = await route(project, ["review", "--against", "auto", "--plan", "p", "--unit", "U1"]);
@@ -126,8 +126,8 @@ test("route --against auto re-reviews each fix with the provider of its own fix 
   project.writeOmt(
     "ledger.jsonl",
     ledger([
-      { plan: "review-x", unit: "G1", role: "review", provider: "codex", model: "gpt-6-astra" },
-      { plan: "review-x", unit: "F1", role: "execute", provider: "codex", model: "gpt-6.1-sol" },
+      { plan: "review-x", unit: "G1", role: "review", provider: "codex", model: "gpt-6.2-astra" },
+      { plan: "review-x", unit: "F1", role: "execute", provider: "codex", model: "gpt-6.2-sol" },
       { plan: "review-x", unit: "F2", role: "execute", provider: "claudeAgent", model: "claude-opus-5-5" },
       { plan: "review-x", unit: "F3", role: "execute", provider: "claudeAgent", model: "claude-opus-5-5" },
     ]),
@@ -145,7 +145,7 @@ test("route --against auto skips a worker entry whose provider is not a non-empt
   project.writeOmt(
     "ledger.jsonl",
     ledger([
-      { plan: "p", unit: "U1", role: "execute", provider: "codex", model: "gpt-6.1-sol" },
+      { plan: "p", unit: "U1", role: "execute", provider: "codex", model: "gpt-6.2-sol" },
       { plan: "p", unit: "U1", role: "execute", provider: null, model: "claude-opus-5-5" },
       { plan: "p", unit: "U1", role: "execute", provider: "", model: "claude-opus-5-5" },
     ]),
@@ -169,7 +169,7 @@ test("route --against maps a configured provider instance to its driver without 
         review: {
           chain: [
             { provider: "claude-max", driver: "claudeAgent", model: "claude-opus-5-5", effort: "high" },
-            { provider: "codex-pro", driver: "codex", model: "gpt-6-astra", effort: "high" },
+            { provider: "codex-pro", driver: "codex", model: "gpt-6.2-astra", effort: "high" },
           ],
         },
       },
@@ -184,11 +184,11 @@ test("route --against maps a configured provider instance to its driver without 
   const forUnknown = unknown.output;
   assert.equal(forUnknown.delegateTask?.target.providerInstanceId, "claude-max");
   assert.deepEqual(forUnknown.notes, [
-    "cross-family: no rung is in family claude-other; check that --against names a driver or a configured provider, or pass --capabilities",
+    "cross-family: no candidate is in family claude-other; check that --against names a driver or a configured provider, or pass --capabilities",
   ]);
 });
 
-test("route --against maps a rung that names only a provider through the configured drivers, like the worker", async () => {
+test("route --against maps a candidate that names only a provider through the configured drivers, like the worker", async () => {
   const project = makeProject();
   project.projectConfig(
     JSON.stringify({
@@ -198,13 +198,13 @@ test("route --against maps a rung that names only a provider through the configu
         oracle: {
           chain: [
             { provider: "claude-max", model: "claude-opus-5-5", effort: "high" },
-            { provider: "codex-pro", model: "gpt-6-astra", effort: "high" },
+            { provider: "codex-pro", model: "gpt-6.2-astra", effort: "high" },
           ],
         },
         review: {
           chain: [
             { provider: "claude-max", model: "claude-opus-5-5", effort: "high" },
-            { provider: "codex", driver: "codex", model: "gpt-6-astra", effort: "high" },
+            { provider: "codex", driver: "codex", model: "gpt-6.2-astra", effort: "high" },
           ],
         },
       },
@@ -227,8 +227,8 @@ test("route --against maps a rung that names only a provider through the configu
   const forReview = review.output;
   assert.deepEqual(forReview.delegateTask?.target, {
     providerInstanceId: "codex",
-    model: "gpt-6-astra",
-    options: { reasoningEffort: "high" },
+    model: "gpt-6.2-astra",
+    options: { reasoningEffort: "high", serviceTier: "priority" },
   });
   assert.deepEqual(forReview.fallbacks.map((f) => f.providerInstanceId), ["claude-max"]);
   assert.equal(forReview.notes[0], "cross-family: worker family claudeAgent; other families first");

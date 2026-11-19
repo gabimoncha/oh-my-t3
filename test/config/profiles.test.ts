@@ -38,7 +38,7 @@ test("the presets store a full normal workflow with the PR extras off and sparse
     build: { review: "every-round", qa: "planned", failureProofs: "on", oracle: "heavy" },
     review: {
       reviewers: "auto", families: "one", oracle: "on", fixLoop: "offer", ci: "off", verify: "off",
-      tests: "off", guardrails: "off", crap: "off",
+      tests: "off", crap: "off",
     },
     git: { branchCommits: "auto", pullRequests: "auto", defaultBranch: "ask", merge: "ask", owners: [], maxPrFiles: 100 },
   });
@@ -50,10 +50,10 @@ test("the presets store a full normal workflow with the PR extras off and sparse
     build: { review: "first-round", failureProofs: "off", oracle: "off" },
     review: { reviewers: 1, oracle: "off" },
   });
-  assert.deepEqual(DEFAULT_CONFIG.models, { "gpt-6.1-sol": { fast: true } });
+  assert.deepEqual(DEFAULT_CONFIG.models, { "gpt-6.2-sol": { fast: true }, "gpt-6.2-astra": { fast: true } });
   for (const role of Object.values(DEFAULT_CONFIG.roles)) {
     assert.equal(role.fast, undefined);
-    assert.ok(role.chain.every((rung) => rung.fast === undefined));
+    assert.ok(role.chain.every((candidate) => candidate.fast === undefined));
   }
 });
 
@@ -67,7 +67,7 @@ test("profile fields merge per name, workflow group, limit, role, and model", ()
         workflow: { build: { qa: "off", oracle: "always" }, plan: { testLayers: ["unit", "integration"] } },
         limits: { maxParallel: 10, maxDepth: 2 },
         roles: { execute: { fast: true, description: "Build." }, oracle: null },
-        models: { "gpt-6.1-sol": { fast: false } },
+        models: { "gpt-6.2-sol": { fast: false } },
       },
     },
   });
@@ -78,7 +78,7 @@ test("profile fields merge per name, workflow group, limit, role, and model", ()
         workflow: { build: { oracle: "off" }, plan: { testLayers: ["e2e"] } },
         limits: { maxParallel: 3 },
         roles: { execute: { fast: false }, qa: { fast: true } },
-        models: { "gpt-6.1-sol": {}, other: { fast: true } },
+        models: { "gpt-6.2-sol": {}, other: { fast: true } },
       },
       normal: { workflow: { design: { variants: 5 } } },
     },
@@ -90,7 +90,7 @@ test("profile fields merge per name, workflow group, limit, role, and model", ()
     workflow: { build: { qa: "off", oracle: "off" }, plan: { testLayers: ["e2e"] } },
     limits: { maxParallel: 3, maxDepth: 2 },
     roles: { execute: { fast: false, description: "Build." }, oracle: null, qa: { fast: true } },
-    models: { "gpt-6.1-sol": { fast: false }, other: { fast: true } },
+    models: { "gpt-6.2-sol": { fast: false }, other: { fast: true } },
   });
   assert.equal(second.config.profiles.normal?.workflow?.design?.variants, 5);
   assert.equal(second.config.profiles.normal?.workflow?.build?.review, "every-round");
@@ -243,15 +243,15 @@ test("unknown workflow groups and fields are errors and only invalid fields are 
   ]);
 });
 
-test("models, roles, and rungs accept boolean fast values at the root and in a profile", () => {
+test("models, roles, and candidates accept boolean fast values at the root and in a profile", () => {
   for (const fast of [true, false]) {
     const fields = {
-      models: { "gpt-6.1-sol": { fast } },
-      roles: { execute: { fast, chain: [{ driver: "codex", model: "gpt-6.1-sol", fast }] } },
+      models: { "gpt-6.2-sol": { fast } },
+      roles: { execute: { fast, chain: [{ driver: "codex", model: "gpt-6.2-sol", fast }] } },
     };
     const checked = merge({ ...fields, profiles: { normal: fields } });
     assert.deepEqual(checked.issues, []);
-    assert.equal(checked.config.models["gpt-6.1-sol"]?.fast, fast);
+    assert.equal(checked.config.models["gpt-6.2-sol"]?.fast, fast);
     assert.equal(checked.config.roles.execute?.fast, fast);
     assert.equal(checked.config.roles.execute?.chain[0]?.fast, fast);
     assert.deepEqual(checked.config.profiles.normal?.models, fields.models);
@@ -261,8 +261,8 @@ test("models, roles, and rungs accept boolean fast values at the root and in a p
     description: "Custom.", access: "edit", fast: false, chain: [{ driver: "codex", model: "m" }],
   } } });
   assert.equal(custom.config.roles.custom?.fast, false);
-  const inherited = merge({ models: { "gpt-6.1-sol": {}, other: { fast: false } } });
-  assert.deepEqual(inherited.config.models, { "gpt-6.1-sol": { fast: true }, other: { fast: false } });
+  const inherited = merge({ models: { "gpt-6.2-sol": {}, other: { fast: false } } });
+  assert.deepEqual(inherited.config.models, { "gpt-6.2-sol": { fast: true }, "gpt-6.2-astra": { fast: true }, other: { fast: false } });
 });
 
 test("invalid fast values and model fields have exact nested issue paths", () => {
@@ -382,10 +382,11 @@ test("config show prints the planned defaults and the roles.test warning", async
   const defaults = await runOk(["config", "show", "--defaults"], options);
   const printed = JSON.parse(defaults.ctx.out()) as OmtConfig;
   assert.equal(printed.limits.maxParallel, 6);
-  assert.ok(printed.roles.qa && printed.roles.guardrail);
+  assert.ok(printed.roles.qa);
+  assert.equal(Object.hasOwn(printed.roles, "guardrail"), false);
   assert.equal(Object.hasOwn(printed.roles, "verify"), false);
   assert.equal(Object.hasOwn(printed.roles, "test"), false);
-  assert.deepEqual(printed.models["gpt-6.1-sol"], { fast: true });
+  assert.deepEqual(printed.models["gpt-6.2-sol"], { fast: true });
   write(projectPath, { roles: { test: { description: "Legacy.", access: "edit", chain: [{ driver: "codex", model: "m" }] } } });
   const shown = await runOk(["config", "show"], options);
   assert.equal(shown.ctx.err(), `warning ${projectPath} roles.test: role "test" was renamed to "qa"; rename it\n`);

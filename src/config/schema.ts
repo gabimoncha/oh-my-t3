@@ -1,5 +1,5 @@
 import { EFFORT_LADDER } from "../types.ts";
-import { RETIRED_BUILD_KEYS, RETIRED_LIMIT_KEYS, RETIRED_PROFILES } from "./defaults.ts";
+import { RETIRED_BUILD_KEYS, RETIRED_LIMIT_KEYS, RETIRED_PROFILES, RETIRED_REVIEW_KEYS } from "./defaults.ts";
 import { SCHEMA_URL } from "./starter.ts";
 import {
   ACCESS_VALUES,
@@ -99,7 +99,7 @@ export const CONFIG_SCHEMA = {
       maxItems: HARNESSES_MAX,
       uniqueItems: true,
       items: { type: "string", pattern: PROVIDER_PATTERN },
-      description: "T3 driver kinds that routing may use, for example [\"codex\"]. A rung of another driver fails. Without it, every driver may run. Run omt detect to set it.",
+      description: "T3 driver kinds that routing may use, for example [\"codex\"]. A candidate of another driver fails. Without it, every driver may run. Run omt detect to set it.",
     },
   },
   $defs: {
@@ -115,18 +115,18 @@ export const CONFIG_SCHEMA = {
         runtimeMode: { enum: [...RUNTIME_MODE_VALUES] },
         crossFamily: {
           type: "boolean",
-          description: "With --against, try the rungs outside the worker's family first.",
+          description: "With --against, try the candidates outside the worker's family first.",
         },
         fast: { type: "boolean" },
         chain: {
           type: "array",
           minItems: CHAIN_MIN,
           maxItems: CHAIN_MAX,
-          items: { $ref: "#/$defs/rung" },
+          items: { $ref: "#/$defs/candidate" },
         },
       },
     },
-    rung: {
+    candidate: {
       type: "object",
       additionalProperties: false,
       required: ["model"],
@@ -167,7 +167,7 @@ export const CONFIG_SCHEMA = {
         plan: workflowGroup(WORKFLOW_RULES.plan),
         design: workflowGroup(WORKFLOW_RULES.design),
         build: workflowGroup(WORKFLOW_RULES.build, RETIRED_BUILD_KEYS),
-        review: workflowGroup(WORKFLOW_RULES.review),
+        review: workflowGroup(WORKFLOW_RULES.review, RETIRED_REVIEW_KEYS),
         git: workflowGroup(WORKFLOW_RULES.git),
       },
     },

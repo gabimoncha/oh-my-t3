@@ -23,7 +23,7 @@ export const USER_STARTER_CONFIG = `// oh-my-t3 user config. It applies to every
     // Example: run reviews on Codex first, then fall back to Claude.
     // "review": {
     //   "chain": [
-    //     { "driver": "codex", "model": "gpt-6-astra", "effort": "high" },
+    //     { "driver": "codex", "model": "gpt-6.2-astra", "effort": "high" },
     //     { "driver": "claudeAgent", "model": "claude-opus-5-5", "effort": "high" },
     //   ],
     // },

@@ -19,7 +19,7 @@ Snapshot: prime-agent clone at commit `2ed8356` ("feed the tray context usage of
 - deepseek-harness keeps feedback out of the model on purpose ("Neither kind of feedback reaches the model", `dsh:packages/feedback/README.md:12`). Its strongest ideas are on the evaluation side. These are "a guard only guards if the regression fails it" (`dsh:docs/testing.md:40`), an independent oracle that a refresh never rewrites (`dsh:snapshots/AGENTS.md:15`), and budgets that only ratchet down (`dsh:scripts/verify-doc-budgets.ts:4-6`).
 - omt already runs a manual version of the deepseek loop. A watcher thread wrote findings in `.omt/evidence/mira-dogfood-notes.md:65-89`. The plan `.omt/plans/dogfood-1.md` turned them into code, tests, and spec changes. The design below makes that loop cheap, repeatable, and visible to a new user.
 - Proposed loop for omt, in five parts:
-  1. **Capture.** The ledger records findings by severity and category, rung fallbacks, owner corrections, and the lessons that each brief carried. The CLI parses the result blocks deterministically.
+  1. **Capture.** The ledger records findings by severity and category, candidate fallbacks, owner corrections, and the lessons that each brief carried. The CLI parses the result blocks deterministically.
   2. **Retro.** After each ulw or plan run, `omt retro <slug>` turns the ledger into a signal digest. The conductor drafts at most three candidate lessons, each with cited evidence.
   3. **Gate.** `omt lessons check` lints each candidate (evidence, size, gate-weakening words, duplicates). One cross-family `review` task judges them. The owner accepts or rejects each one. Nothing becomes active without the owner.
   4. **Apply.** `omt brief` adds matched active lessons to worker and planner briefs. Reviewer and tester briefs get none, so the measuring instrument stays fixed.
@@ -227,7 +227,7 @@ What is missing:
 
 - Findings by severity and by category.
 - Test check counts and failures.
-- Rung fallbacks. A failed `delegate_task` call returns no task id, so no entry exists.
+- Candidate fallbacks. A failed `delegate_task` call returns no task id, so no entry exists.
 - Owner corrections and overrides, such as "start the units after round 3" (`.omt/plans/dogfood-1.md:108`).
 - The lessons that each brief carried. Without this, no lesson can be measured.
 - The raw result block. Without it, a retro cannot cite a finding's text.
@@ -238,10 +238,10 @@ What is missing:
 2. **Result files.** On wake, the conductor saves each result block to `<evidence>/<slug>-<unit>-<role>-r<round>-a<attempt>.txt`. It uses the directory from `omt paths --evidence`.
 3. **`omt ledger add --result-file <file>`.** The CLI parses the block. It sets `verdict` from the first label. For review blocks, it counts findings by severity and by tag. For test blocks, it counts `CHECKS` lines by exit code and counts `FAILURES` lines. It stores the evidence path. The parse is deterministic and has unit tests.
 4. **New status `noted`.** A `noted` entry is neither a dispatch nor terminal. It closes nothing, and `stats` ignores it. It carries a `kind`.
-   - `kind: fallback` with `code` and `rung`. The skill records it when a T3 failure code moves the dispatch to the next rung.
+   - `kind: fallback` with `code` and `candidate`. The skill records it when a T3 failure code moves the dispatch to the next candidate.
    - `kind: correction` with a `note` of at most 300 characters. The skill records it when the owner overrides a decision or corrects the conductor during a run, with the owner's words verbatim.
    - `kind: learning` for lesson accept, reject, and retire events, written by the CLI for the audit trail.
-5. **`rung` and `lessons` on dispatches.** `omt brief --json` adds two top-level fields next to `fallbacks`. `rung` is the 1-based configured rung index of the target. `lessons` is the list of lesson ids in the brief. The skill copies both into `omt ledger add --rung <n> --lessons <ids>`.
+5. **`candidate` and `lessons` on dispatches.** `omt brief --json` adds two top-level fields next to `fallbacks`. `candidate` is the 1-based configured candidate index of the target. `lessons` is the list of lesson ids in the brief. The skill copies both into `omt ledger add --candidate <n> --lessons <ids>`.
 
 `LedgerEntry` gains these optional fields. All old lines stay valid.
 
@@ -253,7 +253,7 @@ export interface LedgerEntry {
   // existing fields unchanged
   kind?: NoteKind; // only with status "noted"
   code?: string; // T3 error code, with kind "fallback"
-  rung?: number; // 1-based configured rung index of the target
+  candidate?: number; // 1-based configured candidate index of the target
   lessons?: string[]; // lesson ids in the brief, on dispatches
   findings?: { P0: number; P1: number; P2: number; P3: number }; // review results
   tags?: Record<string, number>; // review findings by tag
@@ -337,7 +337,7 @@ A lesson is additive. The existing `.omt/roles/<role>.md` override replaces a wh
 #### Learned routing layer
 
 - `.omt/learned.jsonc` is a fourth config layer. The proposed order is defaults, learned, user, project. A person's explicit config always wins (owner decision 5).
-- It may only reorder rungs that exist in the effective chain. It never adds a model, changes an effort, or touches a role with `crossFamily: true`, because `--against` orders those per dispatch.
+- It may only reorder candidates that exist in the effective chain. It never adds a model, changes an effort, or touches a role with `crossFamily: true`, because `--against` orders those per dispatch.
 - Each entry carries a comment with the stats that justified it and the date.
 - `omt roles` prints a note `learned: chain reordered on <date>` for an affected role.
 
@@ -416,13 +416,13 @@ The next retro proposes to retire flagged lessons. Retirement needs the owner to
 
 It proposes a reorder only when all of these hold:
 
-- Both rungs have at least `--min-samples` (default 8) completed dispatches of that role in the last 60 days.
+- Both candidates have at least `--min-samples` (default 8) completed dispatches of that role in the last 60 days.
 - The 80% Wilson intervals of `pass@1` do not overlap.
 - The role is not cross-family.
 
-A second rule is safer and fires earlier. When rung 1 of a role failed with `provider_unavailable` or `model_unavailable` on 3 of the last 5 dispatches, it suggests moving that rung down, because each failure costs one wasted call.
+A second rule is safer and fires earlier. When candidate 1 of a role failed with `provider_unavailable` or `model_unavailable` on 3 of the last 5 dispatches, it suggests moving that candidate down, because each failure costs one wasted call.
 
-Data for rung 2 arrives only through fallbacks, so the comparison is biased (inferred). Version 1 does no exploration. A sampled exploration rate is owner decision 6.
+Data for candidate 2 arrives only through fallbacks, so the comparison is biased (inferred). Version 1 does no exploration. A sampled exploration rate is owner decision 6.
 
 `omt routes apply <role> --yes` writes the reorder to `.omt/learned.jsonc` and prints the old and new chain. `omt routes reset [<role>]` removes it.
 
@@ -443,8 +443,8 @@ The goal is honest evidence that the tool learns. It must not fake a lesson when
 
 | Command | Shape | Notes |
 | --- | --- | --- |
-| `ledger add` | new flags `--result-file <file\|->`, `--kind <fallback\|correction\|learning>`, `--code <code>`, `--rung <n>`, `--lessons <id,id>` | `--status noted` requires `--kind` |
-| `brief` | `--json` output gains `rung` and `lessons`. `--no-lessons` leaves the section out | Text output gains the `# Lessons` section |
+| `ledger add` | new flags `--result-file <file\|->`, `--kind <fallback\|correction\|learning>`, `--code <code>`, `--candidate <n>`, `--lessons <id,id>` | `--status noted` requires `--kind` |
+| `brief` | `--json` output gains `candidate` and `lessons`. `--no-lessons` leaves the section out | Text output gains the `# Lessons` section |
 | `retro` | `omt retro [<slug>] [--since <days>] [--json] [--replay]` | Digest only. Writes nothing. `--replay` prints the replay briefs to run |
 | `lessons` | `list [--state proposed\|active\|retired] [--role <r>] [--json]`, `add --text <t> --roles <list> --tags <list> --evidence <ref>... [--paths <glob>...]`, `check [<id>...] [--json]`, `accept <id>...`, `reject <id> --reason <t>`, `retire <id> --reason <t>`, `promote <id>`, `report [--json]` | Every write is atomic and appends a `noted` `learning` entry to the ledger |
 | `stats` | `omt stats [--plan <slug>] [--since <days>] [--by role\|target\|tag] [--json]` | Read-only |
@@ -501,7 +501,7 @@ New path helpers in `src/paths.ts`: `lessonsPath(root)`, `userLessonsPath(env, h
 - **New reference `skills/omt/references/learning.md`.** The tag vocabulary, the evidence rule, how to write a lesson (one sentence, what to do, roles, paths), the "test beats lesson" rule, and the retro procedure.
 - **`omt-ulw`.**
   - Step 2 prints the active lesson count in the banner line.
-  - Step 5 copies `rung` and `lessons` into `omt ledger add`.
+  - Step 5 copies `candidate` and `lessons` into `omt ledger add`.
   - Step 6 saves each result block and records it with `--result-file`.
   - On a failure code, it records `--status noted --kind fallback`.
   - When the owner overrides or corrects, it records `--kind correction`.
@@ -533,7 +533,7 @@ Each phase changes `docs/spec.md` in the same change, as `AGENTS.md` requires.
 3. **Approval policy.** The options are (a) the owner accepts every lesson, (b) automatic acceptance after a clean deterministic gate and a cross-family `APPROVE`, (c) automatic acceptance only for local lessons. Recommendation: (a) for version 1. Revisit after `omt lessons report` shows how often the owner rejects candidates.
 4. **Reviewer briefs.** Should reviewers see lessons? I recommend no lessons for them. They are the measuring instrument.
 5. **Learned routing.** Allow the learned layer at all, and where in the precedence. I recommend that you allow it, put it below user and project config, and keep it away from cross-family roles.
-6. **Routing exploration.** Should omt send a share of dispatches to rung 2 to get unbiased data? The options are none, or 1 in 10 for non-cross-family roles. I recommend none in version 1. It spends the user's budget without a request.
+6. **Routing exploration.** Should omt send a share of dispatches to candidate 2 to get unbiased data? The options are none, or 1 in 10 for non-cross-family roles. I recommend none in version 1. It spends the user's budget without a request.
 7. **Retro cost.** One extra review child per HEAVY run for the cross-family check. Replay costs two children per candidate. I recommend the check on by default for HEAVY runs and replay as an opt-in.
 8. **Review contract change.** Adding the tag changes every review result. I recommend the change, with a tolerant parser.
 9. **User-scope lessons.** Allow promotion from project to user scope. I recommend it in phase 6, owner-only and never automatic.
@@ -551,7 +551,7 @@ Each phase changes `docs/spec.md` in the same change, as `AGENTS.md` requires.
 | Brief bloat | Lessons push briefs toward the 120,000-character limit (spec section 5.4) | 5 lessons and 1,200 characters per brief |
 | Stale lessons | A refactor moves the files a lesson names | `dead path` and `stale` flags in `omt lessons report` |
 | Small samples | Routing flips on noise | `minSamples`, non-overlapping intervals, owner apply |
-| Selection bias | Rung 2 data come only from fallbacks | No automatic reorder. The suggestion says the sample source |
+| Selection bias | Candidate 2 data come only from fallbacks | No automatic reorder. The suggestion says the sample source |
 | Fake learning | The tool claims progress on noise, and the user stops trusting it | The retro may say "nothing to learn". Reports show numbers with their sample sizes |
 | Two writers disagree | Like the prime-agent global dir mismatch | One path helper per file, CLI-only writes, tests on the paths |
 | Concurrent worktrees | Two threads edit `.omt/lessons.md` at once | Atomic writes and the hash fence in `accept`. Git merges committed copies |

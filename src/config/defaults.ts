@@ -4,8 +4,9 @@ import { defaultsText } from "./defaultsText.ts" with { type: "macro" };
 import { parseJsonc } from "./jsonc.ts";
 
 export const RETIRED_BUILD_KEYS: readonly string[] = ["verify", "checkpoint", "stallMinutes"];
+export const RETIRED_REVIEW_KEYS: readonly string[] = ["guardrails"];
 export const RETIRED_LIMIT_KEYS: readonly string[] = ["maxTasksPerRun"];
-export const RETIRED_ROLES: readonly string[] = ["verify", "quick", "deep", "plan", "grill"];
+export const RETIRED_ROLES: readonly string[] = ["verify", "quick", "deep", "plan", "grill", "guardrail"];
 // A selection of a retired profile resolves to normal, which now runs the PR review steps.
 export const RETIRED_PROFILES: readonly string[] = ["pr-review"];
 
@@ -14,12 +15,12 @@ export const RETIRED_PROFILES: readonly string[] = ["pr-review"];
 export const DEFAULT_CONFIG: OmtConfig = parseJsonc(defaultsText(), "src/config/defaults.jsonc") as OmtConfig;
 
 function formatChain(chain: unknown[]): string {
-  return chain.map((rung) => {
-    if (!isRecord(rung)) return JSON.stringify(rung);
-    const driver = typeof rung.driver === "string" ? rung.driver : rung.provider;
-    const parts = [`${String(driver)}/${String(rung.model)}`];
-    if (typeof rung.effort === "string") parts.push(rung.effort);
-    if (rung.fast === true) parts.push("fast");
+  return chain.map((candidate) => {
+    if (!isRecord(candidate)) return JSON.stringify(candidate);
+    const driver = typeof candidate.driver === "string" ? candidate.driver : candidate.provider;
+    const parts = [`${String(driver)}/${String(candidate.model)}`];
+    if (typeof candidate.effort === "string") parts.push(candidate.effort);
+    if (candidate.fast === true) parts.push("fast");
     return parts.join(" ");
   }).join(", ");
 }

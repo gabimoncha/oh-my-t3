@@ -131,7 +131,7 @@ test("bad input throws capabilities_parse", () => {
 test("reads the compact option form of newer T3 builds", async () => {
   const caps = parseCapabilities(await Bun.file(new URL("../fixtures/capabilities-compact.json", import.meta.url)).text());
   const sol = caps.providers.find((p) => p.providerInstanceId === "codex")?.models[0];
-  assert.equal(sol?.id, "gpt-6.1-sol");
+  assert.equal(sol?.id, "gpt-6.2-sol");
   assert.deepEqual(sol?.options[0], {
     id: "reasoningEffort",
     type: "select",

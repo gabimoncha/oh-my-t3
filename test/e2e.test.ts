@@ -98,8 +98,8 @@ test("end to end: the shared grills path works from a worktree, and plan-review 
   assert.equal(paths.stdout, sharedPath);
 
   for (const [against, provider, model] of [
-    ["codex", "claudeAgent", "claude-opus-5-5"],
-    ["claudeAgent", "codex", "gpt-6-astra"],
+    ["codex", "claudeAgent", "claude-fable-5-2"],
+    ["claudeAgent", "codex", "gpt-6.2-astra"],
   ] as const) {
     const brief = JSON.parse(p.omt("brief", "plan-review", "--task", "Review this plan.", "--against", against, "--json")) as BriefJsonOutput;
     assert.equal(brief.delegateTask.target.providerInstanceId, provider);

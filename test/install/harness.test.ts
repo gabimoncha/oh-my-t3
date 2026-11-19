@@ -30,8 +30,8 @@ test("e2e U3: Codex-only install", () => {
   const roles = f.cli(["roles"]);
   assert.equal(roles.code, 0, roles.stderr);
   assert.equal(roles.stderr, "");
-  assert.match(roles.stdout, /^design\s+\S+\s+codex\/gpt-6-astra reasoningEffort=high/m);
-  assert.match(roles.stdout, /^ui\s+\S+\s+codex\/gpt-6\.1-sol reasoningEffort=high/m);
+  assert.match(roles.stdout, /^design\s+\S+\s+codex\/gpt-6.2-astra reasoningEffort=high/m);
+  assert.match(roles.stdout, /^ui\s+\S+\s+codex\/gpt-6.2-astra reasoningEffort=high/m);
   assert.match(roles.stdout, /^writing\s+\S+\s+codex\//m);
 });
 

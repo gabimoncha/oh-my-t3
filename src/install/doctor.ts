@@ -427,6 +427,14 @@ function checkFolders(ctx: CliContext): DoctorCheck[] {
   return hint === undefined ? [] : [check("folders", "WARN", hint.replace(/^hint: /, "").trimEnd())];
 }
 
+// An INFO line only while a guardrails.md with text is left. cleanRetired deletes an empty one, and keeps one with text,
+// because it holds proposals that the user may still want.
+async function checkLeftovers(paths: ScopePaths): Promise<DoctorCheck[]> {
+  const guardrails = join(paths.stateDir, "guardrails.md");
+  if (((await readFileIfExists(guardrails)) ?? "").trim() === "") return [];
+  return [check("leftovers", "INFO", `${guardrails} holds proposals from the retired guardrails step; omt no longer reads it, so delete it when you no longer need it`)];
+}
+
 export async function runDoctor(
   ctx: CliContext,
   caps?: Capabilities,
@@ -460,6 +468,7 @@ export async function runDoctor(
       await checkExclude(ctx, paths, loaded),
       await checkT3(ctx),
       await worktreeSummary(ctx),
+      ...await checkLeftovers(paths),
     );
   } else {
     checks.push(await checkPath(ctx), await checkT3(ctx), await checkHomes(ctx, names));

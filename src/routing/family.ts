@@ -1,13 +1,13 @@
-import type { Capabilities, LedgerEntry, RoleConfig, Rung } from "../types.ts";
+import type { Capabilities, LedgerEntry, RoleConfig, Candidate } from "../types.ts";
 
-// Maps each provider instance id that a configured rung names together with a driver to that driver.
-// The first rung in role order wins.
+// Maps each provider instance id that a configured candidate names together with a driver to that driver.
+// The first candidate in role order wins.
 export function configuredDrivers(roles: Record<string, RoleConfig>): Map<string, string> {
   const drivers = new Map<string, string>();
   for (const role of Object.values(roles)) {
-    for (const rung of role.chain) {
-      if (rung.provider !== undefined && rung.driver !== undefined && !drivers.has(rung.provider)) {
-        drivers.set(rung.provider, rung.driver);
+    for (const candidate of role.chain) {
+      if (candidate.provider !== undefined && candidate.driver !== undefined && !drivers.has(candidate.provider)) {
+        drivers.set(candidate.provider, candidate.driver);
       }
     }
   }
@@ -17,12 +17,12 @@ export function configuredDrivers(roles: Record<string, RoleConfig>): Map<string
 // The worker side calls this too (see workerFamily), so both sides of a family comparison map a
 // provider instance id to the same driver kind.
 // A driver that runs models of more than one vendor (cursor, opencode) counts as its own family.
-export function rungFamily(
-  rung: Pick<Rung, "provider" | "driver">,
+export function candidateFamily(
+  candidate: Pick<Candidate, "provider" | "driver">,
   caps?: Capabilities,
   drivers?: Map<string, string>,
 ): string | undefined {
-  const { provider, driver } = rung;
+  const { provider, driver } = candidate;
   const registered = provider === undefined ? undefined : caps?.providers.find((p) => p.providerInstanceId === provider);
   if (registered !== undefined) return registered.driverKind;
   if (driver !== undefined) return driver;
@@ -32,20 +32,20 @@ export function rungFamily(
 
 // The --against value names a provider instance or a driver kind.
 export function workerFamily(against: string, caps?: Capabilities, drivers?: Map<string, string>): string {
-  return rungFamily({ provider: against }, caps, drivers) ?? against;
+  return candidateFamily({ provider: against }, caps, drivers) ?? against;
 }
 
-// A stable partition. Rungs outside the worker's family come first, then the worker's family, each in configured order.
+// A stable partition. Candidates outside the worker's family come first, then the worker's family, each in configured order.
 export function crossFamilyOrder(
-  chain: Rung[],
+  chain: Candidate[],
   family: string,
   caps?: Capabilities,
   drivers?: Map<string, string>,
 ): number[] {
   const indexes = chain.map((_, index) => index);
   const same = (index: number): boolean => {
-    const rung = chain[index];
-    return rung !== undefined && rungFamily(rung, caps, drivers) === family;
+    const candidate = chain[index];
+    return candidate !== undefined && candidateFamily(candidate, caps, drivers) === family;
   };
   return [...indexes.filter((index) => !same(index)), ...indexes.filter(same)];
 }

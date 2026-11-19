@@ -120,10 +120,10 @@ export type Access = "read-only" | "edit";
 export type InteractionMode = "inherit" | "default" | "plan";
 export type RuntimeMode = "inherit" | "approval-required" | "auto-accept-edits" | "auto" | "full-access";
 export type T3Role = "implementation" | "research" | "review" | "design" | "test" | "general";
-export type ResultKind = "work" | "review" | "test" | "research" | "plan" | "guardrail";
-export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan", "guardrail"];
+export type ResultKind = "work" | "review" | "test" | "research" | "plan";
+export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan"];
 
-export interface Rung {
+export interface Candidate {
   provider?: string; // T3 provider instance id, for example "claudeAgent"
   driver?: string; // T3 driver kind; used when provider is absent
   model: string; // model id as listed by orchestrator_capabilities
@@ -141,7 +141,7 @@ export interface RoleConfig {
   runtimeMode: RuntimeMode;
   crossFamily?: boolean; // review from the family other than the worker's when --against names the worker
   fast?: boolean;
-  chain: Rung[];
+  chain: Candidate[];
 }
 
 export interface Limits {
@@ -172,7 +172,6 @@ export interface Workflow {
     ci: "off" | "check" | "fix";
     verify: "off" | "changed-flows";
     tests: "off" | "offer";
-    guardrails: "off" | "propose";
     crap: "off" | "report";
   };
   git?: Partial<GitPolicy>; // a missing key means "ask"
@@ -301,9 +300,9 @@ export interface ResolvedTarget {
   options?: Record<string, OptionValue>; // omitted when empty
 }
 
-export interface RungAttempt {
+export interface CandidateAttempt {
   index: number;
-  rung: Rung;
+  candidate: Candidate;
   ok: boolean;
   reason?: string; // set when ok is false
   notes: string[];
@@ -329,9 +328,9 @@ export interface RoleResolution {
   runtimeMode: RuntimeMode;
   crossFamily: boolean; // the role's crossFamily, false when unset
   status: RoleStatus;
-  delegateTask?: DelegateTaskArgs; // from the first ok rung
-  fallbacks: ResolvedTarget[]; // later ok rungs, in the order they were tried
-  attempts: RungAttempt[]; // in the order they were tried; index is the configured position
+  delegateTask?: DelegateTaskArgs; // from the first ok candidate
+  fallbacks: ResolvedTarget[]; // later ok candidates, in the order they were tried
+  attempts: CandidateAttempt[]; // in the order they were tried; index is the configured position
   notes?: string[]; // role-level routing notes, such as the cross-family notes; omitted when empty
 }
 
@@ -350,7 +349,7 @@ export interface RouteOutput {
   result: ResultKind;
   delegateTask?: DelegateTaskArgs;
   fallbacks: ResolvedTarget[];
-  notes: string[]; // the role-level notes, then every attempt note and failure reason in the order tried, each prefixed "rung <n>: "
+  notes: string[]; // the role-level notes, then every attempt note and failure reason in the order tried, each prefixed "candidate <n>: "
 }
 
 export interface BriefJsonOutput {
@@ -365,7 +364,7 @@ export interface BriefJsonOutput {
     clientRequestId?: string; // present when --plan and --unit are given
   };
   fallbacks: ResolvedTarget[]; // not a delegate_task field; the targets after this one, in order
-  targetKey: string; // the chosen target, such as codex/gpt-6-astra; --tried takes it in plan mode
+  targetKey: string; // the chosen target, such as codex/gpt-6.2-astra; --tried takes it in plan mode
   ledger?: { done: string }; // present when --save --json with --plan and --unit recorded the start
 }
 
@@ -544,7 +543,7 @@ In every flag that takes a file, `-` means standard input.
 
 `--project` selects project scope for `install`, `uninstall`, and `doctor` (section 14.8). Without it, these commands work in user scope. `--no-git-exclude` without `--project` is a usage error.
 
-`--capabilities` is optional everywhere. Without it, routing is `unverified`: the CLI trusts the chain, and T3 validates the target when `delegate_task` runs. The skills treat that as the normal path and fall back to the next rung on a typed T3 error. To verify, the agent saves the `orchestrator_capabilities` result to a file. Claude Code saves a large tool result to a file by itself and reports the path. On ACP providers, `acp-mcp-call orchestrator_capabilities '{}' > caps.json` writes it. Any agent can also write a trimmed copy that keeps only the providers and models its chains name.
+`--capabilities` is optional everywhere. Without it, routing is `unverified`: the CLI trusts the chain, and T3 validates the target when `delegate_task` runs. The skills treat that as the normal path and fall back to the next candidate on a typed T3 error. To verify, the agent saves the `orchestrator_capabilities` result to a file. Claude Code saves a large tool result to a file by itself and reports the path. On ACP providers, `acp-mcp-call orchestrator_capabilities '{}' > caps.json` writes it. Any agent can also write a trimmed copy that keeps only the providers and models its chains name.
 
 Run modes. The CLI runs in one of three modes. `scripts/build.ts` sets the mode at build time with `--define OMT_BUILD='"bundle"'` or `--define OMT_BUILD='"binary"'`. `src/main.ts` reads it with `typeof OMT_BUILD` and uses `source` when it is not defined. `createContext()` sets these fields:
 
@@ -694,13 +693,13 @@ Edit requests. `api/preview` and `api/write` take the body `{ "file": "user" | "
 
 `api/write` refuses a new error with 422 `config_invalid`, the message `the change adds <n> config errors; nothing was written` (`1 config error` for one error), and `newErrors`. Otherwise it writes the candidate text with `writeConfigTarget(target, snapshot, next)` (section 5.12), where `snapshot` is the text of step 1, and returns `{ "ok": true, "state" }` with the new editor state. When the candidate equals the snapshot, it writes nothing. A `config_changed` error from `writeConfigTarget` gets the 409 of step 2. The server runs previews and writes one at a time, in the order in which their bodies complete, from step 1 to the end of the atomic write. So of two writes with the same `base`, the second reads the new text and gets 409. A writer outside omt can still change the file between the last read and the rename, as for other config writes.
 
-Editor page. The initial view is Skills, with all 10 bundled skills. Build, Code review, Plan, and Design have a configured flow, and a selected stage shows its editable keys. Every skill page shows the skill description, its child roles, and its `SKILL.md` from `api/skill`, rendered read-only as text nodes: the page never inserts the file as HTML. A relative link in the file points to the file on GitHub, and a link with another scheme than `http` or `https` is plain text. Roles and Profiles have separate lists and focused editors. The rung fields Provider, Model, and Effort are dropdowns from `catalog`; Model also accepts a custom value. A profile card lists the values that the profile sets and the commands that select it. Settings holds the harnesses, with one checkbox per catalog driver, the limits, and the model options; the workflow keys, the roles, and the `profile` key are on the Skills pages, the Roles pages, and the header. A source badge opens help, the saved layer history, the edit destination, and reset. There is no layer strip, introductory legend, or permanent source inspector.
+Editor page. The initial view is Skills, with all 10 bundled skills. Build, Code review, Plan, and Design have a configured flow, and a selected stage shows its editable keys. Every skill page shows the skill description, its child roles, and its `SKILL.md` from `api/skill`, rendered read-only as text nodes: the page never inserts the file as HTML. A relative link in the file points to the file on GitHub, and a link with another scheme than `http` or `https` is plain text. Roles and Profiles have separate lists and focused editors. The candidate fields Provider, Model, and Effort are dropdowns from `catalog`; Model also accepts a custom value. A profile card lists the values that the profile sets and the commands that select it. Settings holds the harnesses, with one checkbox per catalog driver, the limits, and the model options; the workflow keys, the roles, and the `profile` key are on the Skills pages, the Roles pages, and the header. A source badge opens help, the saved layer history, the edit destination, and reset. There is no layer strip, introductory legend, or permanent source inspector.
 
 In maintainer mode, the header names `src/config/defaults.jsonc` in place of the file picker, and the page calls the user layer `built-in`. A skill page shows the skill files from `api/skill-files` in three columns: the file list, a text area, and the rendered preview, which follows each key press. Save, or Cmd-S or Ctrl-S in the text area, sends `api/skill-file`. A role page links to the role's file under `skills/omt/references/roles/`, or to `_generic.md` for a custom role: in maintainer mode it opens that file in the Router skill page, and otherwise it opens the file on GitHub.
 
 `Show values for` fetches an explain report without staging a `profile` edit. During the request, dependent edits are disabled. A failed request retains the last successful report and identifies its profile. Late responses cannot replace a newer selection. `Saved default` stages a root `profile` edit in the selected file. The saved default can still be overridden by a command argument or plan header. The page compares the current preview with the saved-default explain report to compute changed values; it does not hard-code preset differences.
 
-Dropdowns, segments, and checkboxes stage changes immediately. Text and number fields stage on Enter or change, and invalid input stays in its draft. Workflow edits target `profiles.<preview>.workflow.*`. Roles, limits, and models use base or profile scope, separately from the User or Project file destination. Both the flows and the settings list read the same pending edits, including inherited profile changes and file precedence. The page marks unsaved values, names their destination, offers Undo, and identifies shadowed edits before a write. Boolean overrides support Inherit, On, and Off. Multi-field role and profile drafts use Add changes. Chain cards retain configured rung numbers and support reorder, driver and raw options, and explicit fast inheritance. Cross-family attempt order is a local preview for a selected main driver. Without capabilities, a rung never claims verified availability.
+Dropdowns, segments, and checkboxes stage changes immediately. Text and number fields stage on Enter or change, and invalid input stays in its draft. Workflow edits target `profiles.<preview>.workflow.*`. Roles, limits, and models use base or profile scope, separately from the User or Project file destination. Both the flows and the settings list read the same pending edits, including inherited profile changes and file precedence. The page marks unsaved values, names their destination, offers Undo, and identifies shadowed edits before a write. Boolean overrides support Inherit, On, and Off. Multi-field role and profile drafts use Add changes. Chain cards retain configured candidate numbers and support reorder, driver and raw options, and explicit fast inheritance. Cross-family attempt order is a local preview for a selected main driver. Without capabilities, a candidate never claims verified availability.
 
 Review changes shows a per-file diff and validation. Write project file or Write user file writes only the reviewed request for that file. Other files keep their queues and original hash bases. New errors block writes; warnings do not. Reload and review is an explicit conflict action: it loads the newer file, keeps the queued edits, rebases only that file, and requires a new review before writing. Discard asks before clearing a file's queue. A beforeunload handler warns about unsaved queues and dirty drafts. The disconnected state keeps them in the tab. A missing optional file is neutral and unavailable as a destination; file help gives its path and init command.
 
@@ -722,18 +721,18 @@ It prints one line per path: `create <path>`, `update <path>`, or `exists <path>
 
 ### 5.3 `omt roles` and `omt route`
 
-`omt roles` loads the config, applies the selected profile, resolves every role (or only the roles named with `--role`), and prints a table. In this example, the capabilities show Grok as disabled, and a project config sets a custom `oracle` chain with the rungs `grok/grok-build` and `codex-pro/gpt-6-astra`. The second rung names only the provider `codex-pro`, without a `driver`.
+`omt roles` loads the config, applies the selected profile, resolves every role (or only the roles named with `--role`), and prints a table. In this example, the capabilities show Grok as disabled, and a project config sets a custom `oracle` chain with the candidates `grok/grok-build` and `codex-pro/gpt-6.2-astra`. The second candidate names only the provider `codex-pro`, without a `driver`.
 
 ```text
 ROLE         STATUS      TARGET                                         ACCESS     MODE     CROSS
 execute      resolved    claudeAgent/claude-opus-5-5 effort=medium      edit       default  no
-review       resolved    codex/gpt-6-astra reasoningEffort=high         edit       default  yes
+review       resolved    codex/gpt-6.2-astra reasoningEffort=high       edit       default  yes
 oracle       unavailable -                                              edit       default  yes
-  rung 1 grok/grok-build: provider grok cannot run child tasks: Provider instance is disabled.
-  rung 2 codex-pro/gpt-6-astra: provider instance codex-pro is not registered in T3
+  candidate 1 grok/grok-build: provider grok cannot run child tasks: Provider instance is disabled.
+  candidate 2 codex-pro/gpt-6.2-astra: provider instance codex-pro is not registered in T3
 ```
 
-`MODE` is the role's `interactionMode`. `CROSS` is `yes` when the role has `crossFamily: true`, else `no`. Under each role, the table prints one indented line per failure reason of the rungs before the chosen one, and the notes of the chosen rung. For an unavailable role it prints the reason of every rung. Later rungs are not shown.
+`MODE` is the role's `interactionMode`. `CROSS` is `yes` when the role has `crossFamily: true`, else `no`. Under each role, the table prints one indented line per failure reason of the candidates before the chosen one, and the notes of the chosen candidate. For an unavailable role it prints the reason of every candidate. Later candidates are not shown.
 
 A footer line says either `verified against orchestrator_capabilities` or `unverified: pass --capabilities <file> to check the chains against T3`. `--json` prints the `RolesReport`. Config issues go to stderr. An unknown `--role` exits 1.
 
@@ -752,7 +751,7 @@ A footer line says either `verified against orchestrator_capabilities` or `unver
     "interactionMode": "default",
     "runtimeMode": "inherit"
   },
-  "fallbacks": [{ "providerInstanceId": "codex", "model": "gpt-6-astra", "options": { "reasoningEffort": "high" } }],
+  "fallbacks": [{ "providerInstanceId": "codex", "model": "gpt-6.2-astra", "options": { "reasoningEffort": "high" } }],
   "notes": ["cross-family: worker family codex; other families first"]
 }
 ```
@@ -821,8 +820,8 @@ Without `--json`, the command prints the rendered brief (section 9). With `--jso
 
 - `title` is `--title` when given, cut to 72 characters. Otherwise it is `<role>` plus ` <unit>` when a unit is given, plus ` r<round>` when the round is greater than 1, then `: ` and the first non-empty line of the task. The title is cut to 72 characters.
 - `clientRequestId` is present only when both `--plan` and `--unit` are given (section 10).
-- `target` and `fallbacks` come from the role resolution, after the `--against` reorder (section 8.3). When the role is unavailable, the command prints nothing to stdout, prints the rung reasons to stderr, and exits 1.
-- `--against`, `--plan`, `--profile`, and `--unit` follow section 5.3, also without `--json`. A `--plan` id does not require a plan file. With `--json`, role-level notes, rung notes, and rung failures go to stderr as `note: <note>`.
+- `target` and `fallbacks` come from the role resolution, after the `--against` reorder (section 8.3). When the role is unavailable, the command prints nothing to stdout, prints the candidate reasons to stderr, and exits 1.
+- `--against`, `--plan`, `--profile`, and `--unit` follow section 5.3, also without `--json`. A `--plan` id does not require a plan file. With `--json`, role-level notes, candidate notes, and candidate failures go to stderr as `note: <note>`.
 
 With `--save`, the CLI atomically writes the full brief to `<evidence>/briefs/<clientRequestId>.md`. Without both `--plan` and `--unit`, the name is `<role>-<first 12 hex of the brief's sha256>.md`. Without `--json`, stdout still contains the full brief.
 
@@ -834,7 +833,7 @@ Act as the <role> sub-agent for this task. Your full brief is in the file <absol
 
 The pointer has no fixed length cap of its own. The path length determines its length. The other dispatch fields stay unchanged.
 
-Every `--json` output adds `targetKey`, the key of the chosen target: `<providerInstanceId>/<model>`, or `driver:<driverKind>/<model>` for a target that names only a driver. The resolved order is the routing order after the `--against` reorder (section 8.3), with one more target after each driver-only target: the same rung with `providerInstanceId` set to the driver. `fallbacks` holds the targets after the chosen one.
+Every `--json` output adds `targetKey`, the key of the chosen target: `<providerInstanceId>/<model>`, or `driver:<driverKind>/<model>` for a target that names only a driver. The resolved order is the routing order after the `--against` reorder (section 8.3), with one more target after each driver-only target: the same candidate with `providerInstanceId` set to the driver. `fallbacks` holds the targets after the chosen one.
 
 Start record. With `--save --json`, `--plan`, and `--unit`, the command holds an exclusive lock, `.omt3/locks/ledger.lock`, made with `open(path, "wx")`. The lock file holds the process id and a random token. The command retries for up to 5 seconds of wall-clock time; a held lock exits 75. A lock file counts as stale only when it is older than 30 seconds and its process is gone; then it is removed. On exit, the command removes the lock only when it still holds its own token. Under the lock it runs these steps in order:
 
@@ -1028,9 +1027,11 @@ The runner sets no global configuration and no store or cache path, so the user'
 
 `src/config/defaultsState.ts` compares the last accepted defaults with the installed release's `DEFAULT_CONFIG`. `omt doctor` and `omt update` show the changes and ask `Use the current defaults? [y/N] `. A refusal keeps the accepted snapshot active and does not fail the diagnostic command. `--yes` accepts without a prompt. JSON output and non-TTY commands do not accept without `--yes`. `--dry-run` shows changes and writes nothing.
 
-`planDefaults(ctx, scope, target?)` reads the scope's install manifest and config. It returns the file snapshots, the target defaults, `changes: DefaultsChange[]`, `firstReview`, and `changed`. Changes use `diffDefaults` with user and project layers to mark overrides. With an old manifest that has no snapshot, the first review lists the current role choices. With no install manifest, it plans no write. A retired `defaults` key also requires review, even when the defaults match.
+`planDefaults(ctx, scope, target?)` reads the scope's install manifest and config. It returns the file snapshots, the target defaults, `changes: DefaultsChange[]`, `firstReview`, and `changed`. Changes use `diffDefaults` with user and project layers to mark overrides. With an old manifest that has no snapshot, the first review lists the current role choices. With no install manifest, it plans no write.
 
-`applyDefaults` checks that the manifest and config still match the reviewed text. A difference fails with `defaults_changed` and writes nothing. It saves `{ version: 1, cliVersion, config }` as `acceptedDefaults` in the existing manifest, preserving the other properties. It removes only the retired `defaults` key from the scope's JSONC config, preserving comments and overrides. Writes use the existing symlink and project-path checks and atomic file helpers. The manifest and config are separate atomic writes.
+`cleanRetired(ctx, scope, { dryRun })` removes what an earlier release left and this release ignores. It runs with no prompt, because these things have no effect. `reviewDefaults` calls it first, so `omt doctor` and `omt update` run it, and `omt install` calls it after it applies a plan. It removes each key in the scope's config that `validateLayer` drops with a `no longer used` warning (`retiredKeyPaths` in `src/config/validate.ts`), such as `defaults`, `roles.guardrail`, or `profiles.normal.workflow.review.guardrails`. It uses `setJsoncValue`, so comments and other settings stay. A removal also removes each object that it empties, unless that object holds a comment or is a top-level key. In the project scope, it also deletes `.omt3/guardrails.md` when the file holds only white space. A `guardrails.md` with text stays. It prints `removed the retired keys from <config>: <paths>` and `removed the empty <file>; the guardrails step is retired`, or `would remove` with `--dry-run`, which writes nothing.
+
+`applyDefaults` checks that the manifest still matches the reviewed text. A difference fails with `defaults_changed` and writes nothing. It saves `{ version: 1, cliVersion, config }` as `acceptedDefaults` in the existing manifest, preserving the other properties. It never writes the config. Writes use the existing symlink and project-path checks and atomic file helpers.
 
 `activeDefaults` reads the project manifest, then the user manifest. The first accepted snapshot supplies the base config. A snapshot from an older release can lack a workflow key that a later release added, outside the `git` group. `withNewWorkflowKeys` gives each missing key its current default before the completeness check and in `activeDefaults`, so the snapshot stays valid. `planDefaults` compares the snapshot as saved, so the review lists such a key as `none -> <default>`. Without a snapshot it uses `DEFAULT_CONFIG`. `parseDefaultsSnapshot` validates the saved config and rejects a saved `update` key, which only the user config can set and fails with `defaults_snapshot` when it is invalid. There is no archived set catalog, date selector, or `omt defaults` command.
 
@@ -1048,7 +1049,7 @@ Config targets. `src/config/target.ts` exports `configTarget`, `readConfigTarget
 
 T3 status rule. omt reads `providerInstances` from `t3SettingsPath()` and never writes the file. An entry without a string `driver` is ignored. T3 adds an implicit instance whose id equals the driver kind unless an entry with that id exists, and the implicit `claudeAgent` and `codex` instances start enabled. An instance is disabled when `enabled === false` or `config.enabled === false`, else enabled. A driver is `enabled` when its implicit instance exists or any entry with that `driver` is enabled; `disabled` when no instance of the driver is enabled; `unknown` when the file is absent, unreadable, or not a JSON object. omt does not read `projectSettingsOverrides` or the legacy `providers` key, so it can call a driver disabled that T3 enables for one project.
 
-Output. The command prints one line per driver, `<driver padded to 11>  detected|not detected  <reason>`, for example `claudeAgent  detected  T3 enabled, /usr/local/bin/claude`. Then it prints the recommendation: `recommended: no harnesses key (every default harness is detected)`, or `recommended: harnesses ["codex"]`. Then the effect lines of `harnessEffects`: `<roles>: unavailable with the detected harnesses` for `design` or `ui` when no rung in the selected role chain uses a detected driver, and `cross-family review: the same family reviews` when one default driver is left. The detect command uses the merged role chains, including accepted defaults and overrides. A new install uses the current default roles.
+Output. The command prints one line per driver, `<driver padded to 11>  detected|not detected  <reason>`, for example `claudeAgent  detected  T3 enabled, /usr/local/bin/claude`. Then it prints the recommendation: `recommended: no harnesses key (every default harness is detected)`, or `recommended: harnesses ["codex"]`. Then the effect lines of `harnessEffects`: `<roles>: unavailable with the detected harnesses` for `design` or `ui` when no candidate in the selected role chain uses a detected driver, and `cross-family review: the same family reviews` when one default driver is left. The detect command uses the merged role chains, including accepted defaults and overrides. A new install uses the current default roles.
 
 Target and wanted value. `--user` and `--project` pick the target file with `configTarget` (section 5.12), also without `--write`: then the command only compares. The wanted value of the target is `recommended` when a default driver is missing. When every default driver is detected, the wanted value is no key, unless the target is the project file and the user file sets a `harnesses` value that excludes a detected driver; then it is `recommended`. The command compares the target file's own `harnesses` value with the wanted value. When they are equal, it prints `no change in <file>`. Otherwise it prints `<file>: harnesses <current|none> -> <wanted|none>`, and, when the target is the user file and the project file sets `harnesses`, `note: <project file> sets harnesses <value>, which overrides this change`. Without `--write`, it then prints `run omt detect --write to apply`.
 
@@ -1401,27 +1402,27 @@ A missing file is not an error. Each file is JSONC (section 7). Profile selectio
 - Allowed role keys and values:
   - `description`: a non-empty string of at most 300 characters.
   - `access`: `read-only` or `edit`.
-  - `result`: `work`, `review`, `test`, `research`, `plan`, or `guardrail`. The retired kind `grill` is an error that says to use `review`.
+  - `result`: `work`, `review`, `test`, `research`, or `plan`. The retired kinds `grill` and `guardrail` are errors that say to use `review`.
   - `t3Role`: `implementation`, `research`, `review`, `design`, `test`, or `general`.
   - `interactionMode`: `inherit`, `default`, or `plan`.
   - `runtimeMode`: `inherit`, `approval-required`, `auto-accept-edits`, `auto`, or `full-access`.
   - `crossFamily` and `fast`: booleans. Any other value is an error with the message `must be a boolean, got <value>`.
-  - `chain`: an array of 1 to 10 rungs.
+  - `chain`: an array of 1 to 10 candidates.
 - A role object with any invalid key or value is dropped as a whole, with one issue per problem.
-- Allowed rung keys:
-  - `provider` and `driver`: strings that match `^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`. A rung needs at least one of them.
+- Allowed candidate keys:
+  - `provider` and `driver`: strings that match `^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`. A candidate needs at least one of them.
   - `model`: a non-empty string of at most 200 characters. It is required.
   - `effort`: a value from the effort ladder.
   - `fast`: a boolean.
   - `options`: an object whose values are strings or booleans.
 - Allowed limit keys and integer ranges: `maxParallel` 1 to 32, `maxDepth` 0 to 3, `maxReviewRounds` 1 to 10. An invalid limit is dropped with an error.
-- Retired keys and roles. omt ignores these keys: `workflow.build.verify`, `workflow.build.checkpoint`, and `workflow.build.stallMinutes` in any profile, `limits.maxTasksPerRun` at root or in a profile, and the roles `verify`, `quick`, `deep`, `plan`, and `grill` at root or in a profile. A layer that sets one still loads. Validation drops the key, whatever its value, and adds one warning for each key: `<path> is no longer used; remove it`, for example `profiles.normal.workflow.build.checkpoint is no longer used; remove it`. A retired key or role therefore has no effect on the effective config. `RETIRED_BUILD_KEYS`, `RETIRED_LIMIT_KEYS`, and `RETIRED_ROLES` in `src/config/defaults.ts` hold the lists.
+- Retired keys and roles. omt ignores these keys: `workflow.build.verify`, `workflow.build.checkpoint`, `workflow.build.stallMinutes`, and `workflow.review.guardrails` in any profile, `limits.maxTasksPerRun` at root or in a profile, and the roles `verify`, `quick`, `deep`, `plan`, `grill`, and `guardrail` at root or in a profile. A layer that sets one still loads. Validation drops the key, whatever its value, and adds one warning for each key: `<path> is no longer used; remove it`, for example `profiles.normal.workflow.build.checkpoint is no longer used; remove it`. A retired key or role therefore has no effect on the effective config. `RETIRED_BUILD_KEYS`, `RETIRED_REVIEW_KEYS`, `RETIRED_LIMIT_KEYS`, and `RETIRED_ROLES` in `src/config/defaults.ts` hold the lists.
 - Retired profiles. `RETIRED_PROFILES` in `src/config/defaults.ts` lists `pr-review`, because `normal` now runs all PR review steps. A layer that declares `profiles.pr-review`, with any value including `null`, gets the warning `profiles.pr-review is no longer used; remove it`, and validation drops the declaration. A root `profile` or a profile `extends` that names a retired profile gets the warning `profile "pr-review" is no longer used; normal runs the PR steps`, and validation replaces the name with `normal`.
 - `profile` and each profile name match the role-name pattern. A profile value is `null` or an object. Allowed fields are `description`, `extends`, `workflow`, `limits`, `roles`, and `models`. `visuals` is an unknown profile field, so it is an error.
 - Profile `description` is a non-empty string of at most 300 Unicode code points. An invalid description drops the whole profile override. Other invalid profile fields are dropped individually. `extends` matches the profile-name pattern.
 - Profile `roles` and `limits` use the root validation rules. Each workflow group and key follows section 6.7. An unknown group, key, or value is an error. Valid fields remain. `plan.testLayers` can be empty and can contain only `integration`, `e2e`, and `unit`.
 - A model id is a non-empty string of at most 200 Unicode code points. Each `models.<id>` value is an object with only an optional boolean `fast`. Invalid model fields are dropped individually.
-- Role descriptions and rung model ids use the same code-point limits as profile descriptions and model ids.
+- Role descriptions and candidate model ids use the same code-point limits as profile descriptions and model ids.
 - A `roles.test` key, at root or inside a profile, warns: `role "test" was renamed to "qa"; rename it`. It remains a custom role with no special behavior. A partial legacy override can fail the new-role requirements in section 6.3.
 
 ### 6.3 Merging
@@ -1459,33 +1460,32 @@ A JSONC syntax error in a file becomes one error issue, and that file is skipped
 
 `src/config/defaults.ts` exports one `DEFAULT_CONFIG` and `diffDefaults(from, to, overrides): DefaultsChange[]`. The values of `DEFAULT_CONFIG` are in `src/config/defaults.jsonc`. `src/config/defaultsText.ts` is a Bun macro that reads the file, and `defaults.ts` imports it `with { type: "macro" }` and parses the text with `parseJsonc`, so the bundle and the binary hold the text and read no file. The file is in the layout that `setJsoncValue` writes, so that a save from `bun run defaults:edit` changes only the edited lines. `test/defaults.test.ts` checks that the file has no validation issue and passes `isCompleteDefaults`. Each release updates this configuration directly. The accepted snapshot in the install record supplies the active base until the user accepts the current defaults (section 5.12).
 
-`diffDefaults` compares leaf values in both configurations. Arrays, including role chains, compare as one leaf. Chains print as `driver/model effort, ...`, with `provider` when no driver is set and ` fast` for a fast rung. Other values print as JSON. A missing value prints `none`. Added or removed objects report each leaf.
+`diffDefaults` compares leaf values in both configurations. Arrays, including role chains, compare as one leaf. Chains print as `driver/model effort, ...`, with `provider` when no driver is set and ` fast` for a fast candidate. Other values print as JSON. A missing value prints `none`. Added or removed objects report each leaf.
 
 Overrides are the validated user and project layers, in that order. A layer overrides a change when it sets the full path or removes an ancestor with `null`. `overriddenBy` names the last layer that overrides the change. The diff covers roles, profiles, workflow, limits, and model settings.
 
-Every default rung sets `driver` and also sets `provider` to the same value (`claudeAgent` or `codex`). These are the ids of the T3 built-in provider instances. So an unverified default target names `providerInstanceId`, and a verified one still checks the instance. Observed T3 behavior is the reason. T3 checks a named provider instance again before it refuses it, but it picks a `driverKind`-only target from a cached provider snapshot, and that snapshot can be stale, for example when the T3 window is in the background. With capabilities, a default rung whose instance is not registered runs on an instance of its driver (section 8.3). Without capabilities, a user whose provider instance ids differ from the driver kinds overrides the chains in a config layer.
+Every default candidate sets `driver` and also sets `provider` to the same value (`claudeAgent` or `codex`). These are the ids of the T3 built-in provider instances. So an unverified default target names `providerInstanceId`, and a verified one still checks the instance. Observed T3 behavior is the reason. T3 checks a named provider instance again before it refuses it, but it picks a `driverKind`-only target from a cached provider snapshot, and that snapshot can be stale, for example when the T3 window is in the background. With capabilities, a default candidate whose instance is not registered runs on an instance of its driver (section 8.3). Without capabilities, a user whose provider instance ids differ from the driver kinds overrides the chains in a config layer.
 
-For a role without `crossFamily`, rung 2 runs only when T3 refuses rung 1. For a cross-family role, `--against` can put rung 2 first (section 8.3).
+For a role without `crossFamily`, candidate 2 runs only when T3 refuses candidate 1. For a cross-family role, `--against` can put candidate 2 first (section 8.3).
 
-`design` starts on Opus at medium effort and falls back to Astra at high effort. `ui` starts on Opus at low effort and falls back to Sol at high effort. The owner reviews the designs.
+`design` and `ui` start on Fable at medium effort and fall back to Astra at high effort. The owner reviews the designs.
 
 | Role | Access | Result | t3Role | Mode | crossFamily | Chain (driver/model effort) |
 | --- | --- | --- | --- | --- | --- | --- |
-| `explore` | read-only | research | research | plan | false | codex/gpt-6.1-terra low, claudeAgent/claude-haiku-5-5 medium |
-| `research` | read-only | research | research | plan | false | codex/gpt-6.1-sol low, claudeAgent/claude-sonnet-5-5 medium |
-| `plan-review` | read-only | review | review | plan | true | codex/gpt-6-astra medium, claudeAgent/claude-opus-5-5 medium |
-| `execute` | edit | work | implementation | default | false | claudeAgent/claude-opus-5-5 low, codex/gpt-6.1-sol high |
-| `review` | edit | review | review | default | true | codex/gpt-6-astra medium, claudeAgent/claude-opus-5-5 medium |
-| `oracle` | edit | review | review | default | true | codex/gpt-6-astra medium, claudeAgent/claude-opus-5-5 medium |
-| `qa` | edit | test | test | default | false | codex/gpt-6.1-sol medium, claudeAgent/claude-sonnet-5-5 low |
-| `guardrail` | read-only | guardrail | review | plan | false | claudeAgent/claude-opus-5-5 high, codex/gpt-6-astra high |
-| `writing` | edit | work | implementation | default | false | claudeAgent/claude-opus-5-5 medium, codex/gpt-6-astra medium |
-| `design` | edit | work | design | default | false | claudeAgent/claude-opus-5-5 medium, codex/gpt-6-astra high |
-| `ui` | edit | work | implementation | default | false | claudeAgent/claude-opus-5-5 low, codex/gpt-6.1-sol high |
+| `explore` | read-only | research | research | plan | false | codex/gpt-6.2-sol low, claudeAgent/claude-sonnet-5-5 low |
+| `research` | read-only | research | research | plan | false | codex/gpt-6.2-sol medium, claudeAgent/claude-sonnet-5-5 medium |
+| `plan-review` | read-only | review | review | plan | true | codex/gpt-6.2-astra high, claudeAgent/claude-fable-5-2 high |
+| `execute` | edit | work | implementation | default | false | claudeAgent/claude-opus-5-5 medium, codex/gpt-6.2-sol high |
+| `review` | edit | review | review | default | true | codex/gpt-6.2-sol xhigh, claudeAgent/claude-opus-5-5 high |
+| `oracle` | edit | review | review | default | true | codex/gpt-6.2-astra medium, claudeAgent/claude-fable-5-2 medium |
+| `qa` | edit | test | test | default | false | codex/gpt-6.2-sol medium, claudeAgent/claude-sonnet-5-5 medium |
+| `writing` | edit | work | implementation | default | false | claudeAgent/claude-opus-5-5 medium, codex/gpt-6.2-astra medium |
+| `design` | edit | work | design | default | false | claudeAgent/claude-fable-5-2 medium, codex/gpt-6.2-astra high |
+| `ui` | edit | work | implementation | default | false | claudeAgent/claude-fable-5-2 medium, codex/gpt-6.2-astra high |
 
 `review` and `oracle` have `edit` access, so that the reviewer fixes each local finding itself and reports the rest (section 11).
 
-`qa` starts on Sol at medium effort and falls back to Sonnet at low effort. It has `edit` access only so that it can run commands and write logs; its brief forbids edits in the repository (section 9.2).
+`qa` starts on Sol at medium effort and falls back to Sonnet at medium effort. It has `edit` access only so that it can run commands and write logs; its brief forbids edits in the repository (section 9.2).
 
 Every default role has `runtimeMode: "inherit"` and an explicit `crossFamily`. Without `--against`, the cross-family roles start on codex, which fits the default worker (`execute` on claudeAgent).
 
@@ -1498,14 +1498,13 @@ Role descriptions (shown to agents in `omt roles` and in skills):
 - `review`: Review a diff against its brief, fix local findings in the changed files, and report the rest by severity. Runs on the family that did not make the change.
 - `oracle`: Attack the finished change from the family other than the main implementer's, fix local findings, and report the rest before it counts as done.
 - `qa`: Run the given check commands and device flows, and return each exit code with its log and screenshots. Edits nothing.
-- `guardrail`: Turn review findings into deterministic checks and rule fixes, so that the next change cannot repeat them.
 - `writing`: Write or edit documentation and other prose.
 - `design`: Design screens and flows in Paper, and write a design spec that UI units cite.
 - `ui`: Implement one UI unit from its design spec or task requirements, inside its scope.
 
 Default limits: `maxParallel` 6, `maxDepth` 1, `maxReviewRounds` 4.
 
-Default profile: `normal`. Default models: `{ "gpt-6.1-sol": { "fast": true } }`. No default role or rung sets `fast`.
+Default profile: `normal`. Default models: `{ "gpt-6.2-sol": { "fast": true }, "gpt-6.2-astra": { "fast": true } }`. Both are the Codex models of the default chains. No default role or candidate sets `fast`.
 
 ### 6.5 Starter files
 
@@ -1515,7 +1514,7 @@ Only the user starter has a commented `// "update": "off",` line after the `limi
 
 ### 6.6 JSON Schema
 
-`src/config/schema.ts` exports the JSON Schema (draft 2020-12) for a config file as a plain object. `scripts/build-schema.ts` writes it to `schema/omt.schema.json` with 2-space indentation and a final newline. A test fails when the committed file differs from the generated output. Another test checks that the schema allows exactly the keys that `validateLayer` allows. Role and rung definitions include boolean `fast`. The role definition also includes boolean `crossFamily`. The schema defines `profile`, `profiles`, `models`, and all workflow groups. Preset profile values cannot be null. New-profile descriptions and inheritance chains need the runtime merge checks. `visuals`, the retired limit `maxTasksPerRun`, and the retired build keys `verify`, `checkpoint`, and `stallMinutes` stay only as `{ "deprecated": true, "description": "No longer used. omt ignores this key." }`, so an editor marks an old key instead of rejecting it; `validateLayer` drops each with a warning (section 6.2). A retired role name needs no entry, because `roles` accepts any role name. `defaults` is also deprecated and has no date enum.
+`src/config/schema.ts` exports the JSON Schema (draft 2020-12) for a config file as a plain object. `scripts/build-schema.ts` writes it to `schema/omt.schema.json` with 2-space indentation and a final newline. A test fails when the committed file differs from the generated output. Another test checks that the schema allows exactly the keys that `validateLayer` allows. Role and candidate definitions include boolean `fast`. The role definition also includes boolean `crossFamily`. The schema defines `profile`, `profiles`, `models`, and all workflow groups. Preset profile values cannot be null. New-profile descriptions and inheritance chains need the runtime merge checks. `visuals`, the retired limit `maxTasksPerRun`, and the retired build keys `verify`, `checkpoint`, and `stallMinutes` stay only as `{ "deprecated": true, "description": "No longer used. omt ignores this key." }`, so an editor marks an old key instead of rejecting it; `validateLayer` drops each with a warning (section 6.2). A retired role name needs no entry, because `roles` accepts any role name. `defaults` is also deprecated and has no date enum.
 
 `update` has an `enum` of `off`, `check`, and `apply`.
 
@@ -1554,7 +1553,6 @@ The following keys are under `profiles.<name>.workflow`. The table shows the res
 | `review.ci` | `off`, `check`, `fix` | `off` | `off` |
 | `review.verify` | `off`, `changed-flows` | `off` | `off` |
 | `review.tests` | `off`, `offer` | `off` | `off` |
-| `review.guardrails` | `off`, `propose` | `off` | `off` |
 | `review.crap` | `off`, `report` | `off` | `off` |
 | `git.branchCommits` | `auto`, `ask` | `auto` | `auto` |
 | `git.pullRequests` | `auto`, `ask`, `off` | `auto` | `auto` |
@@ -1563,7 +1561,7 @@ The following keys are under `profiles.<name>.workflow`. The table shows the res
 | `git.owners` | array of GitHub owners that match `^[A-Za-z0-9][A-Za-z0-9-]{0,38}$` | `[]` | `[]` |
 | `git.maxPrFiles` | integer from 0 to 10000; 0 means no limit | `100` | `100` |
 
-`plan.review` sets the plan reviewer of `omt-plan`. `two-families` keeps its name but means 1 `plan-review` child on the family other than the main thread's. `one` means 1 `plan-review` child on any family. `owner` means the owner reviews the plan, with no child. Every value runs at most 2 review rounds. `design.variants` is the number of variants of each screen that `omt-design` draws. The main thread draws when its model is the model of the first target of the `design` role (`omt route design`), and 1 `design` child draws otherwise. `design.tool` picks the drawing tool: `paper` draws in Paper when its MCP tools load, else in HTML mockups; `html` draws HTML mockups only. The `review` PR extras (`ci`, `verify`, `tests`, `guardrails`, `crap`) are `off` in both presets; a user or project config turns them on.
+`plan.review` sets the plan reviewer of `omt-plan`. `two-families` keeps its name but means 1 `plan-review` child on the family other than the main thread's. `one` means 1 `plan-review` child on any family. `owner` means the owner reviews the plan, with no child. Every value runs at most 2 review rounds. `design.variants` is the number of variants of each screen that `omt-design` draws. The main thread draws when its model is the model of the first target of the `design` role (`omt route design`), and 1 `design` child draws otherwise. `design.tool` picks the drawing tool: `paper` draws in Paper when its MCP tools load, else in HTML mockups; `html` draws HTML mockups only. The `review` PR extras (`ci`, `verify`, `tests`, `crap`) are `off` in both presets; a user or project config turns them on.
 
 The build keys `verify`, `checkpoint`, and `stallMinutes` are retired (section 6.2). A run has no per-unit verify cadence, no owner check-in per layer or unit, and no stall heartbeat: the main thread builds, then one review child and one QA child check the work.
 
@@ -1656,56 +1654,56 @@ Any other driver, or an unknown driver, returns no options and the note `effort 
 
 ### 8.3 Resolving a role
 
-`resolveRole(name, role, caps?, options?)` walks the chain and builds one `RungAttempt` per rung. `options` is `{ models?: Record<string, ModelConfig>; against?: string; notes?: string[]; drivers?: Map<string, string>; harnesses?: string[] }`. `notes` are role-level notes that go first, such as the `--against auto` note (section 5.3). `drivers` maps a provider instance id to a driver kind for the family rule below. The command layer passes `configuredDrivers(config.roles)` and the effective `config.models`.
+`resolveRole(name, role, caps?, options?)` walks the chain and builds one `CandidateAttempt` per candidate. `options` is `{ models?: Record<string, ModelConfig>; against?: string; notes?: string[]; drivers?: Map<string, string>; harnesses?: string[] }`. `notes` are role-level notes that go first, such as the `--against auto` note (section 5.3). `drivers` maps a provider instance id to a driver kind for the family rule below. The command layer passes `configuredDrivers(config.roles)` and the effective `config.models`.
 
-Harness filter. `omt roles`, `omt route`, `omt brief`, and the doctor `roles` check pass the effective `config.harnesses`; `harnessOptions(harnesses, roles)` builds `{ harnesses, drivers: configuredDrivers(roles) }`, or `{}` when the key is unset. When `options.harnesses` is set, a rung whose driver kind is known and not in the list is a failed attempt with the reason `harness <driver> is not enabled (harnesses: <list joined with ", ">); run omt detect`, before any other check. The driver kind is known when the rung names a registered provider (its `driverKind`), sets `driver`, or names a provider instance that `drivers` maps. A rung whose driver kind is unknown stays. The role is `unavailable` when no rung is left.
+Harness filter. `omt roles`, `omt route`, `omt brief`, and the doctor `roles` check pass the effective `config.harnesses`; `harnessOptions(harnesses, roles)` builds `{ harnesses, drivers: configuredDrivers(roles) }`, or `{}` when the key is unset. When `options.harnesses` is set, a candidate whose driver kind is known and not in the list is a failed attempt with the reason `harness <driver> is not enabled (harnesses: <list joined with ", ">); run omt detect`, before any other check. The driver kind is known when the candidate names a registered provider (its `driverKind`), sets `driver`, or names a provider instance that `drivers` maps. A candidate whose driver kind is unknown stays. The role is `unavailable` when no candidate is left.
 
 With capabilities, first check the parent's mode ceilings. T3 lets a child keep or narrow the parent's modes, never widen them.
 
 - When `caps.interactionMode` is `plan`, a role with `access: "edit"` or `interactionMode: "default"` is `unavailable` with the reason `the parent thread is in plan mode; this role needs default mode`.
 - Runtime modes rank `approval-required` < `auto-accept-edits` < `auto` < `full-access`. When the role's `runtimeMode` is not `inherit` and ranks above `caps.runtimeMode`, the role is `unavailable` with the reason `role runtime mode <x> is broader than the parent's <y>`.
-- A mode-ceiling failure gives every rung the same reason.
+- A mode-ceiling failure gives every candidate the same reason.
 
-Then walk the rungs:
+Then walk the candidates:
 
-1. Find the provider. With `rung.provider`, it is the provider whose `providerInstanceId` equals it. When the rung also has `driver` and the kinds differ, the rung fails with `provider instance <id> has driver <kind>, not <driver>`. With only `rung.driver`, pick in this order: the provider named by `caps.inheritedProviderInstanceId` when its `driverKind` matches and it can run child tasks (this is what T3 itself picks), then the first provider of that kind that can run child tasks, then the first provider of that kind. When no provider has the id `rung.provider` and the rung also has `driver`, pick by the driver with the same rule, and add the note `provider instance <id> is not registered; using instance <picked id> of driver <driver>`. So a default rung still runs when the T3 instance ids differ from the driver kinds.
-2. Fail when no provider is found. A rung with only `provider` fails with `provider instance <id> is not registered in T3`. A rung with `provider` and `driver` fails with `provider instance <id> is not registered in T3; no provider instance with driver <driver>`. A rung with only `driver` fails with `no provider instance with driver <driver>`.
+1. Find the provider. With `candidate.provider`, it is the provider whose `providerInstanceId` equals it. When the candidate also has `driver` and the kinds differ, the candidate fails with `provider instance <id> has driver <kind>, not <driver>`. With only `candidate.driver`, pick in this order: the provider named by `caps.inheritedProviderInstanceId` when its `driverKind` matches and it can run child tasks (this is what T3 itself picks), then the first provider of that kind that can run child tasks, then the first provider of that kind. When no provider has the id `candidate.provider` and the candidate also has `driver`, pick by the driver with the same rule, and add the note `provider instance <id> is not registered; using instance <picked id> of driver <driver>`. So a default candidate still runs when the T3 instance ids differ from the driver kinds.
+2. Fail when no provider is found. A candidate with only `provider` fails with `provider instance <id> is not registered in T3`. A candidate with `provider` and `driver` fails with `provider instance <id> is not registered in T3; no provider instance with driver <driver>`. A candidate with only `driver` fails with `no provider instance with driver <driver>`.
 3. Fail when `canRunChildTask` is false: `provider <id> cannot run child tasks: <constraints joined with "; ">`. Use `no reason given` when the list is empty.
-4. Fail when the provider lists models and none has `id === rung.model`: `model <model> is not advertised by <id>`. A provider with an empty model list accepts any model. Effort then goes through the driver table (section 8.2), and the rung gets the note `provider <id> lists no models; T3 will check the model and its options`.
-5. Build options. Apply `mapEffort` with the model's descriptors when `rung.effort` is set. Apply fast mode (section 8.4), then copy `rung.options` over the result.
+4. Fail when the provider lists models and none has `id === candidate.model`: `model <model> is not advertised by <id>`. A provider with an empty model list accepts any model. Effort then goes through the driver table (section 8.2), and the candidate gets the note `provider <id> lists no models; T3 will check the model and its options`.
+5. Build options. Apply `mapEffort` with the model's descriptors when `candidate.effort` is set. Apply fast mode (section 8.4), then copy `candidate.options` over the result.
 6. Validate options when the model has descriptors. Every id must match a descriptor. A `boolean` descriptor needs a boolean value. A `select` descriptor needs one of its choice ids. On failure the reason is `invalid options: <problem>; <problem>`. When the model has no descriptors and options are present, keep them and add the note `the model advertises no options; T3 will not check them`.
 7. The target is `{ providerInstanceId, model, options }`. Omit `options` when it is empty.
 
 Cross-family order. The pure functions live in `src/routing/family.ts`.
 
-- `configuredDrivers(roles)` maps each provider instance id that a configured rung names together with a `driver` to that driver. It reads the rungs of every role in the effective config, and the first such rung wins.
-- `rungFamily(rung, caps?, drivers?)` gives the family of a rung, in this order. With capabilities, when a provider has the `providerInstanceId` `rung.provider`, the family is that provider's `driverKind`. Otherwise it is `rung.driver` when set. Otherwise it is `drivers.get(rung.provider)` when that is set, else `rung.provider`. Families are compared as strings.
-- `workerFamily(against, caps?, drivers?)` gives the worker family. It is the `rungFamily` of a rung that names only the provider `against`. The worker and the rungs use the same rule and the same `drivers`, so a provider instance id gets the same family on both sides of the comparison. A driver kind that is not a provider instance id stays as it is.
+- `configuredDrivers(roles)` maps each provider instance id that a configured candidate names together with a `driver` to that driver. It reads the candidates of every role in the effective config, and the first such candidate wins.
+- `candidateFamily(candidate, caps?, drivers?)` gives the family of a candidate, in this order. With capabilities, when a provider has the `providerInstanceId` `candidate.provider`, the family is that provider's `driverKind`. Otherwise it is `candidate.driver` when set. Otherwise it is `drivers.get(candidate.provider)` when that is set, else `candidate.provider`. Families are compared as strings.
+- `workerFamily(against, caps?, drivers?)` gives the worker family. It is the `candidateFamily` of a candidate that names only the provider `against`. The worker and the candidates use the same rule and the same `drivers`, so a provider instance id gets the same family on both sides of the comparison. A driver kind that is not a provider instance id stays as it is.
 - The family is the driver, not the model vendor. This is a known limit. A driver that runs models of more than one vendor (`cursor`, `opencode`) counts as its own family.
-- When `options.against` is set and the role has `crossFamily: true`, the chain is reordered before the walk, as a stable partition (`crossFamilyOrder`). The rungs whose family differs from the worker family come first, in configured order. The rungs of the worker family come after them, in configured order. When the order changed, the note is `cross-family: worker family <family>; other families first`. When it did not change, the note is `cross-family: worker family <family>; the configured order applies`.
-- When no rung of the chain is in the worker family, the order does not change, no other cross-family note is added, and the note is `cross-family: no rung is in family <family>; check that --against names a driver or a configured provider, or pass --capabilities`.
-- After the walk, when the first ok rung is in the worker family, the note is `cross-family: no rung outside family <family> is available; the same family reviews`.
+- When `options.against` is set and the role has `crossFamily: true`, the chain is reordered before the walk, as a stable partition (`crossFamilyOrder`). The candidates whose family differs from the worker family come first, in configured order. The candidates of the worker family come after them, in configured order. When the order changed, the note is `cross-family: worker family <family>; other families first`. When it did not change, the note is `cross-family: worker family <family>; the configured order applies`.
+- When no candidate of the chain is in the worker family, the order does not change, no other cross-family note is added, and the note is `cross-family: no candidate is in family <family>; check that --against names a driver or a configured provider, or pass --capabilities`.
+- After the walk, when the first ok candidate is in the worker family, the note is `cross-family: no candidate outside family <family> is available; the same family reviews`.
 - When `options.against` is set and the role does not have `crossFamily: true`, the order does not change, and the note is `role <name> is not cross-family; --against has no effect`.
 - Without `options.against`, the configured order applies.
-- `RungAttempt.index` keeps the configured position, so every `rung <n>` label uses the configured rung number. `attempts` and `fallbacks` are in the order tried.
+- `CandidateAttempt.index` keeps the configured position, so every `candidate <n>` label uses the configured candidate number. `attempts` and `fallbacks` are in the order tried.
 
 `pickWorker(entries, roles, plan, unit?, warn?)` returns `{ provider, from: "unit" | "plan" }` or `undefined`, with the rules of section 5.3. `warn` gets one message for each worker entry whose `provider` is set but is not a non-empty string. The command layer reads the ledger file, passes the entries, and prints each message as a `warning:` line on stderr.
 
-Without capabilities, every rung is ok. The target uses `providerInstanceId: rung.provider` when present, else `driverKind: rung.driver`. The default rungs set `provider`, so they give `providerInstanceId` targets (section 6.4). Effort goes through the driver table, using `rung.driver`, or `rung.provider` when no driver is given.
+Without capabilities, every candidate is ok. The target uses `providerInstanceId: candidate.provider` when present, else `driverKind: candidate.driver`. The default candidates set `provider`, so they give `providerInstanceId` targets (section 6.4). Effort goes through the driver table, using `candidate.driver`, or `candidate.provider` when no driver is given.
 
 Status:
 
-- `resolved`: capabilities were given and at least one rung is ok.
+- `resolved`: capabilities were given and at least one candidate is ok.
 - `unverified`: no capabilities were given.
-- `unavailable`: no rung is ok. This holds without capabilities too, for example for a rung that names no provider or driver.
+- `unavailable`: no candidate is ok. This holds without capabilities too, for example for a candidate that names no provider or driver.
 
-`delegateTask` uses the first ok rung's target plus the role's `t3Role`, `interactionMode`, and `runtimeMode`. `fallbacks` holds the targets of the later ok rungs. `RoleResolution.crossFamily` copies the role's flag (`false` when unset). `RoleResolution.notes` holds the role-level notes, and is absent when there are none. `toRouteOutput` puts them before the rung notes.
+`delegateTask` uses the first ok candidate's target plus the role's `t3Role`, `interactionMode`, and `runtimeMode`. `fallbacks` holds the targets of the later ok candidates. `RoleResolution.crossFamily` copies the role's flag (`false` when unset). `RoleResolution.notes` holds the role-level notes, and is absent when there are none. `toRouteOutput` puts them before the candidate notes.
 
 `resolveAll(config, caps?, only?, harnesses?)` returns a `RolesReport` and passes `harnesses` to every `resolveRole` call. It keeps the order of `only` and drops duplicates. An unknown name in `only` throws `OmtError` with code `unknown_role`.
 
 ### 8.4 Fast mode
 
-For each rung, the first defined value wins: `rung.fast`, `roles.<role>.fast`, `models.<model id>.fast`, then `false`. Explicit `false` stops inheritance. It adds no fast option, so the provider default applies. A raw option in `rung.options` still applies.
+For each candidate, the first defined value wins: `candidate.fast`, `roles.<role>.fast`, `models.<model id>.fast`, then `false`. Explicit `false` stops inheritance. It adds no fast option, so the provider default applies. A raw option in `candidate.options` still applies.
 
 With `fast: true` and known capabilities:
 
@@ -1713,9 +1711,9 @@ With `fast: true` and known capabilities:
 2. Otherwise, a boolean `fastMode` gives `fastMode: true`.
 3. Otherwise, add no fast option and the note `fast mode is not offered by <provider>/<model>`.
 
-Known capabilities with no model descriptors never infer a fast option. Without capabilities, driver `codex` gives `serviceTier: "priority"`. Driver `claudeAgent` with a model id that starts with `claude-opus` gives `fastMode: true`. Other targets get the same unsupported note and no fast option. Unverified routing uses `rung.driver`, or `rung.provider` when no driver is set.
+Known capabilities with no model descriptors never infer a fast option. Without capabilities, driver `codex` gives `serviceTier: "priority"`. Driver `claudeAgent` with a model id that starts with `claude-opus` gives `fastMode: true`. Other targets get the same unsupported note and no fast option. Unverified routing uses `candidate.driver`, or `candidate.provider` when no driver is set.
 
-Effort mapping applies first, fast mapping second, and explicit `rung.options` last. The chosen target and each fallback keep their mapped options. An unsupported fast option does not make the rung unavailable.
+Effort mapping applies first, fast mapping second, and explicit `candidate.options` last. The chosen target and each fallback keep their mapped options. An unsupported fast option does not make the candidate unavailable.
 
 ## 9. Briefs
 
@@ -1835,7 +1833,7 @@ Device line, the last constraint line, for every role except `qa`:
 T3 derives the child thread id from this value. So:
 
 - Reuse an id only to resend the same payload after a lost response. T3 then returns the existing task instead of starting a second one.
-- Increase the attempt when you send the same round again to a fallback rung, or again after a child failed. `omt brief --fallback` picks the attempt from the ledger (section 5.4).
+- Increase the attempt when you send the same round again to a fallback candidate, or again after a child failed. `omt brief --fallback` picks the attempt from the ledger (section 5.4).
 - Increase the round for each new review or fix round.
 
 ## 11. Result contracts
@@ -1901,17 +1899,6 @@ PLAN: <path of the plan file>
 UNITS: <count>
 DECISIONS NEEDED:
 - <decision for the owner, with options and a recommendation; or none>
-```
-
-`guardrail.md`:
-
-```text
-VERDICT: PROPOSALS | NONE
-SUMMARY: <one or two sentences>
-PROPOSALS:
-- G<k> [check|rule-fix|new-rule] <finding ids>: <proposal>. Where: <file>. Proof: <command that fails on the PR head and passes after the change, or none>.
-NOTES:
-- <each finding with no proposal and why, or none>
 ```
 
 A `qa` result lists each command under `CHECKS` with its exit code and key output line, and each log, screenshot, and recording under `EVIDENCE`; `qa` writes no tests, so the contract has no test list. A `review` or `oracle` result lists the fixes that the reviewer made under `FIXES`, with their paths, or `none` when its access is read-only; `FINDINGS` holds only the findings that it reports. Worker `NOTES` are optional. A review or oracle finding needs a concrete failure scenario. When CRAP is requested, a CRAP finding instead names the changed function and its complexity, coverage, and CRAP values. This exception applies in every round.
@@ -2205,13 +2192,14 @@ Then doctor runs these checks and prints one line per check, such as `PASS  conf
 | `homes` | every T3 `claudeAgent` instance that sets `config.homePath` has the skills linked in `<homePath>/skills` | an instance with a `homePath` that lacks the skills; a settings file that cannot be read or is not valid JSON | | no instance sets a `homePath` |
 | `roles` | every role resolves (only with `--capabilities`) | some roles are unavailable | the `execute` role is unavailable | |
 
-With `--project`, doctor checks the project scope (section 14.8). It runs `runtime`, `config`, `defaults`, and `harnesses` as above, and `skills`, `links`, and `hooks` against the project paths. It replaces `path` and `homes` with these checks, keeps `t3` and `roles`, and adds `worktree` after `t3`. `worktree` checks the checkout of the current directory, which can be a linked worktree, while the other project checks use the main checkout:
+With `--project`, doctor checks the project scope (section 14.8). It runs `runtime`, `config`, `defaults`, and `harnesses` as above, and `skills`, `links`, and `hooks` against the project paths. It replaces `path` and `homes` with these checks, keeps `t3` and `roles`, adds `worktree` after `t3`, and adds `leftovers` after `worktree` only while `.omt3/guardrails.md` holds text. `worktree` checks the checkout of the current directory, which can be a linked worktree, while the other project checks use the main checkout:
 
 | Id | PASS | WARN | FAIL | INFO |
 | --- | --- | --- | --- | --- |
 | `shim` | `.omt3/bin/omt` is present, carries the signature, is executable, and its recorded runtime and CLI paths exist; for a runner shim, the message names the runner command | the shim is missing or not managed, or its recorded runtime does not exist (the shim falls back to `bun` or `node` on `PATH`) | the shim's recorded CLI path does not exist, or the shim is not executable | |
 | `exclude` | the exclude file holds the block of this root | the exclude file has no block for this root, or it holds a block for a root that no longer exists | | no `.git` in the root or a parent directory, or the last install ran with `--no-git-exclude` and there is no block |
 | `worktree` | the current checkout's managed setup is current, waits for completion, and every worktree check passes (section 5.11) | setup is missing, invalid, incomplete, blocked, does not wait, or the pnpm store is not `set` (the message then holds the store problem); also a read error | | no setup is needed, or a custom setup waits for completion |
+| `leftovers` | | | | `.omt3/guardrails.md` holds text; omt no longer reads it and keeps it, and the user can delete it. `cleanRetired` deletes an empty one (section 5.12) |
 
 In project scope, every install hint names the running CLI, because `omt` may not be on `PATH` and the shim may be broken. The hint is `"<cliPath>" install --project` in binary mode, `node "<cliPath>" install --project` or `bun "<cliPath>" install --project` in bundle mode, after the runtime that runs the bundle (`runtimeName`), so the hint works with no `node` on `PATH` under Bun, and `bun "<cliPath>" install --project` in source mode. When the CLI runs from a one-shot cache, as it does through a runner shim, the hint is `npx --yes omt3@<version> install --project`, or the `pnpm dlx` or `bunx` form of the shim.
 
@@ -2464,7 +2452,7 @@ Pull requests. When a skill creates a PR, it links the PR with `link_pull_reques
 | `omt-setup` | model | Help and setup. Answers questions about omt from the output of read commands, and sets up, configures, or updates omt through the CLI: the doctor check, the harnesses, defaults review, worktree setup, profile and role edits, and an update. It shows each command or edit first, runs `--dry-run` where the command has it, and passes `--yes` only after the user agrees. |
 | `omt-swarm` | user, opt-in | Build one plan as parallel tracks in separate worktree threads, review every track diff with 1 child, merge, run 1 QA child, and open one draft PR. A default install leaves it out; `omt install --with omt-swarm` installs it (section 14.1). Invoking it is the explicit user request that T3 requires for new threads. |
 
-`omt-grill` and `omt-help` are retired. The stress test of `omt-plan` step 2a replaces `omt-grill`, and step 3 of `omt-setup` replaces `omt-help`. The `grill` role and the `grill` result kind are retired (section 6.2). `omt paths --grills` and the `grills/` line of `.omt3/.gitignore` stay, so that old grill files stay readable.
+`omt-grill` and `omt-help` are retired. The stress test of `omt-plan` step 2a replaces `omt-grill`, and step 3 of `omt-setup` replaces `omt-help`. The `grill` role and the `grill` result kind are retired (section 6.2). `omt paths --grills` and the `grills/` line of `.omt3/.gitignore` stay, so that old grill files stay readable. The `guardrail` role, the `guardrail` result kind, and `review.guardrails` are retired too (section 6.2). The `guardrails.md` line of `.omt3/.gitignore` stays, so that an old proposal file does not show in git. `cleanRetired` removes the retired keys from the config and deletes an empty `guardrails.md` (section 5.12). `omt doctor --project` reports a `guardrails.md` with text as `leftovers` (section 14.7).
 
 Rules that the skills must carry:
 
@@ -2597,7 +2585,7 @@ Top-level threads. `delegate_task` makes children. Only when the user asks for s
 
 ### 15.4 Pull request review
 
-`omt-code-review <number>` runs the steps of section 15.2 with six PR steps. Five PR extras run only when their `workflow.review` switch is not `off`: `ci`, `verify`, `tests`, `guardrails`, and `crap`. Both presets turn all five off (section 6.7). When any of them is on, the skill reads `skills/omt-code-review/pr-extras.md` and runs each extra at the step that file names. The skill posts no GitHub comment or review. It pushes only approved fixes, to the PR branch.
+`omt-code-review <number>` runs the steps of section 15.2 with six PR steps. Four PR extras run only when their `workflow.review` switch is not `off`: `ci`, `verify`, `tests`, and `crap`. Both presets turn all four off (section 6.7). When any of them is on, the skill reads `skills/omt-code-review/pr-extras.md` and runs each extra at the step that file names. The skill posts no GitHub comment or review. It pushes only approved fixes, to the PR branch.
 
 1. Target. Run `gh pr view <n> --json title,body,url,baseRefName,baseRefOid,headRefOid,files`, and link the PR with `link_pull_request`. Save `git branch --show-current`, or `git rev-parse HEAD` for a detached HEAD, for the return command. Run `git fetch origin <baseRefName> pull/<n>/head`. Check out the PR only when a step needs it: ask the owner first when `git status --porcelain` prints anything, then run `gh pr checkout <n>`.
 2. Rules. List `AGENTS.md` and `CLAUDE.md` in the root and above each changed file, `CONTRIBUTING.md`, the docs that they link to, the fitting project skills, and the lint and CI config files. Every review task gets the list. A finding that breaks a written rule cites the rule file and line.
@@ -2612,7 +2600,6 @@ The PR extras in `pr-extras.md`:
 - Coverage and CRAP (`review.crap: report`). Before step 3, run the coverage command once as `omt lock run coverage -- <command>`, with lcov output to `coverage-<slug>.lcov`. Each reviewer computes `CRAP = complexity² × (1 − coverage)³ + complexity` per added or changed function, with McCabe complexity, and coverage 0 without a coverage file. A function above 30 is a P2 finding with its three values.
 - Changed-flow QA (`review.verify: changed-flows`). At step 3, when the PR changes a screen, a CLI command, or an API route, dispatch one `qa` child with the changed flows, the build and run commands, and the changed paths. It changes no files and names the test file that covers each flow, or `none`. Each `NOT VERIFIED` flow becomes a P1 finding.
 - Test offers (`review.tests: offer`). At step 6, offer one e2e test per verified flow that no test covers, with its file path. After the owner's yes, the main thread writes the tests, one `qa` child runs them with `mode: "wait"`, and the tests go through one fix review before the commit.
-- Guardrails (`review.guardrails: propose`). After step 4 and the CI fixes, dispatch one read-only `guardrail` child with `mode: "wait"`, the merged findings, the CI failures, the rule-file list, and the path of `guardrails.md` in the state folder that `omt paths --omt` prints. A literal `.omt3/` path would create `.omt3/` in a project that has not migrated, and omt would stop reading its `.omt/`. Per finding, it proposes a `check`, a `rule-fix`, or a `new-rule`, or gives a reason for none. The main thread appends each new proposal to that file as `- [ ] G<k> <date> PR #<n> <class>: <proposal>. Where: <file>. Proof: <command or none>.`
 
 ### 15.5 Test policy
 
@@ -2634,12 +2621,12 @@ Required coverage:
 - Locks: `test/lock/lock.test.ts` checks real process contention, wrapper SIGKILL, inherited background holders, Node child waits, failure and signal release, wait output, holder metadata, inode preservation, no-tool fallback, argument errors, and help. It also checks shared ignored locks across linked worktrees, nested projects, separate Git directories, and trailing-space paths.
 - Fast mode: `test/routing/fast.test.ts` uses `test/fixtures/capabilities-live.json` for advertised options, unsupported models, false overrides, precedence, raw options, and unverified mapping. The older `capabilities.json` fixture still checks fallback when Haiku is absent.
 - Config: defaults pass validation, the exact default chains and `crossFamily` flags, one current configuration without the retired keys and roles, accepted snapshots, defaults confirmation and refusal, one warning for each retired key or role that a layer sets (at root and in a profile) with no effect on the effective config, layering order, `null` removal, chain replacement, new-role defaults, `crossFamily` kept, set, and overridden by a layer, every validation error class (including a non-boolean `crossFamily`), and a syntax error that skips one file.
-- Routing: a fixture with Claude, Codex, Pi, and Cursor enabled and Grok disabled. Cover a resolved role, fallback past a disabled provider, a missing model, effort mapping for each driver, nearest-value mapping, invalid raw options, driver-only rungs, unverified mode, and the MCP content wrapper.
-- Routing also covers both mode ceilings, the inherited-instance preference for driver-only rungs, and a rung whose provider instance is not registered: with a `driver` it runs on an instance of that driver with its note, and without a `driver` it fails.
-- Cross-family routing: the reorder for `--against claudeAgent` and `--against codex` on `review`, a role without `crossFamily` that ignores `--against` with its note, a chain with only same-family rungs that keeps its order with the same-family note, a provider instance id that maps to its driver kind with capabilities and through a configured rung without capabilities, a worker family that matches no rung with its note, and an unavailable other-family rung that falls back to the same family with the note.
-- Cross-family routing also covers a rung that names only a provider. A configured rung maps that provider to its driver, the same way as the `--against` value. The rung is in the worker's family for the reorder and for each note, through `--against <provider>` and through `--against auto`. `workerFamily` and `rungFamily` give the same family for the same provider id.
+- Routing: a fixture with Claude, Codex, Pi, and Cursor enabled and Grok disabled. Cover a resolved role, fallback past a disabled provider, a missing model, effort mapping for each driver, nearest-value mapping, invalid raw options, driver-only candidates, unverified mode, and the MCP content wrapper.
+- Routing also covers both mode ceilings, the inherited-instance preference for driver-only candidates, and a candidate whose provider instance is not registered: with a `driver` it runs on an instance of that driver with its note, and without a `driver` it fails.
+- Cross-family routing: the reorder for `--against claudeAgent` and `--against codex` on `review`, a role without `crossFamily` that ignores `--against` with its note, a chain with only same-family candidates that keeps its order with the same-family note, a provider instance id that maps to its driver kind with capabilities and through a configured candidate without capabilities, a worker family that matches no candidate with its note, and an unavailable other-family candidate that falls back to the same family with the note.
+- Cross-family routing also covers a candidate that names only a provider. A configured candidate maps that provider to its driver, the same way as the `--against` value. The candidate is in the worker's family for the reorder and for each note, through `--against <provider>` and through `--against auto`. `workerFamily` and `candidateFamily` give the same family for the same provider id.
 - `pickWorker`: `--unit` takes the last worker entry of the unit, the plan-wide majority, the tie rule with replaced entries, entries without a unit, an invalid provider with its warning, no worker entries, and roles with result `review` or `test` that do not count as workers. A mixed-provider review plan gives each fix unit `F<k>` a reviewer from the family other than its fix worker's. `--against auto` without `--plan` is a usage error (exit 2).
-- Defaults: unverified default targets name `providerInstanceId`, and a user rung with only a `driver` still gives a `driverKind` target.
+- Defaults: unverified default targets name `providerInstanceId`, and a user candidate with only a `driver` still gives a `driverKind` target.
 - Brief: every section, omitted sections, access and delegation lines, plan mode, per-role test policy, CLI and shared-build lines, template lookup, title, and JSON payload. Also cover saved bytes, request-id and hash paths, the short pointer, complete ledger command, unavailable-route writes, profile flags with missing plan files, the device line for every role except `qa`, the `qa` access and test lines, and an unknown-role exit for `verify`, `quick`, and `deep`.
 - Plan: the template with `## Tests`, every checkbox state, counts, next unit, `complete`, profile headers, plan profile switches, and effective status output, and each dependency warning: an unknown unit, a self-dependency, a cycle, units inside code fences, and the `warning:` lines and the JSON `warnings` field of `omt plan status`, including the `max-tasks` header warning. `plan limit --tasks` and `plan new --max-tasks` exit 2 and change no file.
 - Ledger: append, list, stats, a malformed line, `requestId` sanitizing with round and attempt, `done` by request id and task id with `stats` agreeing, `settle-check` in a linked worktree, and the start record, limit exit 75, resend, concurrent briefs, `--fallback`, `--tried`, and `--strict` of `omt brief` (`test/commands/brief-ledger.test.ts`). `canDispatch` depends only on `active` and `maxParallel`, also after many dispatched entries, and stats ignores a config `maxTasksPerRun` and a plan `max-tasks`.

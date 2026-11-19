@@ -19,7 +19,3 @@ At PR step 3, when the PR changes a screen, a CLI command, or an API route, disp
 ## Test offers (`review.tests: offer`)
 
 At PR step 6, offer one e2e test per verified flow that no test covers, with its file path. After the owner's yes, write the tests yourself in the main thread, and dispatch one `qa` child with `mode: "wait"` to run them. Send the tests through one fix review before the commit.
-
-## Guardrails (`review.guardrails: propose`)
-
-After PR step 4 and the CI fixes, dispatch one read-only `guardrail` child with `mode: "wait"`, the merged findings, the CI failures, the rule-file list, and `$(omt paths --omt)/guardrails.md`. Per finding, it proposes a `check`, a `rule-fix`, or a `new-rule`, or gives a reason for none. Append each new proposal to that file as `- [ ] G<k> <date> PR #<n> <class>: <proposal>. Where: <file>. Proof: <command or none>.`

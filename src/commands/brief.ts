@@ -7,9 +7,9 @@ import { limitArg } from "../config/validate.ts";
 import { appendLedger, closedBy, openStarts, readLedger, requestId, withLedgerLock } from "../ledger/ledger.ts";
 import { parsePlan } from "../plan/parse.ts";
 import { evidenceDir, findProjectRoot, ledgerPath, planPath, projectShimPath } from "../paths.ts";
-import { rungFamily, workerFamily } from "../routing/family.ts";
+import { candidateFamily, workerFamily } from "../routing/family.ts";
 import { findRole, harnessOptions, resolveRole, toRouteOutput } from "../routing/resolve.ts";
-import type { BriefJsonOutput, CliContext, CommandRun, LedgerEntry, ResolvedTarget, RoleResolution, Rung } from "../types.ts";
+import type { BriefJsonOutput, CliContext, CommandRun, LedgerEntry, ResolvedTarget, RoleResolution, Candidate } from "../types.ts";
 import { parseArgs, positiveInt } from "../util/args.ts";
 import { OmtError, usageError } from "../util/errors.ts";
 import { pathExists, readFileIfExists, writeFileAtomic } from "../util/fs.ts";
@@ -78,9 +78,9 @@ function shellWord(value: string): string {
   return /^[A-Za-z0-9_./:@=-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
 }
 
-interface Candidate {
+interface TargetChoice {
   target: ResolvedTarget;
-  rung: Rung;
+  candidate: Candidate;
   key: string;
 }
 
@@ -88,22 +88,22 @@ export function targetKey(target: ResolvedTarget): string {
   return target.providerInstanceId !== undefined ? `${target.providerInstanceId}/${target.model}` : `driver:${target.driverKind ?? ""}/${target.model}`;
 }
 
-// The resolved order, with one more target for each rung that names only a driver: the same rung with
+// The resolved order, with one more target for each candidate that names only a driver: the same candidate with
 // providerInstanceId set to the driver. T3 checks a named instance again before it refuses it.
-function candidates(resolution: RoleResolution): Candidate[] {
+function targetChoices(resolution: RoleResolution): TargetChoice[] {
   return resolution.attempts.flatMap((attempt) => {
     const target = attempt.target;
     if (target === undefined) return [];
-    const first = { target, rung: attempt.rung, key: targetKey(target) };
+    const first = { target, candidate: attempt.candidate, key: targetKey(target) };
     if (target.providerInstanceId !== undefined || target.driverKind === undefined) return [first];
     const { driverKind, ...rest } = target;
     const retry = { ...rest, providerInstanceId: driverKind };
-    return [first, { target: retry, rung: attempt.rung, key: targetKey(retry) }];
+    return [first, { target: retry, candidate: attempt.candidate, key: targetKey(retry) }];
   });
 }
 
-function pick(name: string, list: Candidate[], tried: Set<string>): Candidate {
-  const chosen = list.find((candidate) => !tried.has(candidate.key));
+function pick(name: string, list: TargetChoice[], tried: Set<string>): TargetChoice {
+  const chosen = list.find((choice) => !tried.has(choice.key));
   if (chosen === undefined) {
     throw new OmtError("no_fallback", `no fallback left for ${name}; tried: ${[...tried].join(", ") || "none"}`);
   }
@@ -240,22 +240,22 @@ export const run: CommandRun = async (ctx) => {
   for (const note of toRouteOutput(resolution).notes) ctx.stderr(`note: ${note}\n`);
   const args = resolution.delegateTask;
   if (args === undefined) {
-    throw new OmtError("role_unavailable", `role ${name} is unavailable: no rung in its chain can run`, {
+    throw new OmtError("role_unavailable", `role ${name} is unavailable: no candidate in its chain can run`, {
       hint: toRouteOutput(resolution).notes.join("\n      "),
     });
   }
-  const list = candidates(resolution);
+  const list = targetChoices(resolution);
   const strictFamily = values.strict === true && against.against !== undefined && role.crossFamily === true
     ? workerFamily(against.against, caps, against.drivers) : undefined;
-  const checkStrict = (chosen: Candidate) => {
-    if (strictFamily !== undefined && rungFamily(chosen.rung, caps, against.drivers) === strictFamily) {
+  const checkStrict = (chosen: TargetChoice) => {
+    if (strictFamily !== undefined && candidateFamily(chosen.candidate, caps, against.drivers) === strictFamily) {
       throw new OmtError("same_family", `no ${name} target outside ${strictFamily} is left`, {
         hint: "a review from the author's own family does not count; tell the user which targets failed",
       });
     }
   };
 
-  const emit = async (chosen: Candidate, chosenAttempt: number, record: boolean) => {
+  const emit = async (chosen: TargetChoice, chosenAttempt: number, record: boolean) => {
     const clientRequestId = values.plan !== undefined && values.unit !== undefined
       ? requestId(values.plan, values.unit, name, round, chosenAttempt) : undefined;
     const output: BriefJsonOutput = {
@@ -268,7 +268,7 @@ export const run: CommandRun = async (ctx) => {
         runtimeMode: args.runtimeMode,
         mode: "async",
       },
-      fallbacks: list.slice(list.indexOf(chosen) + 1).map((candidate) => candidate.target),
+      fallbacks: list.slice(list.indexOf(chosen) + 1).map((choice) => choice.target),
       targetKey: chosen.key,
     };
     if (clientRequestId !== undefined) output.delegateTask.clientRequestId = clientRequestId;
@@ -285,7 +285,7 @@ export const run: CommandRun = async (ctx) => {
 
   if (!recording) {
     const tried = new Set(values.tried ?? []);
-    const chosen = fallback ? pick(name, list, tried) : (list[0] as Candidate);
+    const chosen = fallback ? pick(name, list, tried) : (list[0] as TargetChoice);
     checkStrict(chosen);
     ctx.stdout(formatJson(await emit(chosen, attempt, false)));
     return 0;
@@ -301,7 +301,7 @@ export const run: CommandRun = async (ctx) => {
       const id = requestId(plan, unit, name, round, attempt);
       const resent = open.find((entry) => entry.clientRequestId === id);
       if (resent !== undefined) {
-        const chosen = list.find((candidate) => candidate.key === resent.targetKey) ?? (list[0] as Candidate);
+        const chosen = list.find((choice) => choice.key === resent.targetKey) ?? (list[0] as TargetChoice);
         return emit(chosen, attempt, true);
       }
       // T3 returns the earlier task for a reused clientRequestId, so a closed id cannot start new work.
@@ -314,7 +314,7 @@ export const run: CommandRun = async (ctx) => {
     const same = (entry: LedgerEntry) =>
       entry.status === "dispatched" && entry.plan === plan && entry.unit === unit && entry.role === name && (entry.round ?? 1) === round;
     let chosenAttempt = attempt;
-    let chosen = list[0] as Candidate;
+    let chosen = list[0] as TargetChoice;
     const superseded: LedgerEntry[] = [];
     if (fallback) {
       const earlier = entries.filter(same);

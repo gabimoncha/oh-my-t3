@@ -24,9 +24,9 @@ const CROSS_CHAIN = {
   roles: {
     review: {
       chain: [
-        { provider: "codex", driver: "codex", model: "gpt-6-astra", effort: "medium" },
+        { provider: "codex", driver: "codex", model: "gpt-6.2-astra", effort: "medium" },
         { provider: "claudeAgent", driver: "claudeAgent", model: "claude-opus-5-5", effort: "medium" },
-        { provider: "codex", driver: "codex", model: "gpt-6.1-sol", effort: "high" },
+        { provider: "codex", driver: "codex", model: "gpt-6.2-sol", effort: "high" },
       ],
     },
   },
@@ -86,21 +86,21 @@ test("brief --fallback follows the resolved order, closes the superseded attempt
   const first = parse((await project.runOk(args)).ctx.out());
   assert.equal(first.targetKey, "claudeAgent/claude-opus-5-5");
   const second = parse((await project.runOk([...args, "--fallback"])).ctx.out());
-  assert.equal(second.targetKey, "codex/gpt-6-astra");
+  assert.equal(second.targetKey, "codex/gpt-6.2-astra");
   assert.equal(second.delegateTask.clientRequestId, "omt:p:REVIEW:review:r1:a2");
   const third = parse((await project.runOk([...args, "--fallback"])).ctx.out());
-  assert.equal(third.targetKey, "codex/gpt-6.1-sol");
+  assert.equal(third.targetKey, "codex/gpt-6.2-sol");
   assert.deepEqual(third.fallbacks, []);
   const none = await project.run([...args, "--fallback"]);
   assert.equal(none.code, 1);
-  assert.match(none.ctx.err(), /no fallback left for review; tried: claudeAgent\/claude-opus-5-5, codex\/gpt-6-astra, codex\/gpt-6\.1-sol/);
+  assert.match(none.ctx.err(), /no fallback left for review; tried: claudeAgent\/claude-opus-5-5, codex\/gpt-6.2-astra, codex\/gpt-6\.2-sol/);
 
   const entries = ledger(project);
   const starts = entries.filter((entry) => entry.status === "dispatched");
   assert.deepEqual(starts.map((entry) => [entry.attempt, entry.targetKey]), [
     [1, "claudeAgent/claude-opus-5-5"],
-    [2, "codex/gpt-6-astra"],
-    [3, "codex/gpt-6.1-sol"],
+    [2, "codex/gpt-6.2-astra"],
+    [3, "codex/gpt-6.2-sol"],
   ]);
   const superseded = entries.filter((entry) => entry.status === "failed");
   assert.deepEqual(superseded.map((entry) => [entry.attempt, entry.note]), [
@@ -116,7 +116,7 @@ test("brief --fallback --tried works without --save and writes nothing", async (
   project.projectConfig(JSON.stringify(CROSS_CHAIN));
   const args = ["brief", "review", "--task", "Review U1.", "--plan", "p", "--unit", "REVIEW", "--against", "codex", "--json"];
   const next = parse((await project.runOk([...args, "--fallback", "--tried", "claudeAgent/claude-opus-5-5", "--attempt", "2"])).ctx.out());
-  assert.equal(next.targetKey, "codex/gpt-6-astra");
+  assert.equal(next.targetKey, "codex/gpt-6.2-astra");
   assert.equal(next.delegateTask.clientRequestId, "omt:p:REVIEW:review:r1:a2");
   assert.equal(next.ledger, undefined);
   assert.equal((await project.run([...args, "--fallback"])).code, 2);
@@ -135,7 +135,7 @@ test("brief --strict stops when the only target left is in the --against family"
   assert.equal((await project.run(["brief", "review", "--task", "x", "--strict", "--json"])).code, 2);
 });
 
-test("a rung that names only a driver gets one retry as a provider instance before the next rung", async () => {
+test("a candidate that names only a driver gets one retry as a provider instance before the next candidate", async () => {
   const project = makeProject();
   project.projectConfig(JSON.stringify({ version: 1, roles: { explore: { chain: [{ driver: "codex", model: "gpt-6.1-terra", effort: "low" }] } } }));
   const first = parse((await project.runOk(brief("E1"))).ctx.out());

@@ -16,7 +16,7 @@ test("the editor catalog lists T3 providers, models, efforts, and fast mode from
   assert.equal(catalog.source, "t3");
   const codex = catalog.providers.find((provider) => provider.driver === "codex");
   assert.ok(codex);
-  const sol = codex.models.find((model) => model.id === "gpt-6.1-sol");
+  const sol = codex.models.find((model) => model.id === "gpt-6.2-sol");
   assert.ok(sol);
   assert.equal(sol.fast, true);
   assert.deepEqual(sol.efforts.slice(0, 3), ["low", "medium", "high"]);
@@ -29,7 +29,7 @@ test("the editor catalog reads the compact option form of newer T3 builds", asyn
   const compact = parseCapabilities(readFileSync(new URL("../fixtures/capabilities-compact.json", import.meta.url), "utf8"));
   const catalog = await editorCatalog(ctx, DEFAULT_CONFIG, compact);
   const models = catalog.providers.flatMap((provider) => provider.models);
-  const sol = models.find((model) => model.id === "gpt-6.1-sol");
+  const sol = models.find((model) => model.id === "gpt-6.2-sol");
   assert.equal(sol?.fast, true);
   assert.deepEqual(sol?.efforts, ["low", "medium", "high", "xhigh", "max"]);
   assert.equal(models.find((model) => model.id === "claude-opus-5-5")?.fast, true);
@@ -44,7 +44,7 @@ test("without capabilities, the editor catalog lists both drivers with the model
   assert.equal(catalog.source, "local");
   assert.deepEqual(catalog.providers.map((provider) => [provider.driver, provider.available]), [["claudeAgent", false], ["codex", false]]);
   const codex = catalog.providers.find((provider) => provider.driver === "codex");
-  assert.ok(codex?.models.some((model) => model.id === "gpt-6.1-terra" && model.fast === null));
+  assert.ok(codex?.models.some((model) => model.id === "gpt-6.2-astra" && model.fast === null));
 });
 
 test("the editor reads each bundled SKILL.md and refuses other paths", async () => {

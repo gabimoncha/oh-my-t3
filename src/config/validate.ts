@@ -9,13 +9,13 @@ import type {
   OptionValue,
   ProfileConfig,
   RoleConfig,
-  Rung,
+  Candidate,
   UpdateMode,
   Workflow,
   WorkflowLayer,
 } from "../types.ts";
 import { usageError } from "../util/errors.ts";
-import { RETIRED_BUILD_KEYS, RETIRED_LIMIT_KEYS, RETIRED_PROFILES, RETIRED_ROLES } from "./defaults.ts";
+import { RETIRED_BUILD_KEYS, RETIRED_LIMIT_KEYS, RETIRED_PROFILES, RETIRED_REVIEW_KEYS, RETIRED_ROLES } from "./defaults.ts";
 import { isRecord } from "../util/json.ts";
 
 export const ROOT_KEYS: readonly string[] = ["$schema", "version", "profile", "profiles", "models", "roles", "limits", "harnesses", "update"];
@@ -33,7 +33,7 @@ export const ROLE_KEYS: readonly string[] = [
   "fast",
   "chain",
 ];
-export const RUNG_KEYS: readonly string[] = ["provider", "driver", "model", "effort", "fast", "options"];
+export const CANDIDATE_KEYS: readonly string[] = ["provider", "driver", "model", "effort", "fast", "options"];
 export const LIMIT_KEYS: readonly string[] = ["maxParallel", "maxDepth", "maxReviewRounds"];
 export const PROFILE_KEYS: readonly string[] = ["description", "extends", "workflow", "limits", "roles", "models"];
 export const MODEL_KEYS: readonly string[] = ["fast"];
@@ -71,7 +71,6 @@ export const WORKFLOW_RULES = {
     ci: { values: ["off", "check", "fix"] },
     verify: { values: ["off", "changed-flows"] },
     tests: { values: ["off", "offer"] },
-    guardrails: { values: ["off", "propose"] },
     crap: { values: ["off", "report"] },
   },
   git: {
@@ -153,6 +152,7 @@ function codePointLength(value: string): number {
 
 class Collector {
   readonly issues: ConfigIssue[] = [];
+  readonly retiredPaths: string[] = [];
   readonly source: string;
 
   constructor(source: string) {
@@ -170,32 +170,33 @@ class Collector {
   }
 
   retired(path: string): void {
+    this.retiredPaths.push(path);
     this.issues.push({ source: this.source, path, message: `${path} is no longer used; remove it`, severity: "warning" });
   }
 }
 
-function validateRung(value: unknown, path: string, out: Collector): Rung | undefined {
+function validateCandidate(value: unknown, path: string, out: Collector): Candidate | undefined {
   if (!isRecord(value)) {
-    out.error(path, `a rung must be an object, got ${describe(value)}`);
+    out.error(path, `a candidate must be an object, got ${describe(value)}`);
     return undefined;
   }
   const before = out.issues.length;
-  const rung: Partial<Rung> = {};
+  const candidate: Partial<Candidate> = {};
   for (const [key, item] of Object.entries(value)) {
     const keyPath = `${path}.${key}`;
-    if (!RUNG_KEYS.includes(key)) {
-      out.error(keyPath, `unknown rung key "${key}"; allowed keys: ${RUNG_KEYS.join(", ")}`);
+    if (!CANDIDATE_KEYS.includes(key)) {
+      out.error(keyPath, `unknown candidate key "${key}"; allowed keys: ${CANDIDATE_KEYS.join(", ")}`);
     } else if (key === "provider" || key === "driver") {
-      if (typeof item === "string" && PROVIDER_RE.test(item)) rung[key] = item;
+      if (typeof item === "string" && PROVIDER_RE.test(item)) candidate[key] = item;
       else out.error(keyPath, `must be a string that matches ${PROVIDER_PATTERN}, got ${describe(item)}`);
     } else if (key === "model") {
-      if (typeof item === "string" && item.length > 0 && codePointLength(item) <= MODEL_MAX) rung.model = item;
+      if (typeof item === "string" && item.length > 0 && codePointLength(item) <= MODEL_MAX) candidate.model = item;
       else out.error(keyPath, `must be a non-empty string of at most ${MODEL_MAX} characters`);
     } else if (key === "effort") {
-      if (typeof item === "string" && (EFFORT_LADDER as readonly string[]).includes(item)) rung.effort = item as Effort;
+      if (typeof item === "string" && (EFFORT_LADDER as readonly string[]).includes(item)) candidate.effort = item as Effort;
       else out.error(keyPath, `must be one of ${oneOf(EFFORT_LADDER)}, got ${describe(item)}`);
     } else if (key === "fast") {
-      if (typeof item === "boolean") rung.fast = item;
+      if (typeof item === "boolean") candidate.fast = item;
       else out.error(keyPath, `must be a boolean, got ${describe(item)}`);
     } else if (key === "options") {
       if (!isRecord(item)) {
@@ -207,12 +208,12 @@ function validateRung(value: unknown, path: string, out: Collector): Rung | unde
         if (typeof option === "string" || typeof option === "boolean") options[id] = option;
         else out.error(`${keyPath}.${id}`, `an option value must be a string or a boolean, got ${describe(option)}`);
       }
-      rung.options = options;
+      candidate.options = options;
     }
   }
-  if (!("model" in value)) out.error(`${path}.model`, "a rung needs a model");
-  if (!("provider" in value) && !("driver" in value)) out.error(path, "a rung needs a provider or a driver");
-  return out.issues.length === before ? (rung as Rung) : undefined;
+  if (!("model" in value)) out.error(`${path}.model`, "a candidate needs a model");
+  if (!("provider" in value) && !("driver" in value)) out.error(path, "a candidate needs a provider or a driver");
+  return out.issues.length === before ? (candidate as Candidate) : undefined;
 }
 
 function validateRole(value: unknown, path: string, out: Collector): Partial<RoleConfig> | null | undefined {
@@ -230,7 +231,9 @@ function validateRole(value: unknown, path: string, out: Collector): Partial<Rol
       out.error(keyPath, `unknown role key "${key}"; allowed keys: ${ROLE_KEYS.join(", ")}`);
     } else if (allowed !== undefined) {
       if (typeof item === "string" && allowed.includes(item)) role[key] = item;
-      else if (key === "result" && item === "grill") out.error(keyPath, 'the result kind "grill" is no longer used; use "review"');
+      else if (key === "result" && (item === "grill" || item === "guardrail")) {
+        out.error(keyPath, `the result kind "${item}" is no longer used; use "review"`);
+      }
       else out.error(keyPath, `must be one of ${oneOf(allowed)}, got ${describe(item)}`);
     } else if (key === "description") {
       if (typeof item === "string" && item.length > 0 && codePointLength(item) <= DESCRIPTION_MAX) role[key] = item;
@@ -240,10 +243,10 @@ function validateRole(value: unknown, path: string, out: Collector): Partial<Rol
       else out.error(keyPath, `must be a boolean, got ${describe(item)}`);
     } else if (key === "chain") {
       if (!Array.isArray(item) || item.length < CHAIN_MIN || item.length > CHAIN_MAX) {
-        out.error(keyPath, `must be an array of ${CHAIN_MIN} to ${CHAIN_MAX} rungs`);
+        out.error(keyPath, `must be an array of ${CHAIN_MIN} to ${CHAIN_MAX} candidates`);
         continue;
       }
-      role[key] = item.map((rung, index) => validateRung(rung, `${keyPath}[${index}]`, out));
+      role[key] = item.map((candidate, index) => validateCandidate(candidate, `${keyPath}[${index}]`, out));
     }
   }
   return out.issues.length === before ? (role as Partial<RoleConfig>) : undefined;
@@ -357,7 +360,7 @@ function validateWorkflow(value: unknown, path: string, out: Collector): Workflo
     for (const [key, field] of Object.entries(item)) {
       const keyPath = `${groupPath}.${key}`;
       const rule = Object.hasOwn(rules, key) ? rules[key] : undefined;
-      if (group === "build" && RETIRED_BUILD_KEYS.includes(key)) {
+      if ((group === "build" && RETIRED_BUILD_KEYS.includes(key)) || (group === "review" && RETIRED_REVIEW_KEYS.includes(key))) {
         out.retired(keyPath);
       } else if (rule === undefined) {
         out.error(keyPath, `unknown workflow key "${key}"; allowed keys: ${Object.keys(rules).join(", ")}`);
@@ -461,11 +464,22 @@ function validateHarnesses(value: unknown, out: Collector): string[] | undefined
 }
 
 export function validateLayer(value: unknown, source: string): { layer: ConfigLayer; issues: ConfigIssue[] } {
+  const { layer, out } = collectLayer(value, source);
+  return { layer, issues: out.issues };
+}
+
+// The dotted paths of the retired keys in a raw layer, in file order. Every segment on such a path is a fixed key or
+// a name that matches ROLE_NAME_PATTERN, so a path has no dot inside a segment.
+export function retiredKeyPaths(value: unknown): string[] {
+  return collectLayer(value, "").out.retiredPaths;
+}
+
+function collectLayer(value: unknown, source: string): { layer: ConfigLayer; out: Collector } {
   const out = new Collector(source);
   const layer: ConfigLayer = {};
   if (!isRecord(value)) {
     out.error("", `the config must be an object, got ${describe(value)}`);
-    return { layer, issues: out.issues };
+    return { layer, out };
   }
   for (const [key, item] of Object.entries(value)) {
     if (RETIRED_ROOT_KEYS.includes(key)) {
@@ -502,7 +516,7 @@ export function validateLayer(value: unknown, source: string): { layer: ConfigLa
       else out.error(key, `must be "off", "check", or "apply", got ${describe(item)}`);
     }
   }
-  return { layer, issues: out.issues };
+  return { layer, out };
 }
 
 export function validateMergedProfiles(

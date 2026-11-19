@@ -60,7 +60,7 @@ The contract changes from "you edit no product files" to "you build; children re
 
 ### The QA child
 
-- **Target.** The `qa` role. It takes over the device work of the retired `verify` role, so its default chain puts Claude rungs first: a Codex child cannot reach the local device daemon.
+- **Target.** The `qa` role. It takes over the device work of the retired `verify` role, so its default chain puts Claude candidates first: a Codex child cannot reach the local device daemon.
 - **Rules.** QA edits nothing and writes no tests. It runs the plan's verify commands, the final checks (`F` items), and the device flows. It returns each command with its exit code and a log path, and screenshot paths for device flows.
 - **Design exclusion.** QA checks behavior, not looks, for a `ui` unit. The owner compares the looks with the design.
 - **`build.qa`.**

@@ -21,7 +21,7 @@ test("roles --capabilities verifies the chains, from a file or stdin", async () 
   const project = makeProject();
   const fromFile = await project.run(["roles", "--capabilities", CAPS_FILE]);
   assert.equal(fromFile.code, 0);
-  assert.match(fromFile.ctx.out(), /^execute\s+resolved\s+claudeAgent\/claude-opus-5-5 effort=low\s+edit\s+default\s+no$/m);
+  assert.match(fromFile.ctx.out(), /^execute\s+resolved\s+claudeAgent\/claude-opus-5-5 effort=medium\s+edit\s+default\s+no$/m);
   assert.ok(fromFile.ctx.out().endsWith("\nverified against orchestrator_capabilities\n"));
   const fromStdin = await project.run(["roles", "--capabilities", "-"], { stdin: readFileSync(CAPS_FILE, "utf8") });
   assert.equal(fromStdin.ctx.out(), fromFile.ctx.out());

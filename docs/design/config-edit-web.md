@@ -64,11 +64,11 @@ Plan shows exploration, questions, the plan file, at most two review rounds, and
 
 ## Model attempts
 
-Cards show configured order. A cross-family role can preview attempt order for a selected main driver. The preview keeps configured rung numbers. Without capabilities, availability stays Unverified. A driver excluded by harnesses is marked separately.
+Cards show configured order. A cross-family role can preview attempt order for a selected main driver. The preview keeps configured candidate numbers. Without capabilities, availability stays Unverified. A driver excluded by harnesses is marked separately.
 
 The first eligible target runs; later eligible targets are fallbacks. Provider, model, or option refusals can advance. A driver-only provider refusal has one retry. Mode and capability denials stop. A skill that requires another family stops when only the same family remains.
 
-Fast inheritance checks the rung, role, model, then off. Explicit Off stops inheritance. Raw options apply last. Changing a chain replaces the entire inherited array.
+Fast inheritance checks the candidate, role, model, then off. Explicit Off stops inheritance. Raw options apply last. Changing a chain replaces the entire inherited array.
 
 ## Review and failure states
 

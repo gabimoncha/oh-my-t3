@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "bun:test";
 import { run as doctor } from "../../src/commands/doctor.ts";
 import { run as install } from "../../src/commands/install.ts";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.ts";
 import { explainConfig } from "../../src/config/explain.ts";
-import { applyDefaults, defaultsSnapshotPath, planDefaults, reviewDefaults } from "../../src/config/defaultsState.ts";
+import { applyDefaults, cleanRetired, defaultsSnapshotPath, planDefaults, reviewDefaults } from "../../src/config/defaultsState.ts";
 import { loadConfig, readConfigLayers } from "../../src/config/load.ts";
-import { projectConfigPath } from "../../src/paths.ts";
+import { omtDir, projectConfigPath } from "../../src/paths.ts";
 import { fakeContext, gitRepo, tempDir, writeFile } from "../helpers.ts";
 
 async function setup() {
@@ -18,24 +19,23 @@ async function setup() {
   const ctx = fakeContext({ root });
   const path = defaultsSnapshotPath(ctx, "project");
   const state = JSON.parse(readFileSync(path, "utf8"));
-  state.acceptedDefaults.config.roles.execute.chain[0].effort = "medium";
+  state.acceptedDefaults.config.roles.execute.chain[0].effort = "low";
   writeFileSync(path, `${JSON.stringify(state, null, 2)}\n`);
   return { ctx, path, before: readFileSync(path, "utf8") };
 }
 
-test("doctor shows the diff and preserves accepted defaults and overrides after refusal", async () => {
+test("doctor shows the diff and preserves accepted defaults and overrides after refusal, and still removes a retired key", async () => {
   const { ctx, path, before } = await setup();
   const config = projectConfigPath(ctx.cwd);
   writeFile(config, '{\n  // Keep this override.\n  "defaults": "2026-12",\n  "limits": { "maxParallel": 2 }\n}\n');
-  const configBefore = readFileSync(config, "utf8");
   const prompts: string[] = [];
   await doctor({ ...ctx, argv: ["--project"], isTTY: true, prompt: async (question) => { prompts.push(question); return "no"; } });
   assert.deepEqual(prompts, ["Use the current defaults? [y/N] "]);
-  assert.match(ctx.out(), /roles\.execute\.chain:.*medium.*->.*low/);
+  assert.match(ctx.out(), /roles\.execute\.chain:.*low.*->.*medium/);
   assert.equal(readFileSync(path, "utf8"), before);
-  assert.equal(readFileSync(config, "utf8"), configBefore);
+  assert.equal(readFileSync(config, "utf8"), '{\n  // Keep this override.\n  "limits": { "maxParallel": 2 }\n}\n');
   const loaded = await loadConfig(ctx);
-  assert.equal(loaded.config.roles.execute?.chain[0]?.effort, "medium");
+  assert.equal(loaded.config.roles.execute?.chain[0]?.effort, "low");
   assert.equal(loaded.config.limits.maxParallel, 2);
 });
 
@@ -54,6 +54,72 @@ test("doctor accepts current defaults and removes only the retired pin", async (
   assert.deepEqual(JSON.parse(readFileSync(path, "utf8")).acceptedDefaults.config, DEFAULT_CONFIG);
 });
 
+test("doctor removes every retired key without a prompt and keeps comments, overrides, and emptied parents with a comment", async () => {
+  const { ctx } = await setup();
+  const config = projectConfigPath(ctx.cwd);
+  writeFile(config, [
+    "{",
+    "  // Keep this override.",
+    '  "roles": {',
+    '    "guardrail": { "chain": [{ "driver": "codex", "model": "m" }] },',
+    '    "grill": null',
+    "  },",
+    '  "limits": { "maxParallel": 2, "maxTasksPerRun": 5 },',
+    '  "profiles": {',
+    '    "normal": { "workflow": { "review": { "guardrails": "propose" } } },',
+    '    "prototype": { "workflow": { "review": {',
+    "      // Keep this note.",
+    '      "guardrails": "off"',
+    "    } } }",
+    "  }",
+    "}",
+    "",
+  ].join("\n"));
+  const before = readFileSync(config, "utf8");
+  const dry = await cleanRetired(ctx, "project", { dryRun: true });
+  assert.deepEqual(dry.keys, [
+    "roles.guardrail",
+    "roles.grill",
+    "limits.maxTasksPerRun",
+    "profiles.normal.workflow.review.guardrails",
+    "profiles.prototype.workflow.review.guardrails",
+  ]);
+  assert.equal(readFileSync(config, "utf8"), before, "a dry run writes nothing");
+  await doctor({ ...ctx, argv: ["--project"], isTTY: true, prompt: async () => "no" });
+  assert.match(ctx.out(), /removed the retired keys from .*: roles\.guardrail, roles\.grill, limits\.maxTasksPerRun, /);
+  const after = readFileSync(config, "utf8");
+  assert.match(after, /Keep this override/);
+  assert.match(after, /Keep this note/);
+  assert.doesNotMatch(after, /guardrail|grill|maxTasksPerRun|"normal"/);
+  const loaded = await loadConfig(ctx);
+  assert.deepEqual(loaded.issues, []);
+  assert.equal(loaded.config.limits.maxParallel, 2);
+  assert.deepEqual((await cleanRetired(ctx, "project", { dryRun: true })).keys, []);
+});
+
+test("cleanup deletes an empty guardrails.md and keeps one with text", async () => {
+  const { ctx } = await setup();
+  const file = join(omtDir(ctx.cwd), "guardrails.md");
+  writeFile(file, "\n  \n");
+  assert.deepEqual((await cleanRetired(ctx, "project", { dryRun: false })).files, [file]);
+  assert.equal(existsSync(file), false);
+  writeFile(file, "# Proposals\n");
+  assert.deepEqual((await cleanRetired(ctx, "project", { dryRun: false })).files, []);
+  assert.equal(readFileSync(file, "utf8"), "# Proposals\n");
+  writeFile(file, "");
+  assert.deepEqual((await cleanRetired(ctx, "user", { dryRun: false })).files, [], "the user scope never touches a project file");
+  assert.equal(existsSync(file), true);
+});
+
+test("install removes the retired keys without a prompt", async () => {
+  const { ctx } = await setup();
+  const config = projectConfigPath(ctx.cwd);
+  writeFile(config, '{ "roles": { "guardrail": null } }\n');
+  assert.equal(await install({ ...ctx, argv: ["--project", "--yes"] }), 0);
+  assert.match(ctx.out(), /removed the retired keys from .*: roles\.guardrail/);
+  assert.doesNotMatch(readFileSync(config, "utf8"), /guardrail/);
+});
+
 for (const argv of [["--project", "--json"], ["--project", "--dry-run"], ["--project"]]) {
   test(`doctor ${argv.join(" ")} without confirmation writes nothing`, async () => {
     const { ctx, path, before } = await setup();
@@ -65,7 +131,7 @@ for (const argv of [["--project", "--json"], ["--project", "--dry-run"], ["--pro
 
 test("defaults review marks settings overridden by the user", async () => {
   const { ctx } = await setup();
-  writeFile(projectConfigPath(ctx.cwd), JSON.stringify({ roles: { execute: { chain: [{ driver: "codex", model: "gpt-6.1-sol", effort: "high" }] } } }));
+  writeFile(projectConfigPath(ctx.cwd), JSON.stringify({ roles: { execute: { chain: [{ driver: "codex", model: "gpt-6.2-sol", effort: "high" }] } } }));
   const plan = await planDefaults(ctx, "project");
   assert.equal(plan.changes.find((change) => change.path === "roles.execute.chain")?.overriddenBy, projectConfigPath(ctx.cwd));
   await reviewDefaults({ ...ctx, isTTY: false }, "project", { yes: false, dryRun: true, json: false });
@@ -103,11 +169,11 @@ test("project defaults take precedence and project approval preserves the user s
   user.acceptedDefaults.config.roles.execute.chain[0].effort = "high";
   writeFileSync(userPath, `${JSON.stringify(user, null, 2)}\n`);
   const userBefore = readFileSync(userPath, "utf8");
-  assert.equal((await loadConfig(ctx)).config.roles.execute?.chain[0]?.effort, "medium");
+  assert.equal((await loadConfig(ctx)).config.roles.execute?.chain[0]?.effort, "low");
   await applyDefaults(ctx, "project", await planDefaults(ctx, "project"));
   assert.equal(readFileSync(userPath, "utf8"), userBefore);
   assert.equal((await loadConfig(ctx)).defaultsSource, path);
-  assert.equal((await loadConfig(ctx)).config.roles.execute?.chain[0]?.effort, "low");
+  assert.equal((await loadConfig(ctx)).config.roles.execute?.chain[0]?.effort, "medium");
 });
 
 test("a project defaults snapshot cannot enable the user-only update setting", async () => {

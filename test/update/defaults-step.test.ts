@@ -28,7 +28,7 @@ for (const scenario of [
     assert.equal(await install({ ...setup, argv: ["--yes"] }), 0);
     const path = defaultsSnapshotPath(setup, "user");
     const manifest = JSON.parse(readFileSync(path, "utf8"));
-    manifest.acceptedDefaults.config.roles.execute.chain[0].effort = "medium";
+    manifest.acceptedDefaults.config.roles.execute.chain[0].effort = "low";
     writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
     const before = readFileSync(path, "utf8");
     const ctx = fakeContext(fixture);
@@ -47,7 +47,7 @@ for (const scenario of [
     assert.equal(prompts.length, scenario.answer === undefined ? 0 : 1);
     if (prompts.length > 0) assert.equal(prompts[0], "Use the current defaults? [y/N] ");
     const output = scenario.json ? ctx.err() : ctx.out();
-    assert.match(output, /roles\.execute\.chain:.*medium.*->.*low/);
+    assert.match(output, /roles\.execute\.chain:.*low.*->.*medium/);
     assert.equal(readFileSync(path, "utf8") !== before, scenario.applied);
     assert.ok(calls.length > 0);
     if (scenario.json) {
@@ -68,7 +68,7 @@ for (const deferred of [false, true]) {
     assert.equal(await install({ ...setup, argv: ["--yes"] }), 0);
     const path = defaultsSnapshotPath(setup, "user");
     const manifest = JSON.parse(readFileSync(path, "utf8"));
-    manifest.acceptedDefaults.config.roles.execute.chain[0].effort = "medium";
+    manifest.acceptedDefaults.config.roles.execute.chain[0].effort = "low";
     writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
     const before = readFileSync(path, "utf8");
     const ctx = fakeContext({ ...fixture, env: deferred ? { OMT_UPDATE_DEFER_DEFAULTS: "1" } : {} });
@@ -83,7 +83,7 @@ for (const deferred of [false, true]) {
     } else {
       assert.equal(report.defaults[0].changed, true);
       assert.equal(report.defaults[0].applied, false);
-      assert.match(ctx.err(), /roles\.execute\.chain:.*medium.*->.*low/);
+      assert.match(ctx.err(), /roles\.execute\.chain:.*low.*->.*medium/);
     }
   });
 }

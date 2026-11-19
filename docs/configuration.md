@@ -26,39 +26,38 @@ An editor that reads JSON Schema, such as VS Code, uses this line to complete ke
 
 ## Default roles
 
-A role, such as `execute` or `review`, maps to an ordered chain of provider, model, and effort. The agent uses the first entry that T3 accepts. Each entry in the chain is a rung.
+A role, such as `execute` or `review`, maps to an ordered chain of provider, model, and effort. The agent uses the first entry that T3 accepts. Each entry in the chain is a candidate.
 
 | Role | Use | Used by | First choice | Fallback |
 | --- | --- | --- | --- | --- |
-| `explore` | Answer one narrow question about this repository | `omt-research`, `omt-plan`, `omt-ulw` | GPT-6.1-Terra, low | Claude Haiku 5.5, medium |
-| `research` | Answer a question from docs, the web, and code | `omt-research` | GPT-6.1-Sol, low | Claude Sonnet 5.5, medium |
-| `plan-review` | Check a plan for gaps | `omt-plan` | GPT-6-Astra, medium | Claude Opus 5.5, medium |
-| `execute` | Implement one planned unit that the main thread hands off as an independent track | `omt-ulw` | Claude Opus 5.5, low | GPT-6.1-Sol, high |
-| `review` | Review a diff against its brief, fix local findings, and report the rest | `omt-ulw`, `omt-code-review`, `omt-swarm` | GPT-6-Astra, medium | Claude Opus 5.5, medium |
-| `oracle` | Attack the finished change before it counts as done, fix local findings, and report the rest | `omt-ulw`, `omt-code-review` | GPT-6-Astra, medium | Claude Opus 5.5, medium |
-| `qa` | Run the check commands and device flows, and return each exit code with its log and screenshots. Edits nothing. | `omt-ulw`, `omt-code-review`, `omt-swarm` | GPT-6.1-Sol, medium | Claude Sonnet 5.5, low |
-| `guardrail` | Propose checks and rule fixes for review findings | `omt-code-review` | Claude Opus 5.5, high | GPT-6-Astra, high |
-| `writing` | Write or edit documentation in one docs unit that the main thread hands off as an independent track | `omt-ulw` | Claude Opus 5.5, medium | GPT-6-Astra, medium |
-| `design` | Design screens and flows, and write a design spec | `omt-design` | Claude Opus 5.5, medium | GPT-6-Astra, high |
-| `ui` | Implement one UI unit from a design spec or task requirements | `omt-ulw` | Claude Opus 5.5, low | GPT-6.1-Sol, high |
+| `explore` | Answer one narrow question about this repository | `omt-research`, `omt-plan`, `omt-ulw` | GPT-6.2-Sol, low | Claude Sonnet 5.5, low |
+| `research` | Answer a question from docs, the web, and code | `omt-research` | GPT-6.2-Sol, medium | Claude Sonnet 5.5, medium |
+| `plan-review` | Check a plan for gaps | `omt-plan` | GPT-6.2-Astra, high | Claude Fable 5.2, high |
+| `execute` | Implement one planned unit that the main thread hands off as an independent track | `omt-ulw` | Claude Opus 5.5, medium | GPT-6.2-Sol, high |
+| `review` | Review a diff against its brief, fix local findings, and report the rest | `omt-ulw`, `omt-code-review`, `omt-swarm` | GPT-6.2-Sol, xhigh | Claude Opus 5.5, high |
+| `oracle` | Attack the finished change before it counts as done, fix local findings, and report the rest | `omt-ulw`, `omt-code-review` | GPT-6.2-Astra, medium | Claude Fable 5.2, medium |
+| `qa` | Run the check commands and device flows, and return each exit code with its log and screenshots. Edits nothing. | `omt-ulw`, `omt-code-review`, `omt-swarm` | GPT-6.2-Sol, medium | Claude Sonnet 5.5, medium |
+| `writing` | Write or edit documentation in one docs unit that the main thread hands off as an independent track | `omt-ulw` | Claude Opus 5.5, medium | GPT-6.2-Astra, medium |
+| `design` | Design screens and flows, and write a design spec | `omt-design` | Claude Fable 5.2, medium | GPT-6.2-Astra, high |
+| `ui` | Implement one UI unit from a design spec or task requirements | `omt-ulw` | Claude Fable 5.2, medium | GPT-6.2-Astra, high |
 
 The table shows the current defaults. The fallback runs when T3 refuses the first choice. You review the designs.
 
-The `plan` role was removed, because the main thread writes every plan itself. The `grill` role was removed, because `omt-plan` now runs the stress test of a goal in the main thread. A config file that still sets `roles.plan` or `roles.grill` loads with the warning `roles.<name> is no longer used; remove it`.
+The `plan` role was removed, because the main thread writes every plan itself. The `grill` role was removed, because `omt-plan` now runs the stress test of a goal in the main thread. The `guardrail` role was removed with the `review.guardrails` extra, because it only wrote proposals that nothing applied. A config file that still sets `roles.plan`, `roles.grill`, or `roles.guardrail` loads with the warning `roles.<name> is no longer used; remove it`.
 
-`plan-review`, `review`, and `oracle` are cross-family roles. The reviewer comes from the model family that did not do the work. GPT-6-Astra reviews Claude work, and Claude Opus 5.5 reviews GPT work. The skills pass the worker to `omt brief --against`, and the CLI puts the rungs of the other family first. When the other family is not available, the same family reviews. A build oracle uses the family that did not do most of the implementation. A review oracle uses the family that did not do most of the reviews.
+`plan-review`, `review`, and `oracle` are cross-family roles. The reviewer comes from the model family that did not do the work. GPT reviews Claude work: GPT-6.2-Astra in `plan-review` and `oracle`, and GPT-6.2-Sol in `review`. Claude reviews GPT work: Claude Fable 5.2 in `plan-review` and `oracle`, and Claude Opus 5.5 in `review`. The skills pass the worker to `omt brief --against`, and the CLI puts the candidates of the other family first. When the other family is not available, the same family reviews. A build oracle uses the family that did not do most of the implementation. A review oracle uses the family that did not do most of the reviews.
 
-Claude models run on the `claudeAgent` driver, and GPT models run on the `codex` driver. Each default rung also names the T3 built-in provider instance of its driver. T3 checks a named instance again before it refuses it. A target with only a driver can fail because of an old provider snapshot.
+Claude models run on the `claudeAgent` driver, and GPT models run on the `codex` driver. Each default candidate also names the T3 built-in provider instance of its driver. T3 checks a named instance again before it refuses it. A target with only a driver can fail because of an old provider snapshot.
 
-The read-only roles are `explore`, `research`, `plan-review`, and `guardrail`. They run in T3 plan mode. On Claude, Codex, Cursor, and OpenCode, plan mode stops the child from editing files. T3 has no plan mode for Pi, so only its brief stops a Pi child in a read-only role. No default role uses Pi.
+The read-only roles are `explore`, `research`, and `plan-review`. They run in T3 plan mode. On Claude, Codex, Cursor, and OpenCode, plan mode stops the child from editing files. T3 has no plan mode for Pi, so only its brief stops a Pi child in a read-only role. No default role uses Pi.
 
-`review` and `oracle` can edit files. In an `omt-ulw` build, the reviewer fixes each local finding itself: a clear fix inside the changed files that agrees with the plan summary. It reports every other finding. `omt-code-review` still runs its reviewers in plan mode, so they only report. `qa` has edit access only to run commands and write logs. Its brief forbids edits in the repository, and it writes no tests. `qa` tries GPT-6.1-Sol first, then Claude Sonnet. If a local tool is unreachable, the workflow retries once on the other provider. Only `qa` drives a device, a simulator, a browser, or a computer.
+`review` and `oracle` can edit files. In an `omt-ulw` build, the reviewer fixes each local finding itself: a clear fix inside the changed files that agrees with the plan summary. It reports every other finding. `omt-code-review` still runs its reviewers in plan mode, so they only report. `qa` has edit access only to run commands and write logs. Its brief forbids edits in the repository, and it writes no tests. `qa` tries GPT-6.2-Sol first, then Claude Sonnet. If a local tool is unreachable, the workflow retries once on the other provider. Only `qa` drives a device, a simulator, a browser, or a computer.
 
 Run `omt roles` to see how each role resolves with your config.
 
 ## Change a role
 
-This example turns off cross-family review. After the change, `review` always starts on GPT-6-Astra and falls back to Claude Opus 5.5, also when GPT made the change.
+This example turns off cross-family review. After the change, `review` always starts on GPT-6.2-Sol and falls back to Claude Opus 5.5, also when GPT made the change.
 
 ```jsonc
 {
@@ -74,25 +73,25 @@ This example turns off cross-family review. After the change, `review` always st
 
 A `chain` replaces the old chain as a whole. The other fields of the role keep their values. To remove a role, set it to `null`.
 
-A chain holds 1 to 10 rungs. A rung has these fields:
+A chain holds 1 to 10 candidates. A candidate has these fields:
 
 | Field | Value |
 | --- | --- |
 | `provider` | The id of one T3 provider instance, such as `codex`. |
-| `driver` | The driver of the provider, such as `claudeAgent` or `codex`. A rung needs `provider`, `driver`, or both. |
+| `driver` | The driver of the provider, such as `claudeAgent` or `codex`. A candidate needs `provider`, `driver`, or both. |
 | `model` | The model id. Required. |
 | `effort` | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. omt maps it to the effort option of the model. |
 | `fast` | `true` or `false`. See [Set fast mode per role](#set-fast-mode-per-role). |
 | `options` | Raw T3 model options, as an object of strings and booleans. |
 
-`options` goes to T3 as it is, after omt applies the effort and fast mode, so a value in `options` wins over both. With `--capabilities`, omt checks each option id and value against the options that the model advertises. Without it, T3 checks them when the task starts. This rung asks Codex for the priority service tier:
+`options` goes to T3 as it is, after omt applies the effort and fast mode, so a value in `options` wins over both. With `--capabilities`, omt checks each option id and value against the options that the model advertises. Without it, T3 checks them when the task starts. This candidate asks Codex for the priority service tier:
 
 ```jsonc
 {
   "roles": {
     "review": {
       "chain": [
-        { "driver": "codex", "model": "gpt-6-astra", "effort": "high", "options": { "serviceTier": "priority" } },
+        { "driver": "codex", "model": "gpt-6.2-astra", "effort": "high", "options": { "serviceTier": "priority" } },
         { "driver": "claudeAgent", "model": "claude-opus-5-5", "effort": "high" }
       ]
     }
@@ -108,15 +107,15 @@ Add the role under `roles` in either config file. A new role needs `description`
 | --- | --- | --- |
 | `description` | Text of at most 300 characters. Agents read it in `omt roles` and in the skills. | Required. |
 | `access` | `read-only` or `edit`. | Required. |
-| `chain` | 1 to 10 rungs. | Required. |
-| `result` | The result block that the child ends with: `work`, `review`, `test`, `research`, `plan`, or `guardrail`. The retired kind `grill` is an error that says to use `review`. | `work` for `edit`, `research` for `read-only`. |
+| `chain` | 1 to 10 candidates. | Required. |
+| `result` | The result block that the child ends with: `work`, `review`, `test`, `research`, or `plan`. The retired kinds `grill` and `guardrail` are errors that say to use `review`. | `work` for `edit`, `research` for `read-only`. |
 | `t3Role` | The `role` value that omt passes to the T3 `delegate_task` tool: `implementation`, `research`, `review`, `design`, `test`, or `general`. | `implementation` for `edit`, `research` for `read-only`. |
 | `interactionMode` | The T3 interaction mode of the child: `inherit`, `default`, or `plan`. `plan` stops the child from editing files. | `default` for `edit`, `plan` for `read-only`. |
 | `runtimeMode` | The T3 runtime mode of the child: `inherit`, `approval-required`, `auto-accept-edits`, `auto`, or `full-access`. A child cannot get a broader mode than its parent thread. | `inherit`. |
-| `crossFamily` | `true` puts the rungs of the other family first when the skill names the worker. | `false`. |
+| `crossFamily` | `true` puts the candidates of the other family first when the skill names the worker. | `false`. |
 | `fast` | `true` or `false`. | Not set. |
 
-This role runs a security review on GPT-6-Astra in plan mode:
+This role runs a security review on GPT-6.2-Astra in plan mode:
 
 ```jsonc
 {
@@ -126,7 +125,7 @@ This role runs a security review on GPT-6-Astra in plan mode:
       "access": "read-only",
       "result": "review",
       "t3Role": "review",
-      "chain": [{ "driver": "codex", "model": "gpt-6-astra", "effort": "high" }]
+      "chain": [{ "driver": "codex", "model": "gpt-6.2-astra", "effort": "high" }]
     }
   }
 }
@@ -143,7 +142,7 @@ A profile is a named set of workflow switches, limits, and role overrides. omt h
 - `normal` reviews the build again after each round of fixes, and the reviewer of a HEAVY run is the oracle. The main thread proves that each new test can fail. A design pass draws 3 variants per screen.
 - `prototype` reviews the build once, with one plan reviewer on any family. It skips the oracle and the failure proofs, allows 2 review rounds, and draws 1 design variant per screen.
 
-Both presets turn off the five PR extras of `omt-code-review`: `review.ci`, `review.verify`, `review.tests`, `review.guardrails`, and `review.crap`. [Turn on the PR extras](#turn-on-the-pr-extras) shows how to get them back.
+Both presets turn off the four PR extras of `omt-code-review`: `review.ci`, `review.verify`, `review.tests`, and `review.crap`. [Turn on the PR extras](#turn-on-the-pr-extras) shows how to get them back.
 
 Run `omt profile list` to see the presets and your custom profiles. Run `omt profile show prototype --json` to see the resolved workflow, limits, roles, and models of one profile.
 
@@ -172,7 +171,7 @@ Add the profile under `profiles` in either config file. The starter configs hold
 
 A profile cannot set `harnesses`, `update`, or `defaults`. These keys apply to the whole config file.
 
-This profile builds like `prototype`, with failure proofs, fast `execute` and `ui` workers, at most 2 children at the same time, and GPT-6.1-Sol without fast mode in the other roles:
+This profile builds like `prototype`, with failure proofs, fast `execute` and `ui` workers, at most 2 children at the same time, and GPT-6.2-Sol without fast mode in the other roles:
 
 ```jsonc
 {
@@ -184,17 +183,17 @@ This profile builds like `prototype`, with failure proofs, fast `execute` and `u
       "workflow": { "build": { "failureProofs": "on" } },
       "limits": { "maxParallel": 2 },
       "roles": { "execute": { "fast": true }, "ui": { "fast": true } },
-      "models": { "gpt-6.1-sol": { "fast": false } }
+      "models": { "gpt-6.2-sol": { "fast": false } }
     }
   }
 }
 ```
 
-The role `fast` wins over the model `fast`. So in `execute`, the GPT-6.1-Sol fallback still gets `serviceTier: "priority"`. In `qa` and `research`, which do not set `fast`, GPT-6.1-Sol runs without fast mode. `omt route execute --profile hackathon` prints the targets.
+The role `fast` wins over the model `fast`. So in `execute`, the GPT-6.2-Sol fallback still gets `serviceTier: "priority"`. In `qa` and `research`, which do not set `fast`, GPT-6.2-Sol runs without fast mode. `omt route execute --profile hackathon` prints the targets.
 
 ### Turn on the PR extras
 
-A pull request review runs the five PR extras only when a profile turns them on. In the user config, this profile turns on all five for every project, with the values that `normal` had before this release:
+A pull request review runs the four PR extras only when a profile turns them on. In the user config, this profile turns on all four for every project, with the values that `normal` had before this release:
 
 ```jsonc
 {
@@ -203,7 +202,7 @@ A pull request review runs the five PR extras only when a profile turns them on.
     "full-review": {
       "description": "Run every PR review extra.",
       "workflow": {
-        "review": { "ci": "fix", "verify": "changed-flows", "tests": "offer", "guardrails": "propose", "crap": "report" }
+        "review": { "ci": "fix", "verify": "changed-flows", "tests": "offer", "crap": "report" }
       }
     }
   }
@@ -259,7 +258,7 @@ A run has no task budget. Only `maxParallel` can stop the next child task. The n
 }
 ```
 
-The first value that is set wins: the rung `fast`, the role `fast`, the model `fast`, and then `false`. GPT-6.1-Sol has fast mode on by default. For a model that supports it, `true` becomes `serviceTier: "priority"` or `fastMode: true`. A model without fast mode keeps its target, and omt reports a note. A value in `rung.options` wins over this mapping. `false` adds no fast option.
+The first value that is set wins: the candidate `fast`, the role `fast`, the model `fast`, and then `false`. GPT-6.2-Sol and GPT-6.2-Astra have fast mode on by default. For a model that supports it, `true` becomes `serviceTier: "priority"` or `fastMode: true`. A model without fast mode keeps its target, and omt reports a note. A value in `candidate.options` wins over this mapping. `false` adds no fast option.
 
 ## Review current defaults
 
@@ -280,7 +279,7 @@ The old `"defaults"` config key is ignored with a warning. Acceptance removes th
 
 ## Match the harnesses on your machine
 
-The default chains use two harnesses: Claude Code, on the `claudeAgent` driver, and Codex, on the `codex` driver. When your machine runs only one of them, the `"harnesses"` key tells omt to skip the rungs of the other:
+The default chains use two harnesses: Claude Code, on the `claudeAgent` driver, and Codex, on the `codex` driver. When your machine runs only one of them, the `"harnesses"` key tells omt to skip the candidates of the other:
 
 ```jsonc
 {
@@ -288,7 +287,7 @@ The default chains use two harnesses: Claude Code, on the `claudeAgent` driver, 
 }
 ```
 
-With this value, `omt roles` marks each Claude rung as `harness claudeAgent is not enabled (harnesses: codex); run omt detect`, and the next rung runs. `design` falls back to Astra and `ui` falls back to Sol. The cross-family roles review with the same family. Without the key, omt uses every rung. The key holds 1 to 10 driver kinds, and a project value replaces the user value as a whole.
+With this value, `omt roles` marks each Claude candidate as `harness claudeAgent is not enabled (harnesses: codex); run omt detect`, and the next candidate runs. `design` and `ui` fall back to Astra. The cross-family roles review with the same family. Without the key, omt uses every candidate. The key holds 1 to 10 driver kinds, and a project value replaces the user value as a whole.
 
 You do not have to write the key yourself. When `omt install` creates a config file, it detects the harnesses, shows the result in its plan, and writes the key only when a harness is missing. `omt detect` runs the same check at any time. `--project` or `--user` picks the config file to compare with or change. Without a flag, omt uses the project config when it exists, else the user config. `--write` changes only a file that exists, so run `omt init` or `omt config init` first. The sample uses the project config:
 
@@ -320,10 +319,13 @@ The `test` role was renamed to `qa`. Move each `roles.test` override to `qa`. om
 The main thread runs the build, so the keys that served per-unit dispatch have no job left. These keys and roles are retired:
 
 - `workflow.build.verify`, `workflow.build.checkpoint`, and `workflow.build.stallMinutes`, in any profile.
+- `workflow.review.guardrails`, in any profile.
 - `limits.maxTasksPerRun`, at the root or in a profile.
 - The roles `verify`, `quick`, and `deep`, at the root or in a profile. `qa` now runs the checks and the device flows that `verify` ran.
 
-A config file that still sets one of them loads. omt ignores the key and prints one warning for each key, such as `profiles.normal.workflow.build.checkpoint is no longer used; remove it`. Delete the key to clear the warning.
+A config file that still sets one of them loads. omt ignores the key and prints one warning for each key, such as `profiles.normal.workflow.build.checkpoint is no longer used; remove it`. `omt update`, `omt doctor`, and `omt install` remove these keys for you, with no prompt, because they have no effect. Each prints `removed the retired keys from <config>: <paths>` and keeps your comments and other settings. This applies to every retired key on this page, also `roles.grill`, `roles.guardrail`, `profiles.pr-review`, and `visuals`. With `--dry-run`, the line says `would remove` and nothing changes.
+
+The same commands delete an empty `.omt3/guardrails.md` from an earlier release. A `guardrails.md` with text stays, because it holds proposals that agents wrote for you. omt no longer reads it, and `.omt3/.gitignore` keeps it out of git. `omt doctor --project` reports it as an `INFO` line with the id `leftovers`. Delete the file when you no longer need it.
 
 ## Remove the `pr-review` profile
 
@@ -426,7 +428,7 @@ The page follows these rules:
 - Profiles can override base settings. Other profiles inherit unset keys from `normal`.
 - **Reset to inherited** stages removal of a key from the selected file. Removing a role stages `null`. These actions have different effects.
 - A model chain shows its configured first choice and fallbacks. Reorder cards by drag or the arrow buttons. Fast mode has **Inherit**, **On**, and **Off**. Each card shows **Available in T3**, **Not in T3**, or **Model not in T3** when the editor has the T3 capabilities, and **Unverified** without them. A model that has no fast mode disables **On**.
-- For a cross-family role, **Main driver** previews the attempt order. Rung numbers keep their configured positions.
+- For a cross-family role, **Main driver** previews the attempt order. Candidate numbers keep their configured positions.
 - **Harnesses** has one checkbox for each driver, with what the editor detected. All on removes the `harnesses` key.
 - Unsaved form input stays when you change views, edit scope, or files. If its file changed, **Keep my edit** or **Discard** resolves the stale draft before you stage it.
 - The page asks before you leave with unsaved changes or form input. Changes remain in this tab until you write them.

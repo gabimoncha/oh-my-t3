@@ -2,9 +2,9 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.ts";
 import { mergeLayer } from "../../src/config/merge.ts";
-import type { Rung } from "../../src/types.ts";
+import type { Candidate } from "../../src/types.ts";
 
-const RUNG: Rung = { driver: "codex", model: "gpt-6-astra", effort: "high" };
+const CANDIDATE: Candidate = { driver: "codex", model: "gpt-6.2-astra", effort: "high" };
 
 test("an empty layer returns an equal copy, and never mutates the base", () => {
   const before = structuredClone(DEFAULT_CONFIG);
@@ -12,7 +12,7 @@ test("an empty layer returns an equal copy, and never mutates the base", () => {
   assert.deepEqual(issues, []);
   assert.deepEqual(config, DEFAULT_CONFIG);
   assert.notEqual(config, DEFAULT_CONFIG);
-  config.roles.review?.chain.push(RUNG);
+  config.roles.review?.chain.push(CANDIDATE);
   config.limits.maxDepth = 3;
   assert.deepEqual(DEFAULT_CONFIG, before);
 });
@@ -33,12 +33,12 @@ test("removing a role that does not exist is a warning", () => {
 test("an existing role is merged field by field, and chain replaces the old chain", () => {
   const { config } = mergeLayer(
     DEFAULT_CONFIG,
-    { roles: { review: { runtimeMode: "auto", chain: [RUNG] } } },
+    { roles: { review: { runtimeMode: "auto", chain: [CANDIDATE] } } },
     "src",
   );
   const base = DEFAULT_CONFIG.roles.review;
   assert.ok(base);
-  assert.deepEqual(config.roles.review, { ...base, runtimeMode: "auto", chain: [RUNG] });
+  assert.deepEqual(config.roles.review, { ...base, runtimeMode: "auto", chain: [CANDIDATE] });
 });
 
 test("a field-only override keeps the old chain", () => {
@@ -64,18 +64,18 @@ test("a layer keeps, sets, or overrides crossFamily on an existing role", () => 
 test("a new role keeps a given crossFamily and leaves it unset otherwise", () => {
   const { config } = mergeLayer(
     DEFAULT_CONFIG,
-    { roles: { audit: { description: "Audit.", access: "read-only", crossFamily: true, chain: [RUNG] } } },
+    { roles: { audit: { description: "Audit.", access: "read-only", crossFamily: true, chain: [CANDIDATE] } } },
     "src",
   );
   assert.equal(config.roles.audit?.crossFamily, true);
-  const plain = mergeLayer(DEFAULT_CONFIG, { roles: { audit: { description: "A.", access: "edit", chain: [RUNG] } } }, "src");
+  const plain = mergeLayer(DEFAULT_CONFIG, { roles: { audit: { description: "A.", access: "edit", chain: [CANDIDATE] } } }, "src");
   assert.equal("crossFamily" in (plain.config.roles.audit ?? {}), false);
 });
 
 test("a new edit role gets the edit defaults", () => {
   const { config, issues } = mergeLayer(
     DEFAULT_CONFIG,
-    { roles: { builder: { description: "Build.", access: "edit", chain: [RUNG] } } },
+    { roles: { builder: { description: "Build.", access: "edit", chain: [CANDIDATE] } } },
     "src",
   );
   assert.deepEqual(issues, []);
@@ -86,14 +86,14 @@ test("a new edit role gets the edit defaults", () => {
     t3Role: "implementation",
     interactionMode: "default",
     runtimeMode: "inherit",
-    chain: [RUNG],
+    chain: [CANDIDATE],
   });
 });
 
 test("a new read-only role gets the read-only defaults, and given fields win", () => {
   const { config } = mergeLayer(
     DEFAULT_CONFIG,
-    { roles: { scout: { description: "Look.", access: "read-only", t3Role: "review", chain: [RUNG] } } },
+    { roles: { scout: { description: "Look.", access: "read-only", t3Role: "review", chain: [CANDIDATE] } } },
     "src",
   );
   assert.deepEqual(config.roles.scout, {
@@ -103,7 +103,7 @@ test("a new read-only role gets the read-only defaults, and given fields win", (
     t3Role: "review",
     interactionMode: "plan",
     runtimeMode: "inherit",
-    chain: [RUNG],
+    chain: [CANDIDATE],
   });
 });
 
@@ -119,7 +119,7 @@ test("a new role without description, access, or chain is dropped with an error"
 
 test("a role removed in one layer can be added back as a new role in a later one", () => {
   const first = mergeLayer(DEFAULT_CONFIG, { roles: { quick: null } }, "user").config;
-  const half = mergeLayer(first, { roles: { quick: { chain: [RUNG] } } }, "project");
+  const half = mergeLayer(first, { roles: { quick: { chain: [CANDIDATE] } } }, "project");
   assert.equal(half.config.roles.quick, undefined);
   assert.equal(half.issues[0]?.severity, "error");
 });
@@ -130,8 +130,8 @@ test("each limit field replaces the old value", () => {
 });
 
 test("the result does not share arrays with the layer", () => {
-  const chain = [RUNG];
+  const chain = [CANDIDATE];
   const { config } = mergeLayer(DEFAULT_CONFIG, { roles: { review: { chain } } }, "src");
-  chain.push(RUNG);
+  chain.push(CANDIDATE);
   assert.equal(config.roles.review?.chain.length, 1);
 });

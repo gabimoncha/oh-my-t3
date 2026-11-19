@@ -20,20 +20,19 @@ test("a retired date pin loads with a warning and uses the current defaults", as
 });
 
 const EXPECTED: Record<string, [access: string, result: string, t3Role: string, mode: string, crossFamily: boolean, chain: string[]]> = {
-  explore: ["read-only", "research", "research", "plan", false, ["codex/gpt-6.1-terra/low", "claudeAgent/claude-haiku-5-5/medium"]],
-  research: ["read-only", "research", "research", "plan", false, ["codex/gpt-6.1-sol/low", "claudeAgent/claude-sonnet-5-5/medium"]],
-  "plan-review": ["read-only", "review", "review", "plan", true, ["codex/gpt-6-astra/medium", "claudeAgent/claude-opus-5-5/medium"]],
-  execute: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-opus-5-5/low", "codex/gpt-6.1-sol/high"]],
-  review: ["edit", "review", "review", "default", true, ["codex/gpt-6-astra/medium", "claudeAgent/claude-opus-5-5/medium"]],
-  oracle: ["edit", "review", "review", "default", true, ["codex/gpt-6-astra/medium", "claudeAgent/claude-opus-5-5/medium"]],
-  qa: ["edit", "test", "test", "default", false, ["codex/gpt-6.1-sol/medium", "claudeAgent/claude-sonnet-5-5/low"]],
-  guardrail: ["read-only", "guardrail", "review", "plan", false, ["claudeAgent/claude-opus-5-5/high", "codex/gpt-6-astra/high"]],
-  writing: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-opus-5-5/medium", "codex/gpt-6-astra/medium"]],
-  design: ["edit", "work", "design", "default", false, ["claudeAgent/claude-opus-5-5/medium", "codex/gpt-6-astra/high"]],
-  ui: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-opus-5-5/low", "codex/gpt-6.1-sol/high"]],
+  explore: ["read-only", "research", "research", "plan", false, ["codex/gpt-6.2-sol/low", "claudeAgent/claude-sonnet-5-5/low"]],
+  research: ["read-only", "research", "research", "plan", false, ["codex/gpt-6.2-sol/medium", "claudeAgent/claude-sonnet-5-5/medium"]],
+  "plan-review": ["read-only", "review", "review", "plan", true, ["codex/gpt-6.2-astra/high", "claudeAgent/claude-fable-5-2/high"]],
+  execute: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-opus-5-5/medium", "codex/gpt-6.2-sol/high"]],
+  review: ["edit", "review", "review", "default", true, ["codex/gpt-6.2-sol/xhigh", "claudeAgent/claude-opus-5-5/high"]],
+  oracle: ["edit", "review", "review", "default", true, ["codex/gpt-6.2-astra/medium", "claudeAgent/claude-fable-5-2/medium"]],
+  qa: ["edit", "test", "test", "default", false, ["codex/gpt-6.2-sol/medium", "claudeAgent/claude-sonnet-5-5/medium"]],
+  writing: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-opus-5-5/medium", "codex/gpt-6.2-astra/medium"]],
+  design: ["edit", "work", "design", "default", false, ["claudeAgent/claude-fable-5-2/medium", "codex/gpt-6.2-astra/high"]],
+  ui: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-fable-5-2/medium", "codex/gpt-6.2-astra/high"]],
 };
 
-test("the defaults hold the 11 roles with the planned values", () => {
+test("the defaults hold the 10 roles with the planned values", () => {
   assert.deepEqual(Object.keys(DEFAULT_CONFIG.roles).sort(), Object.keys(EXPECTED).sort());
   for (const [name, [access, result, t3Role, mode]] of Object.entries(EXPECTED)) {
     const role = DEFAULT_CONFIG.roles[name];
@@ -47,24 +46,24 @@ test("the defaults hold the 11 roles with the planned values", () => {
   }
 });
 
-test("every default rung names the built-in provider instance of its driver, a model, and an effort", () => {
+test("every default candidate names the built-in provider instance of its driver, a model, and an effort", () => {
   for (const [name, role] of Object.entries(DEFAULT_CONFIG.roles)) {
     assert.equal(role.chain.length, EXPECTED[name]?.[5].length, name);
-    for (const rung of role.chain) {
-      assert.equal(rung.provider, rung.driver, name);
-      assert.ok(rung.driver === "claudeAgent" || rung.driver === "codex", name);
-      assert.ok(rung.model.length > 0, name);
-      assert.ok(rung.effort !== undefined && EFFORT_LADDER.includes(rung.effort), name);
+    for (const candidate of role.chain) {
+      assert.equal(candidate.provider, candidate.driver, name);
+      assert.ok(candidate.driver === "claudeAgent" || candidate.driver === "codex", name);
+      assert.ok(candidate.model.length > 0, name);
+      assert.ok(candidate.effort !== undefined && EFFORT_LADDER.includes(candidate.effort), name);
     }
   }
 });
 
 test("the default chains and crossFamily flags match the plan exactly", () => {
   assert.deepEqual(Object.keys(EXPECTED).sort(), Object.keys(DEFAULT_CONFIG.roles).sort());
-  for (const [name, [, , , , crossFamily, rungs]] of Object.entries(EXPECTED)) {
+  for (const [name, [, , , , crossFamily, candidates]] of Object.entries(EXPECTED)) {
     const role = DEFAULT_CONFIG.roles[name];
     assert.ok(role, name);
-    const chain = rungs.map((text) => {
+    const chain = candidates.map((text) => {
       const [driver, model, effort] = text.split("/");
       return { provider: driver, driver, model, effort };
     });

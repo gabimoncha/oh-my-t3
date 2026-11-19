@@ -41,7 +41,7 @@ test("end to end: pick and switch a custom profile, then use its limits for the 
   assert.equal(prototype.workflow.build.failureProofs, "off");
   assert.equal(prototype.limits.maxReviewRounds, 2);
   assert.equal(prototype.roles.execute.fast, undefined);
-  assert.equal(prototype.models["gpt-6.1-sol"].fast, true);
+  assert.equal(prototype.models["gpt-6.2-sol"].fast, true);
   const custom = JSON.parse(ok("profile", "show", "hackathon", "--json"));
   assert.equal(custom.workflow.build.oracle, "always");
   assert.equal(custom.workflow.build.failureProofs, "off");

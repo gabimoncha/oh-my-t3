@@ -16,8 +16,8 @@
       "displayName": "Codex",
       "models": [
         {
-          "id": "gpt-6.1-sol",
-          "label": "GPT-6.1-Sol",
+          "id": "gpt-6.2-sol",
+          "label": "GPT-6.2-Sol",
           "options": [
             {
               "id": "reasoningEffort",
@@ -72,8 +72,8 @@
           ]
         },
         {
-          "id": "gpt-6-astra",
-          "label": "GPT-6-Astra",
+          "id": "gpt-6.2-astra",
+          "label": "GPT-6.2-Astra",
           "options": [
             {
               "id": "reasoningEffort",
@@ -230,6 +230,62 @@
           ]
         },
         {
+          "id": "claude-fable-5-2",
+          "label": "Claude Fable 5.2",
+          "options": [
+            {
+              "id": "effort",
+              "label": "Reasoning",
+              "type": "select",
+              "options": [
+                {
+                  "id": "low",
+                  "label": "low"
+                },
+                {
+                  "id": "medium",
+                  "label": "medium"
+                },
+                {
+                  "id": "high",
+                  "label": "high",
+                  "isDefault": true
+                },
+                {
+                  "id": "xhigh",
+                  "label": "xhigh"
+                },
+                {
+                  "id": "max",
+                  "label": "max"
+                },
+                {
+                  "id": "ultrathink",
+                  "label": "ultrathink"
+                }
+              ],
+              "currentValue": "high"
+            },
+            {
+              "id": "contextWindow",
+              "label": "Context Window",
+              "type": "select",
+              "options": [
+                {
+                  "id": "200k",
+                  "label": "200k",
+                  "isDefault": true
+                },
+                {
+                  "id": "1m",
+                  "label": "1m"
+                }
+              ],
+              "currentValue": "200k"
+            }
+          ]
+        },
+        {
           "id": "claude-sonnet-5-5",
           "label": "Claude Sonnet 5.5",
           "options": [
@@ -342,8 +398,8 @@
       "displayName": "Pi",
       "models": [
         {
-          "id": "openai-codex/gpt-6-astra",
-          "label": "GPT-6-Astra",
+          "id": "openai-codex/gpt-6.2-astra",
+          "label": "GPT-6.2-Astra",
           "options": [
             {
               "id": "thinking",

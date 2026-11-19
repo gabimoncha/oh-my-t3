@@ -299,7 +299,7 @@ prime-agent's main lesson for omt is a split. The judgment (what to learn) is a 
 
 ### 1. Outcome metrics from the ledger
 
-- **What.** A command that turns `.omt/ledger.jsonl` into outcome metrics per role and per provider and model. Examples are first-pass `APPROVE` rate, mean fix rounds per unit, `NOT VERIFIED` rate, fallback rate, and failure codes per rung. With enough samples, it prints a suggested config change that moves a weak rung down a role chain. It never applies the change.
+- **What.** A command that turns `.omt/ledger.jsonl` into outcome metrics per role and per provider and model. Examples are first-pass `APPROVE` rate, mean fix rounds per unit, `NOT VERIFIED` rate, fallback rate, and failure codes per candidate. With enough samples, it prints a suggested config change that moves a weak candidate down a role chain. It never applies the change.
 - **Source.** prime-agent has no such loop. Its refiner reads only the transcript (`pa:crates/pa-core/src/refinement/executor.rs:220-249`), its telemetry has no reader (Q6), and refine never touches model choice (`pa:crates/pa-core/src/refinement/planner.rs:10`). The local `telemetry.jsonl` mirror is the closest shape (`pa:crates/pa-telemetry/src/sinks/file.rs:10-37`).
 - **Maps to.** The `omt` CLI as `omt ledger stats --by role,model` or a new `omt stats`. The data is already in `.omt/ledger.jsonl`. `omt doctor` can show the summary. The skills already record verdicts in the form the metrics need (`omt:docs/spec.md:1258`).
 - **Effort.** M.
@@ -371,7 +371,7 @@ prime-agent's main lesson for omt is a split. The judgment (what to learn) is a 
 
 ### 9. Show what a child will see
 
-- **What.** `omt brief --explain` prints the parts of a brief with their sizes. The parts are template, persona, role notes, lessons, limits, and the routing rung. This makes the harness inspectable, the same way `prime-agent prompt` prints its prompt layers.
+- **What.** `omt brief --explain` prints the parts of a brief with their sizes. The parts are template, persona, role notes, lessons, limits, and the routing candidate. This makes the harness inspectable, the same way `prime-agent prompt` prints its prompt layers.
 - **Source.** `pa:crates/pa-cli/src/command_registry.rs:289-305`, `pa:crates/pa-types/src/slash_commands.rs:55`.
 - **Maps to.** The `omt` CLI (`omt brief`).
 - **Effort.** S.
@@ -389,7 +389,7 @@ prime-agent's main lesson for omt is a split. The judgment (what to learn) is a 
 
 ### 11. Park on a quota reset
 
-- **What.** When a child fails on a rate limit that names a reset time, the conductor schedules one resume tick at reset plus 30 seconds with `schedule_task`, instead of moving to the next rung or stopping. A cap limits parks per run.
+- **What.** When a child fails on a rate limit that names a reset time, the conductor schedules one resume tick at reset plus 30 seconds with `schedule_task`, instead of moving to the next candidate or stopping. A cap limits parks per run.
 - **Source.** `pa:crates/pa-core/src/session_engine/provider_park.rs:12-31`, `pa:crates/pa-core/src/session_engine/provider_park.rs:94-127`.
 - **Maps to.** `skills/omt/references/delegation.md` (failure codes) and the T3 `schedule_task` tool.
 - **Effort.** S to M.

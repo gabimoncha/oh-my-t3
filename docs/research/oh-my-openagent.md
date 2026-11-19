@@ -28,7 +28,7 @@ The catalog note is the owner's private note on oh-my-openagent. It is not publi
 
 ## 1. Summary
 
-- **Category routing, not model names.** The main agent delegates by picking a category such as `quick`, `deep-low`, or `writing`. Each category has a ranked chain of `{providers, model, variant}` rungs. The first rung that a connected provider serves wins (`packages/senpi-task/src/category/fallback-chains.ts`, `packages/senpi-task/src/category/resolver.ts:298-420`). A category with no live rung disappears from the list the model sees.
+- **Category routing, not model names.** The main agent delegates by picking a category such as `quick`, `deep-low`, or `writing`. Each category has a ranked chain of `{providers, model, variant}` candidates. The first candidate that a connected provider serves wins (`packages/senpi-task/src/category/fallback-chains.ts`, `packages/senpi-task/src/category/resolver.ts:298-420`). A category with no live candidate disappears from the list the model sees.
 - **Read-only specialists are separate from category workers.** `explore`, `librarian`, `plan-consultant`, and `plan-reviewer` are curated read-only agents with their own chains. Category workers can write (`packages/senpi-task/src/agents/builtin/index.ts`, `packages/senpi-task/AGENTS.md`).
 - **One delegation tool with a strict contract.** The `task` tool takes `prompt` plus exactly one of `category` or `subagent_type`, an optional `load_skills` list, `run_in_background`, and a batch of up to 16 items (`packages/senpi-task/src/tools/task/params.ts`). Skill bodies are prepended to the child prompt. A category adds its own "category context" block.
 - **Every child prompt has the same shape.** It starts with `TASK:` and names `DELIVERABLE`, `SCOPE`, `VERIFY`, and `STOP WHEN` (ultrawork directive in `packages/omo-senpi/src/components/ultrawork/generated-directive.ts`, section "Child execution and transitions").
@@ -48,7 +48,7 @@ The catalog note is the owner's private note on oh-my-openagent. It is not publi
 
 Modes come from each agent file. "primary" agents use the model the user picked in the UI. "subagent" agents use their own chain (`packages/omo-opencode/src/agents/AGENTS.md`, section MODES). Chains come from `packages/model-core/src/agent-model-requirements.ts`. Denied tools come from `packages/omo-opencode/src/shared/agent-tool-restrictions.ts`.
 
-| Agent | Purpose | Mode | Chain (first rung, then fallbacks) | Tool restrictions |
+| Agent | Purpose | Mode | Chain (first candidate, then fallbacks) | Tool restrictions |
 |---|---|---|---|---|
 | Sisyphus | Main orchestrator. Plans with todos, delegates by category plus skills, uses explore and librarian (`packages/omo-opencode/src/agents/sisyphus-agent-config.ts:6-7`) | primary | `claude-opus-5-5` max, then `kimi-k3`, then `gpt-5.6-sol` medium, then `glm-5.2`, then `big-pickle` (`agent-model-requirements.ts:4-24`) | None listed |
 | Hephaestus | Autonomous deep worker on GPT. Explores first, then completes end to end (`packages/omo-opencode/src/agents/hephaestus/agent.ts:174-175`) | primary | `gpt-6-sol` medium, then `gpt-5.6-sol` medium. Active only when an OpenAI-family provider is connected (`agent-model-requirements.ts:25-40`) | None listed |
@@ -59,7 +59,7 @@ Modes come from each agent file. "primary" agents use the model the user picked 
 | Explore | Contextual grep inside the repo. Run several in parallel (`packages/senpi-task/src/agents/builtin/explore.ts:6-8`) | subagent | Same chain as Librarian (`agent-model-requirements.ts:68-77`) | No write, edit, task, or call_omo_agent |
 | Multimodal-Looker | Reads PDFs, images, and diagrams and returns extracted data (`packages/omo-opencode/src/agents/multimodal-looker.ts:18-19`) | subagent | `gpt-5.6-sol` low, then `kimi-k3`, then `glm-4.6v`, then `gpt-5-nano` (`agent-model-requirements.ts:78-85`) | Restriction map sets only `read: true` (`agent-tool-restrictions.ts`). The AGENTS.md reads this as "all tools except read" |
 | Metis | Pre-planning consultant. Finds hidden intent, ambiguity, and likely AI failure points (`packages/omo-opencode/src/agents/metis.ts:401-402`) | subagent, temperature 0.3 | `claude-fable-5-1` max, then `claude-opus-5-5` max, then `kimi-k3` max (`agent-model-requirements.ts:105-123`) | No write or edit |
-| Momus | Plan reviewer for clarity, verifiability, and completeness (`packages/omo-opencode/src/agents/momus.ts:290-291`) | subagent | `gpt-6-astra` xhigh, then lower Astra rungs, then `claude-opus-5-5` max, then `gemini-3.1-pro` high, then `glm-5.2` (`agent-model-requirements.ts:124-141`) | No write or edit |
+| Momus | Plan reviewer for clarity, verifiability, and completeness (`packages/omo-opencode/src/agents/momus.ts:290-291`) | subagent | `gpt-6-astra` xhigh, then lower Astra candidates, then `claude-opus-5-5` max, then `gemini-3.1-pro` high, then `glm-5.2` (`agent-model-requirements.ts:124-141`) | No write or edit |
 | Sisyphus-Junior | Executor that a category spawns. Same discipline, no delegation (`packages/omo-opencode/src/agents/sisyphus-junior/agent.ts:144-145`) | subagent | `claude-sonnet-5`, then `kimi-k3`, then `gpt-5.6-sol` medium, then MiniMax, then `big-pickle` (`agent-model-requirements.ts:156-170`) | No `task` |
 
 All agents in the restriction map are also denied the 12 team tools by default (`agent-tool-restrictions.ts`, `TEAM_TOOL_DENYLIST`).
@@ -83,7 +83,7 @@ The Native edition has seven built-in agents (`packages/senpi-task/src/agents/bu
 | `explore` | Repo grep, parallel-friendly (`explore.ts:6-9`) | Own chain, same as the OpenCode Explore chain plus the `kimi-coding` and `anthropic-subscription` provider ids (`packages/senpi-task/src/agents/builtin/fallback-chains.ts:17-24`) | read, find, grep, ls, bash, 4 LSP read tools. `x_search` denied (`explore.ts:88-98`) |
 | `librarian` | Remote repos and docs (`librarian.ts:6-9`) | Same chain as explore (`fallback-chains.ts:25-32`) | Same, plus `x_search` (`librarian.ts:75-85`) |
 | `plan-consultant` | Pre-planning gap analysis. Cannot delegate (`plan-consultant.ts:5-16`) | `claude-fable-5-1` max, then `claude-opus-5-5` max, then `kimi-k3` max (`fallback-chains.ts:33-49`) | Read-only set (`plan-consultant.ts:274-283`) |
-| `plan-reviewer` | Plan review against clarity and verifiability (`plan-reviewer.ts:5-8`) | `gpt-6-astra` xhigh, then lower Astra rungs, then `claude-opus-5-5`, then `gemini-3.1-pro`, then `glm-5.2` (`fallback-chains.ts:50-64`) | Read-only set (`plan-reviewer.ts:201-210`) |
+| `plan-reviewer` | Plan review against clarity and verifiability (`plan-reviewer.ts:5-8`) | `gpt-6-astra` xhigh, then lower Astra candidates, then `claude-opus-5-5`, then `gemini-3.1-pro`, then `glm-5.2` (`fallback-chains.ts:50-64`) | Read-only set (`plan-reviewer.ts:201-210`) |
 | `omo-native-code-reviewer` | Diff, test, and risk audit for the ulw-loop final gate (`code-reviewer.ts:9-14`) | Category `unspecified-high` | Read-only set plus `write` for its report (`code-reviewer.ts:36-46`) |
 | `omo-native-qa-executor` | Runs real QA scenarios and records evidence (`qa-executor.ts:9-14`) | Categories `deep-low`, then `unspecified-low` | Same plus `write` |
 | `omo-native-gate-reviewer` | Final gate. Re-audits executor, review, and QA artifacts (`gate-reviewer.ts:9-14`) | Categories `deep-high`, then `unspecified-high` | Same plus `write` |
@@ -123,16 +123,16 @@ Builtin categories are defined per provider family in `packages/senpi-task/src/c
 
 | Category | Intent | Default | Gate |
 |---|---|---|---|
-| `quick` | Trivial tasks: one file, typos, small edits (`openai-categories.ts:222-228`) | `chatgpt-subscription/gpt-6-luna-fast` low | Needs one live rung |
+| `quick` | Trivial tasks: one file, typos, small edits (`openai-categories.ts:222-228`) | `chatgpt-subscription/gpt-6-luna-fast` low | Needs one live candidate |
 | `deep-low` | Default deep lane. One goal, one deliverable, decisions settled from evidence. Backend, algorithms, 3D, browser and computer use go here. Fan out several goals as parallel calls (`openai-categories.ts:204-211`) | `gpt-6.1-sol` medium | Needs a GPT Sol model (`builtins.ts:41-50`, `openai-categories.ts:191`) |
 | `deep-high` | Escalation lane. Used when the central decision cannot be settled from evidence (`openai-categories.ts:213-220`) | `gpt-6-astra` high | Needs `gpt-6-astra` |
 | `ultrabrain` | Genuinely hard, logic-heavy work. Give goals, not steps (`openai-categories.ts:196-202`) | `gpt-6-astra` max | Needs `gpt-6-astra` or `gpt-5.6-sol` |
 | `architect` | Big-picture design. Proposes, does not implement (`anthropic-categories.ts:24-30`) | `claude-fable-5-1` max | Needs `claude-fable-5-1`. No fallback |
-| `visual-engineering` | UI, UX, CSS, animation, design systems (`google-categories.ts:116-118`) | `claude-fable-5-1` max | Needs one live rung |
-| `artistry` | Creative, unconventional problem solving (`google-categories.ts:122-124`) | `claude-fable-5-1` max | Needs one live rung |
+| `visual-engineering` | UI, UX, CSS, animation, design systems (`google-categories.ts:116-118`) | `claude-fable-5-1` max | Needs one live candidate |
+| `artistry` | Creative, unconventional problem solving (`google-categories.ts:122-124`) | `claude-fable-5-1` max | Needs one live candidate |
 | `writing` | Docs and prose (`kimi-categories.ts:32-34`) | `claude-opus-5-5` low | Claude only. Disappears with no Claude model (`packages/model-core/src/category-model-requirements.ts:141-157`) |
-| `unspecified-low` | Fits no category, moderate effort (`openai-categories.ts:229-234`) | `claude-sonnet-5-5` medium | Needs one live rung |
-| `unspecified-high` | Fits no category, broad effort across modules (`openai-categories.ts:236-241`) | `claude-opus-5-5` medium | Needs one live rung |
+| `unspecified-low` | Fits no category, moderate effort (`openai-categories.ts:229-234`) | `claude-sonnet-5-5` medium | Needs one live candidate |
+| `unspecified-high` | Fits no category, broad effort across modules (`openai-categories.ts:236-241`) | `claude-opus-5-5` medium | Needs one live candidate |
 
 Two more names appear only in the ulw-execute delegation router: `git` (low) (`packages/shared-skills/skills/ulw-execute/SKILL.md`, "Delegation router" table). No builtin definition named `git` was found (`rg 'name: "git"' packages/senpi-task/src/category` returned nothing).
 
@@ -140,9 +140,9 @@ Two more names appear only in the ulw-execute delegation router: `git` (low) (`p
 
 The Native chains live in `packages/senpi-task/src/category/fallback-chains.ts:27-172`. They mirror `packages/model-core/src/category-model-requirements.ts` with three deliberate differences (`fallback-chains.ts:3-26`):
 
-- Every Claude rung starts with provider `anthropic-subscription` (Claude Pro or Max), so a subscription beats a metered key.
-- Every GPT rung lists `chatgpt-subscription` before `openai`, for the same reason.
-- Each rung names a thinking level the engine accepts for that model.
+- Every Claude candidate starts with provider `anthropic-subscription` (Claude Pro or Max), so a subscription beats a metered key.
+- Every GPT candidate lists `chatgpt-subscription` before `openai`, for the same reason.
+- Each candidate names a thinking level the engine accepts for that model.
 
 Selected chains (variant in parentheses):
 
@@ -172,7 +172,7 @@ The design intent of the appends, in summary:
 
 A profile picks the main session model only. It never changes delegated children (`docs/guide/agent-model-matching.md:92-94`).
 
-| Profile | Rungs (`builtin-profiles.ts:71-121`) |
+| Profile | Candidates (`builtin-profiles.ts:71-121`) |
 |---|---|
 | `recommended` (default when unset) | `claude-opus-5-5` medium, `claude-fable-5-1` xhigh, `kimi-k3` max, `gpt-6-astra` xhigh, `gpt-6.1-sol` medium, `gpt-6-sol` medium, `glm-5.3` max |
 | `daily-normal` | `claude-opus-5-5` medium, `kimi-k3` max, `glm-5.3` max |
@@ -187,10 +187,10 @@ A user can pin `model_profile` to a literal `provider/model`, or add `model_prof
 For a delegated child (`docs/guide/agent-model-matching.md:273-280`, `packages/senpi-task/src/category/resolver.ts:298-420`):
 
 1. A user override in `omo.json` (`categories.<name>.model` or `models`) wins. Any explicit `categories.<name>` entry also bypasses the gate checks.
-2. The gate check runs. `ultrabrain`, `deep-low`, `deep-high`, and `architect` need their gate model. Other builtins need at least one live rung.
-3. A rung counts as live only when one of the providers it lists serves that model id in the live registry. A gateway that re-publishes the model under another provider id does not count (`packages/senpi-task/src/category/builtins.ts:65-96`).
-4. The first live rung wins. Reasoning and variant are normalized to what the model supports.
-5. A chain with no live rung fails early with `model_unavailable`, the attempted chain, and the missing providers (`resolver.ts`, dead-chain short-circuit).
+2. The gate check runs. `ultrabrain`, `deep-low`, `deep-high`, and `architect` need their gate model. Other builtins need at least one live candidate.
+3. A candidate counts as live only when one of the providers it lists serves that model id in the live registry. A gateway that re-publishes the model under another provider id does not count (`packages/senpi-task/src/category/builtins.ts:65-96`).
+4. The first live candidate wins. Reasoning and variant are normalized to what the model supports.
+5. A chain with no live candidate fails early with `model_unavailable`, the attempted chain, and the missing providers (`resolver.ts`, dead-chain short-circuit).
 
 The task tool description is built before the model registry is known. It lists gated categories with a "(requires model)" note. The spawn-time resolver is the real gate (`packages/senpi-task/AGENTS.md`, "Category activation gating").
 
@@ -713,7 +713,7 @@ This section is recommendation, not fact. T3 capabilities are taken from the T3 
 
 | Rank | OmO feature | Status in T3 | Recommendation |
 |---|---|---|---|
-| 1 | Category routing with ranked chains resolved against live providers | Not provided. `delegate_task` needs an exact provider and model | **Re-create.** Ship a category table in config (name, intent, caller guidance, child append, chain of `{provider, model, effort}` rungs). A small CLI command (for example `omt3 resolve <category>`) reads `orchestrator_capabilities` output and returns the first live rung. A skill tells the agent to resolve, then call `delegate_task`. Keep the gate rule: a category with no live rung is hidden. Keep the "subscription before API key" provider order |
+| 1 | Category routing with ranked chains resolved against live providers | Not provided. `delegate_task` needs an exact provider and model | **Re-create.** Ship a category table in config (name, intent, caller guidance, child append, chain of `{provider, model, effort}` candidates). A small CLI command (for example `omt3 resolve <category>`) reads `orchestrator_capabilities` output and returns the first live candidate. A skill tells the agent to resolve, then call `delegate_task`. Keep the gate rule: a category with no live candidate is hidden. Keep the "subscription before API key" provider order |
 | 2 | Child prompt contract (TASK, DELIVERABLE, SCOPE, VERIFY, STOP WHEN, WORKING, BLOCKED) and skill injection | Not provided | **Re-create in a skill.** It costs nothing and carries most of the reliability. For `load_skills`, have the CLI expand skill files into the prompt, or name the skill paths in the prompt, as the Codex edition does |
 | 3 | Goal with binding success criteria plus an evidence ledger | Codex threads have `create_goal`. Claude threads do not (inferred) | **Re-create in the CLI.** Store goals, criteria, and evidence under a repo dir such as `.omt3/` with an envelope API like the ulw-loop SDK (`status`, `createGoals`, `recordEvidence`, `checkpoint`). Bind evidence to the git tree hash |
 | 4 | ulw-plan workflow, plan file format, and reviewer rounds | Not provided | **Re-create as a skill plus a scaffold script.** Use `delegate_task` for the consultant and reviewer. Run the reviewer on the other model family, which T3 makes easy. Keep the five-round cap, the frozen blocker ledger, the plan hash per round, and the column-zero `N.` and `F<n>.` grammar |
@@ -724,7 +724,7 @@ This section is recommendation, not fact. T3 capabilities are taken from the T3 
 | 9 | Spawn budgets (fan-out 24, reviewers 3, breaker on agent limit) | Not provided | **Re-create in the CLI** as counters the skill consults before each `delegate_task`. Cheap insurance against fan-out storms |
 | 10 | Read-only specialist roles (explore, librarian, plan-consultant, plan-reviewer) | `delegate_task` has no role or tool-allowlist field (inferred from its documented inputs) | **Re-create as role prompts** plus a read-only mode if `delegate_task` supports one. The clarity skill notes `interactionMode: plan` as T3's read-only switch. Verify it |
 | 11 | Config layering, schema, safe writes | Not provided | **Re-create, small.** One user file and walked project files, per-provider blocks, Zod schema published as JSON Schema, comment-preserving writes with backups. Skip OmO's migration engine at first |
-| 12 | Installer and doctor | Not provided | **Re-create.** Detect read-only, print one summary, ask once, back up, stay idempotent. Doctor checks: T3 MCP reachable, `orchestrator_capabilities` returns models, each category has a live rung (OmO's "category coverage"), skills installed, hooks installed |
+| 12 | Installer and doctor | Not provided | **Re-create.** Detect read-only, print one summary, ask once, back up, stay idempotent. Doctor checks: T3 MCP reachable, `orchestrator_capabilities` returns models, each category has a live candidate (OmO's "category coverage"), skills installed, hooks installed |
 | 13 | mass ulw DAG with journal | Not provided | **Defer.** High cost. A first version can run waves of parallel `delegate_task` calls from a JSON plan, with retry per node. Add a journal only if runs must survive restarts |
 | 14 | Teams with mailboxes | T3 threads and messages exist | **Defer.** Use `t3_thread_launch` per member with a worktree, plus `t3_thread_send`. OmO's own rule is to prefer parallel workers and use teams only for overlapping scopes |
 | 15 | Model profiles for the main session | T3 picks the thread model | **Does not fit.** T3 owns the main model selection |

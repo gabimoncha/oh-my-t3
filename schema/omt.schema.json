@@ -126,7 +126,7 @@
         "type": "string",
         "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$"
       },
-      "description": "T3 driver kinds that routing may use, for example [\"codex\"]. A rung of another driver fails. Without it, every driver may run. Run omt detect to set it."
+      "description": "T3 driver kinds that routing may use, for example [\"codex\"]. A candidate of another driver fails. Without it, every driver may run. Run omt detect to set it."
     }
   },
   "$defs": {
@@ -151,8 +151,7 @@
             "review",
             "test",
             "research",
-            "plan",
-            "guardrail"
+            "plan"
           ]
         },
         "t3Role": {
@@ -183,7 +182,7 @@
         },
         "crossFamily": {
           "type": "boolean",
-          "description": "With --against, try the rungs outside the worker's family first."
+          "description": "With --against, try the candidates outside the worker's family first."
         },
         "fast": {
           "type": "boolean"
@@ -193,12 +192,12 @@
           "minItems": 1,
           "maxItems": 10,
           "items": {
-            "$ref": "#/$defs/rung"
+            "$ref": "#/$defs/candidate"
           }
         }
       }
     },
-    "rung": {
+    "candidate": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -434,17 +433,15 @@
                 "offer"
               ]
             },
-            "guardrails": {
-              "enum": [
-                "off",
-                "propose"
-              ]
-            },
             "crap": {
               "enum": [
                 "off",
                 "report"
               ]
+            },
+            "guardrails": {
+              "deprecated": true,
+              "description": "No longer used. omt ignores this key."
             }
           }
         },

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.ts";
 import { validateLayer } from "../../src/config/validate.ts";
 
-const RUNG = { driver: "codex", model: "gpt-6-astra", effort: "high" };
+const CANDIDATE = { driver: "codex", model: "gpt-6.2-astra", effort: "high" };
 
 function paths(value: unknown): string[] {
   return validateLayer(value, "src").issues.map((issue) => issue.path);
@@ -20,7 +20,7 @@ test("a full valid layer is kept as given, and $schema is ignored", () => {
     $schema: "https://example.dev/schema.json",
     version: 1,
     roles: {
-      review: { chain: [RUNG] },
+      review: { chain: [CANDIDATE] },
       gone: null,
       custom: {
         description: "Custom role.",
@@ -81,7 +81,7 @@ test("roles and limits must be objects", () => {
 
 test("an invalid role name is an error and the role is dropped", () => {
   for (const name of ["Review", "1st", "-x", "a_b", "a".repeat(33)]) {
-    const { layer, issues } = validateLayer({ roles: { [name]: { chain: [RUNG] } } }, "src");
+    const { layer, issues } = validateLayer({ roles: { [name]: { chain: [CANDIDATE] } } }, "src");
     assert.deepEqual(layer.roles, {}, name);
     assert.deepEqual(issues.map((issue) => issue.path), [`roles.${name}`], name);
   }
@@ -97,7 +97,7 @@ test("a role with one bad key is dropped as a whole, with one issue per problem"
   const { layer, issues } = validateLayer(
     {
       roles: {
-        review: { description: "ok", access: "write", unknown: 1, chain: [RUNG] },
+        review: { description: "ok", access: "write", unknown: 1, chain: [CANDIDATE] },
         execute: { access: "edit" },
       },
     },
@@ -121,8 +121,8 @@ test("every role field rejects invalid values", () => {
     ["crossFamily", 1],
     ["crossFamily", null],
     ["chain", []],
-    ["chain", Array.from({ length: 11 }, () => RUNG)],
-    ["chain", RUNG],
+    ["chain", Array.from({ length: 11 }, () => CANDIDATE)],
+    ["chain", CANDIDATE],
   ];
   for (const [key, value] of cases) {
     const { layer, issues } = validateLayer({ roles: { r: { [key]: value } } }, "src");
@@ -130,7 +130,7 @@ test("every role field rejects invalid values", () => {
     assert.deepEqual(issues.map((issue) => issue.path), [`roles.r.${key}`], key);
     assert.equal(issues[0]?.severity, "error");
   }
-  assert.deepEqual(paths({ roles: { r: { description: "x".repeat(300), chain: Array(10).fill(RUNG) } } }), []);
+  assert.deepEqual(paths({ roles: { r: { description: "x".repeat(300), chain: Array(10).fill(CANDIDATE) } } }), []);
 });
 
 test("crossFamily accepts only a boolean", () => {
@@ -146,7 +146,7 @@ test("crossFamily accepts only a boolean", () => {
   );
 });
 
-test("every rung rule is checked with an indexed path", () => {
+test("every candidate rule is checked with an indexed path", () => {
   const cases: [unknown, string[]][] = [
     ["codex", ["roles.r.chain[0]"]],
     [{ model: "m" }, ["roles.r.chain[0]"]],
@@ -161,12 +161,12 @@ test("every rung rule is checked with an indexed path", () => {
     [{ driver: "codex", model: "m", options: { a: 1 } }, ["roles.r.chain[0].options.a"]],
     [{ driver: "codex", model: "m", extra: 1 }, ["roles.r.chain[0].extra"]],
   ];
-  for (const [rung, expected] of cases) {
-    const { layer, issues } = validateLayer({ roles: { r: { chain: [RUNG, RUNG].map((r, i) => (i === 0 ? rung : r)) } } }, "src");
-    assert.deepEqual(layer.roles, {}, JSON.stringify(rung));
-    assert.deepEqual(issues.map((issue) => issue.path), expected, JSON.stringify(rung));
+  for (const [candidate, expected] of cases) {
+    const { layer, issues } = validateLayer({ roles: { r: { chain: [CANDIDATE, CANDIDATE].map((r, i) => (i === 0 ? candidate : r)) } } }, "src");
+    assert.deepEqual(layer.roles, {}, JSON.stringify(candidate));
+    assert.deepEqual(issues.map((issue) => issue.path), expected, JSON.stringify(candidate));
   }
-  assert.deepEqual(paths({ roles: { r: { chain: [RUNG, { provider: "x" }] } } }), ["roles.r.chain[1].model"]);
+  assert.deepEqual(paths({ roles: { r: { chain: [CANDIDATE, { provider: "x" }] } } }), ["roles.r.chain[1].model"]);
 });
 
 test("every effort on the ladder is accepted", () => {
@@ -229,15 +229,31 @@ test("a root visuals key is dropped with a warning, whatever its value", () => {
   }
 });
 
-test("the retired grill role is dropped with a warning, and the grill result kind is an error", () => {
-  const { layer, issues } = validateLayer({
-    version: 1,
-    roles: {
-      grill: { description: "Old.", access: "read-only", chain: [{ driver: "codex", model: "m" }] },
-      custom: { description: "New.", access: "read-only", result: "grill", chain: [{ driver: "codex", model: "m" }] },
-    },
-  }, "test");
-  assert.equal(layer.roles?.grill, undefined);
-  assert.ok(issues.some((issue) => issue.path === "roles.grill" && issue.severity === "warning"));
-  assert.ok(issues.some((issue) => issue.path === "roles.custom.result" && issue.severity === "error" && /no longer used; use "review"/.test(issue.message)));
+for (const name of ["grill", "guardrail"]) {
+  test(`the retired ${name} role is dropped with a warning, and the ${name} result kind is an error`, () => {
+    const { layer, issues } = validateLayer({
+      version: 1,
+      roles: {
+        [name]: { description: "Old.", access: "read-only", chain: [{ driver: "codex", model: "m" }] },
+        custom: { description: "New.", access: "read-only", result: name, chain: [{ driver: "codex", model: "m" }] },
+      },
+    }, "test");
+    assert.equal(layer.roles?.[name], undefined);
+    assert.ok(issues.some((issue) => issue.path === `roles.${name}` && issue.severity === "warning"));
+    assert.ok(issues.some((issue) => issue.path === "roles.custom.result" && issue.severity === "error"
+      && issue.message === `the result kind "${name}" is no longer used; use "review"`));
+  });
+}
+
+test("a retired review.guardrails key is dropped with a warning, whatever its value", () => {
+  for (const value of ["propose", "off", 1, null]) {
+    const { layer, issues } = validateLayer({ profiles: { normal: { workflow: { review: { guardrails: value, crap: "off" } } } } }, "src");
+    assert.deepEqual(layer, { profiles: { normal: { workflow: { review: { crap: "off" } } } } });
+    assert.deepEqual(issues, [{
+      source: "src",
+      path: "profiles.normal.workflow.review.guardrails",
+      message: "profiles.normal.workflow.review.guardrails is no longer used; remove it",
+      severity: "warning",
+    }]);
+  }
 });

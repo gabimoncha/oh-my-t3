@@ -6,10 +6,10 @@ export type Access = "read-only" | "edit";
 export type InteractionMode = "inherit" | "default" | "plan";
 export type RuntimeMode = "inherit" | "approval-required" | "auto-accept-edits" | "auto" | "full-access";
 export type T3Role = "implementation" | "research" | "review" | "design" | "test" | "general";
-export type ResultKind = "work" | "review" | "test" | "research" | "plan" | "guardrail";
-export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan", "guardrail"];
+export type ResultKind = "work" | "review" | "test" | "research" | "plan";
+export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan"];
 
-export interface Rung {
+export interface Candidate {
   provider?: string; // T3 provider instance id, for example "claudeAgent"
   driver?: string; // T3 driver kind; used when provider is absent
   model: string; // model id as listed by orchestrator_capabilities
@@ -27,7 +27,7 @@ export interface RoleConfig {
   runtimeMode: RuntimeMode;
   crossFamily?: boolean; // review from the family other than the worker's when --against names the worker
   fast?: boolean;
-  chain: Rung[];
+  chain: Candidate[];
 }
 
 export interface Limits {
@@ -59,7 +59,6 @@ export interface Workflow {
     ci: "off" | "check" | "fix";
     verify: "off" | "changed-flows";
     tests: "off" | "offer";
-    guardrails: "off" | "propose";
     crap: "off" | "report";
   };
   git?: Partial<GitPolicy>; // a missing key means "ask"
@@ -186,9 +185,9 @@ export interface ResolvedTarget {
   options?: Record<string, OptionValue>; // omitted when empty
 }
 
-export interface RungAttempt {
+export interface CandidateAttempt {
   index: number;
-  rung: Rung;
+  candidate: Candidate;
   ok: boolean;
   reason?: string; // set when ok is false
   notes: string[];
@@ -214,9 +213,9 @@ export interface RoleResolution {
   runtimeMode: RuntimeMode;
   crossFamily: boolean; // the role's crossFamily, false when unset
   status: RoleStatus;
-  delegateTask?: DelegateTaskArgs; // from the first ok rung
-  fallbacks: ResolvedTarget[]; // later ok rungs, in the order they were tried
-  attempts: RungAttempt[]; // in the order they were tried; index is the configured position
+  delegateTask?: DelegateTaskArgs; // from the first ok candidate
+  fallbacks: ResolvedTarget[]; // later ok candidates, in the order they were tried
+  attempts: CandidateAttempt[]; // in the order they were tried; index is the configured position
   notes?: string[]; // role-level routing notes, such as the cross-family notes; omitted when empty
 }
 
@@ -235,7 +234,7 @@ export interface RouteOutput {
   result: ResultKind;
   delegateTask?: DelegateTaskArgs;
   fallbacks: ResolvedTarget[];
-  notes: string[]; // the role-level notes, then every attempt note and failure reason in the order tried, each prefixed "rung <n>: "
+  notes: string[]; // the role-level notes, then every attempt note and failure reason in the order tried, each prefixed "candidate <n>: "
 }
 
 export interface BriefJsonOutput {
@@ -278,7 +277,7 @@ export interface LedgerEntry {
   model?: string;
   verdict?: string; // first word or words of the result block, for example "DONE", "APPROVE", "NOT VERIFIED"
   note?: string;
-  targetKey?: string; // the target of a dispatch, such as codex/gpt-6-astra; omt brief --fallback skips tried keys
+  targetKey?: string; // the target of a dispatch, such as codex/gpt-6.2-astra; omt brief --fallback skips tried keys
 }
 
 export interface LedgerStats {

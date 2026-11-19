@@ -22,7 +22,7 @@ Tell the user what one provider family costs them:
 
 - With both Claude and GPT, `plan-review`, `review`, and `oracle` come from the family that did not do the work. This is cross-family review.
 - With one family, the same family reviews its own work.
-- `design` prefers Claude Opus and falls back to Astra. `ui` prefers Claude Opus and falls back to Sol. Older pins keep their chains. A UI unit can implement the task requirements directly, with no design spec or design tool.
+- `design` prefers Claude Fable and falls back to Astra. `ui` prefers Claude Fable and falls back to Astra. Older pins keep their chains. A UI unit can implement the task requirements directly, with no design spec or design tool.
 
 The install in step 4 detects which of the two harnesses can run, and fits the new config to them.
 
@@ -250,7 +250,7 @@ Tell the user how to change them:
 
 - Pick a profile for one run: `$omt-ulw --profile prototype <task>`. Pick a default: set `"profile": "<name>"` in `.omt3/config.jsonc`. Switch a running plan: `.omt3/bin/omt plan profile <slug> <name>`.
 - Write a profile: add it under `profiles` in `.omt3/config.jsonc` (this project) or `~/.config/oh-my-t3/config.jsonc` (all projects). A profile `extends` a preset and can switch workflow steps and override roles, models, and limits. A profile without `extends` inherits `normal`. [Configure roles and profiles](../configuration.md#write-a-custom-profile) has an example.
-- Add a custom role: add it under `roles` in the same config files. A new role needs `description`, `access`, and `chain`. Its `result` field picks the result block: `work`, `review`, `test`, `research`, `plan`, or `guardrail`.
+- Add a custom role: add it under `roles` in the same config files. A new role needs `description`, `access`, and `chain`. Its `result` field picks the result block: `work`, `review`, `test`, `research`, or `plan`.
 - Add a persona: write `.omt3/roles/<role>.md`. Its content is the persona and rules for that role, and it replaces the bundled persona. The lookup order is `.omt3/roles/`, then `~/.config/oh-my-t3/roles/`, then the bundled personas.
 - Fit the harnesses: `.omt3/bin/omt detect` prints which harnesses can run and the `"harnesses"` value that fits them. `.omt3/bin/omt detect --write --dry-run` shows the change, and `--yes` instead of `--dry-run` writes it. In a T3 thread, add `--capabilities <file>` from step 4 to each of these commands.
 - Let an agent do it: the user can ask `$omt-setup` for any of these changes.

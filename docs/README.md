@@ -14,7 +14,6 @@ Start with the page that fits your task. The [project README](../README.md) has 
 | [spec.md](spec.md) | You change the code, the skills, or the tests. The spec is the contract for all three. |
 | [design.md](design.md) | You want to know why each part of omt exists, and what is out of scope. |
 | [design/](design/) | You want the design of one change, such as the [workflow fold](design/workflow-fold.md) that moved the build into the main thread. |
-| [architecture.html](architecture.html) | You want the architecture with diagrams. Open the file in a browser. It is one self-contained page. |
 | [research/](research/) | You want background. See the next section. |
 
 ## Research notes

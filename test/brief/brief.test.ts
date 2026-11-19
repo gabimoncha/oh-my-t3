@@ -288,7 +288,7 @@ test("loadResultContract reads and trims the contract for a result kind", async 
 });
 
 test("renderBrief gives every role its test policy, CLI, and shared-build rules", () => {
-  for (const role of ["execute", "ui", "writing", "design", "qa", "review", "oracle", "plan-review", "guardrail", "explore", "research", "plan", "custom"]) {
+  for (const role of ["execute", "ui", "writing", "design", "qa", "review", "oracle", "plan-review", "explore", "research", "plan", "custom"]) {
     const text = renderBrief(input({ role, cliCommand: "/project/.omt3/bin/omt" }), PERSONA, CONTRACT);
     assert.match(text, /^- CLI: Run omt as \/project\/\.omt3\/bin\/omt\.$/m);
     const tests = text.split("\n").find((line) => line.startsWith("- Tests:"));
@@ -328,11 +328,11 @@ test("brief, roles, and route apply configured, plan, and explicit profiles, inc
     profiles: {
       configured: {
         description: "Use the configured model without fast mode.",
-        models: { "gpt-6.1-sol": { fast: false } },
-        roles: { execute: { chain: [{ provider: "codex", driver: "codex", model: "gpt-6.1-sol", effort: "high" }] } },
+        models: { "gpt-6.2-sol": { fast: false } },
+        roles: { execute: { chain: [{ provider: "codex", driver: "codex", model: "gpt-6.2-sol", effort: "high" }] } },
       },
-      planned: { description: "Use fast mode.", extends: "configured", models: { "gpt-6.1-sol": { fast: true } } },
-      override: { description: "Disable fast mode.", extends: "planned", models: { "gpt-6.1-sol": { fast: false } } },
+      planned: { description: "Use fast mode.", extends: "configured", models: { "gpt-6.2-sol": { fast: true } } },
+      override: { description: "Disable fast mode.", extends: "planned", models: { "gpt-6.2-sol": { fast: false } } },
     },
   }));
   project.writeOmt("plans/p.md", "<!-- omt-plan v1 slug=p profile=planned -->\n");
@@ -354,7 +354,7 @@ test("brief, roles, and route apply configured, plan, and explicit profiles, inc
         const output = JSON.parse(ctx.out()) as BriefJsonOutput & RouteOutput & RolesReport;
         const target = argv[0] === "roles" ? output.roles.execute?.delegateTask?.target : output.delegateTask?.target;
         assert.deepEqual(target, {
-          providerInstanceId: "codex", model: "gpt-6.1-sol",
+          providerInstanceId: "codex", model: "gpt-6.2-sol",
           options: { reasoningEffort: "high", ...(fast ? { serviceTier: "priority" } : {}) },
         }, [...argv, ...capabilities, ...flags].join(" "));
       }
@@ -369,7 +369,7 @@ test("brief, roles, and route apply configured, plan, and explicit profiles, inc
   assert.match(retiredBrief.ctx.out(), /--profile normal\b/);
   assert.doesNotMatch(retiredBrief.ctx.out(), /pr-review/);
   const table = await project.runOk(["roles", "--role", "execute", "--plan", "p", "--capabilities", LIVE_CAPS_FILE]);
-  assert.match(table.ctx.out(), /codex\/gpt-6.1-sol reasoningEffort=high serviceTier=priority/);
+  assert.match(table.ctx.out(), /codex\/gpt-6.2-sol reasoningEffort=high serviceTier=priority/);
   const missing = await project.run(["profile", "show", "--plan", "review-x", "--json"]);
   assert.equal(missing.code, 1);
   assert.equal(missing.ctx.out(), "");
@@ -384,13 +384,13 @@ test("brief child commands keep profile maxDepth and qa routing", async () => {
       deepp: {
         description: "Allow two worker levels and use Codex for checks.",
         limits: { maxDepth: 2 },
-        roles: { qa: { chain: [{ provider: "codex", driver: "codex", model: "gpt-6.1-sol", effort: "low" }] } },
-        models: { "gpt-6.1-sol": { fast: false } },
+        roles: { qa: { chain: [{ provider: "codex", driver: "codex", model: "gpt-6.2-sol", effort: "low" }] } },
+        models: { "gpt-6.2-sol": { fast: false } },
       },
       override: {
         description: "Use fast mode for checks.",
         extends: "deepp",
-        models: { "gpt-6.1-sol": { fast: true } },
+        models: { "gpt-6.2-sol": { fast: true } },
       },
     },
   }));
@@ -408,7 +408,7 @@ test("brief child commands keep profile maxDepth and qa routing", async () => {
     const output = JSON.parse(child.ctx.out()) as BriefJsonOutput;
     assert.match(output.delegateTask.task, /depth=2\/2/);
     assert.deepEqual(output.delegateTask.target, {
-      providerInstanceId: "codex", model: "gpt-6.1-sol",
+      providerInstanceId: "codex", model: "gpt-6.2-sol",
       options: { reasoningEffort: "low", ...(fast ? { serviceTier: "priority" } : {}) },
     });
   }
@@ -436,19 +436,19 @@ test("fast role settings map Opus and print unsupported model notes through each
     assert.match(brief.ctx.err(), new RegExp(sonnetNote));
     const route = await project.runOk(["route", "explore", ...capabilities]);
     const output = JSON.parse(route.ctx.out()) as RouteOutput;
-    assert.ok(output.notes.includes(`rung 2: ${sonnetNote}`));
+    assert.ok(output.notes.includes(`candidate 2: ${sonnetNote}`));
     assert.deepEqual(output.fallbacks[0]?.options, { effort: "low" });
   }
   const table = await project.runOk(["roles", "--role", "qa", "--capabilities", LIVE_CAPS_FILE, "--json"]);
   assert.equal((JSON.parse(table.ctx.out()) as RolesReport).roles.qa?.delegateTask?.target.model, "claude-haiku-5-5");
   project.projectConfig(JSON.stringify({ version: 1, roles: { qa: { fast: true, chain: [{ driver: "claudeAgent", model: "claude-haiku-5-5", effort: "medium" }, { driver: "claudeAgent", model: "claude-sonnet-5-5", effort: "low" }] } } }));
   const unsupported = await project.runOk(["roles", "--role", "qa", "--capabilities", LIVE_CAPS_FILE]);
-  assert.match(unsupported.ctx.out(), /rung 1 claudeAgent\/claude-haiku-5-5: fast mode is not offered/);
+  assert.match(unsupported.ctx.out(), /candidate 1 claudeAgent\/claude-haiku-5-5: fast mode is not offered/);
   const fallback = await project.runOk(["route", "qa", "--capabilities", CAPS_FILE]);
   assert.equal((JSON.parse(fallback.ctx.out()) as RouteOutput).delegateTask?.target.model, "claude-sonnet-5-5");
   project.projectConfig(JSON.stringify({ version: 1, roles: {
     execute: { fast: true, chain: [{ driver: "claudeAgent", model: "claude-opus-5-5", options: { fastMode: false } }] },
-    research: { chain: [{ driver: "codex", model: "gpt-6.1-sol", options: { serviceTier: "default" } }] },
+    research: { chain: [{ driver: "codex", model: "gpt-6.2-sol", options: { serviceTier: "default" } }] },
   } }));
   for (const [role, expected] of [["execute", { fastMode: false }], ["research", { serviceTier: "default" }]] as const) {
     for (const capabilities of [[], ["--capabilities", LIVE_CAPS_FILE]]) {
@@ -477,10 +477,10 @@ test("brief --save writes the full brief, records the start, and returns a short
   assert.deepEqual(output.fallbacks, full.fallbacks);
   assert.match(text, new RegExp(`^- CLI: Run omt as ${command.replaceAll(".", "\\.")}\\.$`, "m"));
   assert.match(text, /^- Tests: write no tests and no failure proofs\./m);
-  assert.equal(output.targetKey, "codex/gpt-6.1-sol");
+  assert.equal(output.targetKey, "codex/gpt-6.2-sol");
   assert.equal(output.ledger?.done, `${command} ledger done ${id} --verdict <VERDICT>`);
   const started = JSON.parse((await project.runOk(["ledger", "list", "--plan", "p", "--json"])).ctx.out()) as { clientRequestId: string; status: string; targetKey: string }[];
-  assert.deepEqual(started.map((entry) => [entry.clientRequestId, entry.status, entry.targetKey]), [[id, "dispatched", "codex/gpt-6.1-sol"]]);
+  assert.deepEqual(started.map((entry) => [entry.clientRequestId, entry.status, entry.targetKey]), [[id, "dispatched", "codex/gpt-6.2-sol"]]);
   const closed = await project.runOk(["ledger", "done", id, "--verdict", "VERIFIED", "--task-id", "task-u4"]);
   assert.match(closed.ctx.out(), /^closed U4 qa r2 a3\nsettle: /);
   assert.match((await project.runOk(["ledger", "stats", "--plan", "p"])).ctx.out(), /^active: 0$/m);

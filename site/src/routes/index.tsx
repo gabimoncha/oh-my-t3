@@ -415,7 +415,7 @@ function Skills() {
               <span className="meta">Find</span> explore, research
             </li>
             <li>
-              <span className="meta">Check</span> plan-review, review, oracle, guardrail, qa
+              <span className="meta">Check</span> plan-review, review, oracle, qa
             </li>
             <li>
               <span className="meta">Build</span> execute, ui, design, writing

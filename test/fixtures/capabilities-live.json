@@ -1,7 +1,7 @@
 {
   "parentThreadId": "thread:delegated-task:command%3Amcp%3Ad24a28e6-221b-4b04-8f74-d2203395bd12%3Adelegate-task%3Aomt%253Aworkflow-profiles%253AU4%253Aexecute%253Ar1%253Aa1",
   "inheritedProviderInstanceId": "codex",
-  "inheritedModel": "gpt-6.1-sol",
+  "inheritedModel": "gpt-6.2-sol",
   "runtimeMode": "full-access",
   "interactionMode": "default",
   "providers": [
@@ -11,8 +11,8 @@
       "displayName": "Codex",
       "models": [
         {
-          "id": "gpt-6.1-sol",
-          "label": "GPT-6.1-Sol",
+          "id": "gpt-6.2-sol",
+          "label": "GPT-6.2-Sol",
           "options": [
             {
               "id": "reasoningEffort",
@@ -68,8 +68,8 @@
           ]
         },
         {
-          "id": "gpt-6-astra",
-          "label": "GPT-6-Astra",
+          "id": "gpt-6.2-astra",
+          "label": "GPT-6.2-Astra",
           "options": [
             {
               "id": "reasoningEffort",
@@ -235,6 +235,52 @@
               "id": "fastMode",
               "label": "Fast Mode",
               "type": "boolean"
+            }
+          ]
+        },
+        {
+          "id": "claude-fable-5-2",
+          "label": "Claude Fable 5.2",
+          "options": [
+            {
+              "id": "effort",
+              "label": "Reasoning",
+              "type": "select",
+              "options": [
+                {
+                  "id": "low",
+                  "label": "Low"
+                },
+                {
+                  "id": "medium",
+                  "label": "Medium",
+                  "isDefault": true
+                },
+                {
+                  "id": "high",
+                  "label": "High"
+                },
+                {
+                  "id": "xhigh",
+                  "label": "Extra High"
+                },
+                {
+                  "id": "max",
+                  "label": "Max"
+                },
+                {
+                  "id": "ultracode",
+                  "label": "Ultracode",
+                  "description": "xhigh effort plus multi-agent workflow orchestration"
+                },
+                {
+                  "id": "ultrathink",
+                  "label": "Ultrathink"
+                }
+              ],
+              "promptInjectedValues": [
+                "ultrathink"
+              ]
             }
           ]
         },

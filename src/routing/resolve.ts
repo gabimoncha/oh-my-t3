@@ -11,24 +11,24 @@ import type {
   RoleResolution,
   RolesReport,
   RouteOutput,
-  Rung,
-  RungAttempt,
+  Candidate,
+  CandidateAttempt,
 } from "../types.ts";
 import { OmtError } from "../util/errors.ts";
 import { mapEffort } from "./effort.ts";
-import { configuredDrivers, crossFamilyOrder, rungFamily, workerFamily } from "./family.ts";
+import { configuredDrivers, crossFamilyOrder, candidateFamily, workerFamily } from "./family.ts";
 
 export interface ResolveOptions {
   models?: Record<string, ModelConfig>;
   against?: string; // provider instance id or driver kind of the worker whose change the task reviews
   notes?: string[]; // role-level notes to put before the notes that resolveRole adds
-  drivers?: Map<string, string>; // provider instance id to driver kind (configuredDrivers), for the worker and for every rung
-  harnesses?: string[]; // the config's harnesses; a rung of another known driver fails
+  drivers?: Map<string, string>; // provider instance id to driver kind (configuredDrivers), for the worker and for every candidate
+  harnesses?: string[]; // the config's harnesses; a candidate of another known driver fails
 }
 
 const RUNTIME_RANK = ["approval-required", "auto-accept-edits", "auto", "full-access"];
 
-class RungFailure extends Error {}
+class CandidateFailure extends Error {}
 
 function modeCeiling(role: RoleConfig, caps: Capabilities): string | undefined {
   if (caps.interactionMode === "plan" && (role.access === "edit" || role.interactionMode === "default")) {
@@ -49,30 +49,30 @@ function providerOfDriver(driver: string, caps: Capabilities): ProviderCapabilit
   return inherited ?? ofKind.find((p) => p.canRunChildTask) ?? ofKind[0];
 }
 
-function findProvider(rung: Rung, caps: Capabilities, notes: string[]): ProviderCapability {
-  if (rung.provider !== undefined) {
-    const provider = caps.providers.find((p) => p.providerInstanceId === rung.provider);
+function findProvider(candidate: Candidate, caps: Capabilities, notes: string[]): ProviderCapability {
+  if (candidate.provider !== undefined) {
+    const provider = caps.providers.find((p) => p.providerInstanceId === candidate.provider);
     if (provider !== undefined) {
-      if (rung.driver !== undefined && provider.driverKind !== rung.driver) {
-        throw new RungFailure(
-          `provider instance ${rung.provider} has driver ${provider.driverKind}, not ${rung.driver}`,
+      if (candidate.driver !== undefined && provider.driverKind !== candidate.driver) {
+        throw new CandidateFailure(
+          `provider instance ${candidate.provider} has driver ${provider.driverKind}, not ${candidate.driver}`,
         );
       }
       return provider;
     }
-    const missing = `provider instance ${rung.provider} is not registered in T3`;
-    if (rung.driver === undefined) throw new RungFailure(missing);
-    // The default rungs name the built-in instance ids. A T3 whose instances have other ids still runs them by driver.
-    const byDriver = providerOfDriver(rung.driver, caps);
-    if (byDriver === undefined) throw new RungFailure(`${missing}; no provider instance with driver ${rung.driver}`);
+    const missing = `provider instance ${candidate.provider} is not registered in T3`;
+    if (candidate.driver === undefined) throw new CandidateFailure(missing);
+    // The default candidates name the built-in instance ids. A T3 whose instances have other ids still runs them by driver.
+    const byDriver = providerOfDriver(candidate.driver, caps);
+    if (byDriver === undefined) throw new CandidateFailure(`${missing}; no provider instance with driver ${candidate.driver}`);
     notes.push(
-      `provider instance ${rung.provider} is not registered; using instance ${byDriver.providerInstanceId} of driver ${rung.driver}`,
+      `provider instance ${candidate.provider} is not registered; using instance ${byDriver.providerInstanceId} of driver ${candidate.driver}`,
     );
     return byDriver;
   }
-  if (rung.driver === undefined) throw new RungFailure("the rung names no provider or driver");
-  const provider = providerOfDriver(rung.driver, caps);
-  if (provider === undefined) throw new RungFailure(`no provider instance with driver ${rung.driver}`);
+  if (candidate.driver === undefined) throw new CandidateFailure("the candidate names no provider or driver");
+  const provider = providerOfDriver(candidate.driver, caps);
+  if (provider === undefined) throw new CandidateFailure(`no provider instance with driver ${candidate.driver}`);
   return provider;
 }
 
@@ -104,8 +104,8 @@ function makeTarget(
   return target;
 }
 
-function rungOptions(
-  rung: Rung,
+function candidateOptions(
+  candidate: Candidate,
   fast: boolean,
   descriptors: OptionDescriptor[] | undefined,
   driver: string | undefined,
@@ -114,13 +114,13 @@ function rungOptions(
   verified = false,
 ): Record<string, OptionValue> {
   const options: Record<string, OptionValue> = {};
-  if (rung.effort !== undefined) {
-    const mapped = mapEffort(rung.effort, descriptors, driver);
+  if (candidate.effort !== undefined) {
+    const mapped = mapEffort(candidate.effort, descriptors, driver);
     Object.assign(options, mapped.options);
     if (mapped.note !== undefined) notes.push(mapped.note);
   }
-  if (fast) Object.assign(options, fastOptions(rung.model, descriptors ?? (verified ? [] : undefined), driver, provider, notes));
-  return { ...options, ...rung.options };
+  if (fast) Object.assign(options, fastOptions(candidate.model, descriptors ?? (verified ? [] : undefined), driver, provider, notes));
+  return { ...options, ...candidate.options };
 }
 
 function fastOptions(
@@ -143,63 +143,63 @@ function fastOptions(
   return {};
 }
 
-function resolveVerified(rung: Rung, fast: boolean, caps: Capabilities, notes: string[]): ResolvedTarget {
-  const provider = findProvider(rung, caps, notes);
+function resolveVerified(candidate: Candidate, fast: boolean, caps: Capabilities, notes: string[]): ResolvedTarget {
+  const provider = findProvider(candidate, caps, notes);
   const id = provider.providerInstanceId;
   if (!provider.canRunChildTask) {
     const why = provider.constraints.length > 0 ? provider.constraints.join("; ") : "no reason given";
-    throw new RungFailure(`provider ${id} cannot run child tasks: ${why}`);
+    throw new CandidateFailure(`provider ${id} cannot run child tasks: ${why}`);
   }
   let model: ModelCapability | undefined;
   if (provider.models.length > 0) {
-    model = provider.models.find((m) => m.id === rung.model);
-    if (model === undefined) throw new RungFailure(`model ${rung.model} is not advertised by ${id}`);
+    model = provider.models.find((m) => m.id === candidate.model);
+    if (model === undefined) throw new CandidateFailure(`model ${candidate.model} is not advertised by ${id}`);
   } else {
     notes.push(`provider ${id} lists no models; T3 will check the model and its options`);
   }
-  const options = rungOptions(rung, fast, model?.options, provider.driverKind, id, notes, true);
+  const options = candidateOptions(candidate, fast, model?.options, provider.driverKind, id, notes, true);
   if (model !== undefined && model.options.length > 0) {
     const problems = optionProblems(options, model.options, model.id);
-    if (problems.length > 0) throw new RungFailure(`invalid options: ${problems.join("; ")}`);
+    if (problems.length > 0) throw new CandidateFailure(`invalid options: ${problems.join("; ")}`);
   } else if (model !== undefined && Object.keys(options).length > 0) {
     notes.push("the model advertises no options; T3 will not check them");
   }
-  return makeTarget({ providerInstanceId: id }, rung.model, options);
+  return makeTarget({ providerInstanceId: id }, candidate.model, options);
 }
 
-function resolveUnverified(rung: Rung, fast: boolean, notes: string[]): ResolvedTarget {
-  if (rung.provider === undefined && rung.driver === undefined) {
-    throw new RungFailure("the rung names no provider or driver");
+function resolveUnverified(candidate: Candidate, fast: boolean, notes: string[]): ResolvedTarget {
+  if (candidate.provider === undefined && candidate.driver === undefined) {
+    throw new CandidateFailure("the candidate names no provider or driver");
   }
-  const options = rungOptions(rung, fast, undefined, rung.driver ?? rung.provider, rung.provider ?? rung.driver as string, notes);
-  const ref = rung.provider !== undefined ? { providerInstanceId: rung.provider } : { driverKind: rung.driver as string };
-  return makeTarget(ref, rung.model, options);
+  const options = candidateOptions(candidate, fast, undefined, candidate.driver ?? candidate.provider, candidate.provider ?? candidate.driver as string, notes);
+  const ref = candidate.provider !== undefined ? { providerInstanceId: candidate.provider } : { driverKind: candidate.driver as string };
+  return makeTarget(ref, candidate.model, options);
 }
 
-// The rung's driver kind when something names it: the registered provider, the rung's driver, or a configured rung.
-function knownDriver(rung: Rung, caps?: Capabilities, drivers?: Map<string, string>): string | undefined {
-  const registered = rung.provider !== undefined && caps?.providers.some((p) => p.providerInstanceId === rung.provider) === true;
-  if (registered || rung.driver !== undefined) return rungFamily(rung, caps, drivers);
-  return rung.provider === undefined ? undefined : drivers?.get(rung.provider);
+// The candidate's driver kind when something names it: the registered provider, the candidate's driver, or a configured candidate.
+function knownDriver(candidate: Candidate, caps?: Capabilities, drivers?: Map<string, string>): string | undefined {
+  const registered = candidate.provider !== undefined && caps?.providers.some((p) => p.providerInstanceId === candidate.provider) === true;
+  if (registered || candidate.driver !== undefined) return candidateFamily(candidate, caps, drivers);
+  return candidate.provider === undefined ? undefined : drivers?.get(candidate.provider);
 }
 
-function harnessFailure(rung: Rung, options: ResolveOptions, caps?: Capabilities): string | undefined {
+function harnessFailure(candidate: Candidate, options: ResolveOptions, caps?: Capabilities): string | undefined {
   const { harnesses } = options;
   if (harnesses === undefined) return undefined;
-  const driver = knownDriver(rung, caps, options.drivers);
+  const driver = knownDriver(candidate, caps, options.drivers);
   if (driver === undefined || harnesses.includes(driver)) return undefined;
   return `harness ${driver} is not enabled (harnesses: ${harnesses.join(", ")}); run omt detect`;
 }
 
-function attempt(index: number, rung: Rung, fast: boolean, caps: Capabilities | undefined, ceiling: string | undefined): RungAttempt {
+function attempt(index: number, candidate: Candidate, fast: boolean, caps: Capabilities | undefined, ceiling: string | undefined): CandidateAttempt {
   const notes: string[] = [];
-  if (ceiling !== undefined) return { index, rung, ok: false, reason: ceiling, notes };
+  if (ceiling !== undefined) return { index, candidate, ok: false, reason: ceiling, notes };
   try {
-    const target = caps === undefined ? resolveUnverified(rung, fast, notes) : resolveVerified(rung, fast, caps, notes);
-    return { index, rung, ok: true, notes, target };
+    const target = caps === undefined ? resolveUnverified(candidate, fast, notes) : resolveVerified(candidate, fast, caps, notes);
+    return { index, candidate, ok: true, notes, target };
   } catch (error) {
-    if (!(error instanceof RungFailure)) throw error;
-    return { index, rung, ok: false, reason: error.message, notes };
+    if (!(error instanceof CandidateFailure)) throw error;
+    return { index, candidate, ok: false, reason: error.message, notes };
   }
 }
 
@@ -216,7 +216,7 @@ export function resolveRole(
   if (options.against !== undefined) {
     if (role.crossFamily === true) {
       const worker = workerFamily(options.against, caps, drivers);
-      if (role.chain.some((rung) => rungFamily(rung, caps, drivers) === worker)) {
+      if (role.chain.some((candidate) => candidateFamily(candidate, caps, drivers) === worker)) {
         family = worker;
         order = crossFamilyOrder(role.chain, family, caps, drivers);
         const moved = order.some((index, position) => index !== position);
@@ -227,7 +227,7 @@ export function resolveRole(
         );
       } else {
         notes.push(
-          `cross-family: no rung is in family ${worker}; check that --against names a driver or a configured provider, or pass --capabilities`,
+          `cross-family: no candidate is in family ${worker}; check that --against names a driver or a configured provider, or pass --capabilities`,
         );
       }
     } else {
@@ -236,15 +236,15 @@ export function resolveRole(
   }
   const ceiling = caps === undefined ? undefined : modeCeiling(role, caps);
   const attempts = order.map((index) => {
-    const rung = role.chain[index] as Rung;
-    const filtered = harnessFailure(rung, options, caps);
-    if (filtered !== undefined) return { index, rung, ok: false, reason: filtered, notes: [] };
-    const model = options.models !== undefined && Object.hasOwn(options.models, rung.model) ? options.models[rung.model] : undefined;
-    return attempt(index, rung, rung.fast ?? role.fast ?? model?.fast ?? false, caps, ceiling);
+    const candidate = role.chain[index] as Candidate;
+    const filtered = harnessFailure(candidate, options, caps);
+    if (filtered !== undefined) return { index, candidate, ok: false, reason: filtered, notes: [] };
+    const model = options.models !== undefined && Object.hasOwn(options.models, candidate.model) ? options.models[candidate.model] : undefined;
+    return attempt(index, candidate, candidate.fast ?? role.fast ?? model?.fast ?? false, caps, ceiling);
   });
   const chosen = attempts.find((a) => a.ok);
-  if (family !== undefined && chosen !== undefined && rungFamily(chosen.rung, caps, drivers) === family) {
-    notes.push(`cross-family: no rung outside family ${family} is available; the same family reviews`);
+  if (family !== undefined && chosen !== undefined && candidateFamily(chosen.candidate, caps, drivers) === family) {
+    notes.push(`cross-family: no candidate outside family ${family} is available; the same family reviews`);
   }
   const targets = attempts.flatMap((a) => (a.target === undefined ? [] : [a.target]));
   const [first, ...fallbacks] = targets;
@@ -302,8 +302,8 @@ export function resolveAll(config: OmtConfig, caps?: Capabilities, only?: string
 export function toRouteOutput(resolution: RoleResolution): RouteOutput {
   const notes: string[] = [...(resolution.notes ?? [])];
   for (const a of resolution.attempts) {
-    for (const note of a.notes) notes.push(`rung ${a.index + 1}: ${note}`);
-    if (a.reason !== undefined) notes.push(`rung ${a.index + 1}: ${a.reason}`);
+    for (const note of a.notes) notes.push(`candidate ${a.index + 1}: ${note}`);
+    if (a.reason !== undefined) notes.push(`candidate ${a.index + 1}: ${a.reason}`);
   }
   return {
     role: resolution.role,

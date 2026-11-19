@@ -28,7 +28,6 @@ const KEY_DOCS = {
   "workflow.review.ci": "What a review does with CI. off: ignore it. check: read it. fix: repair failing checks.",
   "workflow.review.verify": "changed-flows: run the flows that the change touches. off: skip.",
   "workflow.review.tests": "offer: offer to add missing tests. off: do not.",
-  "workflow.review.guardrails": "propose: suggest checks and rules that would have caught each finding. off: do not.",
   "workflow.review.crap": "report: report the CRAP score (complexity against coverage) of changed code. off: do not.",
   "workflow.git.branchCommits": "auto: skills commit to a work branch without asking. ask: they ask first.",
   "workflow.git.pullRequests": "auto: skills open a PR without asking. ask: they ask first. off: they never open one.",
@@ -36,7 +35,7 @@ const KEY_DOCS = {
   "workflow.git.merge": "auto: skills may merge a PR without asking. ask: they ask first.",
   "workflow.git.owners": "GitHub owners whose repos count as yours. Repos of any other owner always ask first.",
   "workflow.git.maxPrFiles": "Most changed files in one PR. Over it, skills split the branch into stacked PRs. 0 means no limit.",
-  harnesses: "The T3 drivers that omt may use, such as codex. A rung on another driver fails. With no key, every driver may run.",
+  harnesses: "The T3 drivers that omt may use, such as codex. A candidate on another driver fails. With no key, every driver may run.",
   profile: "The profile that omt uses when a command does not name one.",
 };
 
@@ -47,9 +46,9 @@ const ROLE_FIELD_DOCS = {
   t3Role: "The role that T3 gives to the child task.",
   interactionMode: "The T3 interaction mode of the task. inherit uses the mode of the parent thread.",
   runtimeMode: "How T3 asks for permissions during the task. inherit uses the mode of the parent thread.",
-  crossFamily: "With --against, try the rungs of the other model family first.",
+  crossFamily: "With --against, try the candidates of the other model family first.",
   fast: "Ask for fast mode on models that support it.",
-  chain: "The models to try, in order. The first rung that T3 accepts runs.",
+  chain: "The models to try, in order. The first candidate that T3 accepts runs.",
 };
 
 function docFor(path) {
@@ -80,7 +79,6 @@ function summaryFor(path) {
     "workflow.review.ci": "Read or repair pull request checks.",
     "workflow.review.verify": "Check the flows that the change affects.",
     "workflow.review.tests": "Offer to add missing tests.",
-    "workflow.review.guardrails": "Propose checks that catch these findings.",
     "workflow.review.crap": "Report code complexity against test coverage.",
     "workflow.git.branchCommits": "Commit to work branches automatically or ask first.",
     "workflow.git.pullRequests": "Open pull requests automatically, ask, or skip.",
@@ -179,7 +177,7 @@ function fmt(value) {
   if (typeof value === "string") return value;
   if (Array.isArray(value)) {
     if (value.length > 0 && value.every((item) => item && typeof item === "object" && "model" in item)) {
-      return `[${value.map((rung) => [rung.model, rung.effort].filter(Boolean).join(" ")).join(", ")}]`;
+      return `[${value.map((candidate) => [candidate.model, candidate.effort].filter(Boolean).join(" ")).join(", ")}]`;
     }
     return `[${value.map(fmt).join(", ")}]`;
   }
@@ -617,8 +615,8 @@ function knownKinds() {
   const kinds = new Set();
   for (const entry of [...app.explain.root, ...app.explain.effective]) {
     if (entry.path[0] === "roles" && entry.path[2] === "chain" && Array.isArray(entry.value)) {
-      for (const rung of entry.value) {
-        if (rung && typeof rung === "object") kinds.add(rung.driver || rung.provider);
+      for (const candidate of entry.value) {
+        if (candidate && typeof candidate === "object") kinds.add(candidate.driver || candidate.provider);
       }
     }
   }
@@ -786,7 +784,7 @@ function render() {
     return;
   }
   renderPending = false;
-  // data-fid names a control by the row id of its list item, so focus follows a rung or an option that moved.
+  // data-fid names a control by the row id of its list item, so focus follows a candidate or an option that moved.
   const data = document.activeElement && document.activeElement.dataset;
   const focused = data && (data.fid ? ["fid", data.fid] : data.fk ? ["fk", data.fk] : undefined);
   const active = document.activeElement;
@@ -1012,7 +1010,7 @@ function rawOf(kind, value) {
 function newRoleForm() {
   const vocab = app.state.vocab;
   const draft = app.drafts.newRole
-    || (app.drafts.newRole = fresh({}, (d) => Object.assign(d, { name: "", description: "", access: "read-only", rung: "", error: "" })));
+    || (app.drafts.newRole = fresh({}, (d) => Object.assign(d, { name: "", description: "", access: "read-only", candidate: "", error: "" })));
   const disabled = !canEdit();
   const errorEl = h("p", { class: "err small", text: draft.error });
   const field = (label, key, placeholder, sans) => {
@@ -1027,7 +1025,7 @@ function newRoleForm() {
     field("description", "description", "What the role does", true),
     h("div", { class: "ffield" }, h("span", { class: "flabel", text: "access" }),
       seg(["read-only", "edit"], draft.access, pickAccess, { label: "access", disabled, fk: "nr:access", small: true })),
-    field("first rung", "rung", "provider · model · effort"),
+    field("first candidate", "candidate", "provider · model · effort"),
     errorEl,
     staleNotice("newRole"),
     h("div", { class: "btnrow" },
@@ -1035,17 +1033,17 @@ function newRoleForm() {
         type: "button", class: "btn primary", text: "Add changes", disabled: disabled || stale(draft), "data-fk": "nr:queue",
         onclick: () => {
           if (stale(draft)) return;
-          const parts = draft.rung.split(/[·\s]+/).filter(Boolean);
+          const parts = draft.candidate.split(/[·\s]+/).filter(Boolean);
           const names = roleNames();
           if (!new RegExp(vocab.roleNamePattern).test(draft.name)) draft.error = `name must match ${vocab.roleNamePattern}`;
           else if (names.includes(draft.name)) draft.error = `role ${draft.name} exists`;
           else if (!draft.description.trim()) draft.error = "description is required";
-          else if (parts.length < 2) draft.error = "first rung needs a provider and a model";
+          else if (parts.length < 2) draft.error = "first candidate needs a provider and a model";
           else if (parts[2] && !vocab.effort.includes(parts[2])) draft.error = `effort must be one of ${vocab.effort.join(", ")}`;
           else {
-            const rung = { provider: parts[0], model: parts[1] };
-            if (parts[2]) rung.effort = parts[2];
-            if (!enqueue(app.editIn, ["roles", draft.name], { value: { description: draft.description.trim(), access: draft.access, chain: [rung] } }, draft.hash)) {
+            const candidate = { provider: parts[0], model: parts[1] };
+            if (parts[2]) candidate.effort = parts[2];
+            if (!enqueue(app.editIn, ["roles", draft.name], { value: { description: draft.description.trim(), access: draft.access, chain: [candidate] } }, draft.hash)) {
               render();
               return;
             }
@@ -1199,8 +1197,8 @@ function roleEditor(name) {
       queueBtn));
 }
 
-// The option lines of one rung with their typed keys. A typed key stays in store.raw until the chain takes it: an
-// empty key removes its option, and a key that repeats another key of the rung, or that a plain object cannot hold
+// The option lines of one candidate with their typed keys. A typed key stays in store.raw until the chain takes it: an
+// empty key removes its option, and a key that repeats another key of the candidate, or that a plain object cannot hold
 // as its own key, has a problem and stops the queue.
 function optionLines(options, store) {
   const entries = Object.entries(options || {});
@@ -1222,7 +1220,7 @@ function optionFormHasText(store) {
 
 function optionKeyProblem(key, others) {
   if (key === "__proto__") return "this key is not allowed";
-  if (key !== "" && others.includes(key)) return "another option of this rung has this key";
+  if (key !== "" && others.includes(key)) return "another option of this candidate has this key";
   return null;
 }
 
@@ -1231,15 +1229,15 @@ function optionKeyProblem(key, others) {
 function resolveOptions(chain, store) {
   const ids = rowIds(store, chain.length);
   let blocked = false;
-  const next = chain.map((rung, at) => {
+  const next = chain.map((candidate, at) => {
     const opts = store.opts && store.opts.get(ids[at]);
-    if (!opts || !rung.options) return rung;
-    const lines = optionLines(rung.options, opts);
-    if (!lines.some((line) => line.typed)) return rung;
+    if (!opts || !candidate.options) return candidate;
+    const lines = optionLines(candidate.options, opts);
+    if (!lines.some((line) => line.typed)) return candidate;
     if (lines.some((line) => line.problem)) blocked = true;
     const options = {};
     for (const line of lines) if (line.key !== "") options[line.key] = line.value;
-    const out = { ...rung, options };
+    const out = { ...candidate, options };
     if (Object.keys(options).length === 0) delete out.options;
     return out;
   });
@@ -1248,13 +1246,13 @@ function resolveOptions(chain, store) {
 
 // One line per option. A value keeps its type: a string stays a string, also "true", and a boolean stays a boolean.
 // Each action reads the options through getOptions and finds its line by row id, because a click can run before the
-// render of an earlier change that removed or reordered a line. store belongs to one rung id, so the new-option form
-// stays with its rung when the rung moves and goes away when the rung is removed.
-function optionsEditor(getOptions, index, disabled, onChange, store, rungId, onInput) {
+// render of an earlier change that removed or reordered a line. store belongs to one candidate id, so the new-option form
+// stays with its candidate when the candidate moves and goes away when the candidate is removed.
+function optionsEditor(getOptions, index, disabled, onChange, store, candidateId, onInput) {
   const entries = Object.entries(getOptions() || {});
-  const label = `rung ${index + 1}`;
-  const fk = `rung:${index}:opt`;
-  const fid = `rung#${rungId}:opt`;
+  const label = `candidate ${index + 1}`;
+  const fk = `candidate:${index}:opt`;
+  const fid = `candidate#${candidateId}:opt`;
   const now = () => Object.entries(getOptions() || {});
   const ids = () => rowIds(store, now().length);
   const commit = (next, nextIds, typing) => {
@@ -1275,7 +1273,7 @@ function optionsEditor(getOptions, index, disabled, onChange, store, rungId, onI
     if (at === -1) return;
     commit(current.map((entry, other) => (other === at ? change(entry) : entry)), rowIdsNow, typing);
   };
-  // The typed text of a line stays by its row id until change, so that a render or a move of the rung keeps it. A
+  // The typed text of a line stays by its row id until change, so that a render or a move of the candidate keeps it. A
   // key with a problem stays typed also after change.
   store.raw ||= new Map();
   const typed = (input, name, apply) => {
@@ -1388,23 +1386,23 @@ function optionsEditor(getOptions, index, disabled, onChange, store, rungId, onI
 }
 
 // getChain returns the current draft chain. Each action reads it when it runs, not when the control was rendered,
-// and finds its rung by row id, because render waits while a pointer is down, so a click can follow a change event
-// that removed or moved a rung before the next render. store keeps the row ids; its owner resets it with the chain.
+// and finds its candidate by row id, because render waits while a pointer is down, so a click can follow a change event
+// that removed or moved a candidate before the next render. store keeps the row ids; its owner resets it with the chain.
 // onChange gets typing = true for a keystroke: the owner saves the chain and does not render, so that the field keeps
 // its caret. store.raw keeps the typed text of each field by row id until change. onInput runs on typing that changes
 // no value, as in a new-option form. The owner then keeps the chain on screen as its draft chain, so that the form
-// keeps its rung when a new state changes the chain.
-// The catalog provider and model of a rung, and a short status for the rung card.
-function catalogFit(rung) {
+// keeps its candidate when a new state changes the chain.
+// The catalog provider and model of a candidate, and a short status for the candidate card.
+function catalogFit(candidate) {
   const catalog = app.state.catalog || { source: "local", providers: [] };
-  const key = rung.provider || rung.driver;
-  const provider = catalog.providers.find((item) => item.id === key) || (rung.provider ? undefined : catalog.providers.find((item) => item.driver === key));
-  const model = provider ? provider.models.find((item) => item.id === rung.model) : undefined;
+  const key = candidate.provider || candidate.driver;
+  const provider = catalog.providers.find((item) => item.id === key) || (candidate.provider ? undefined : catalog.providers.find((item) => item.driver === key));
+  const model = provider ? provider.models.find((item) => item.id === candidate.model) : undefined;
   if (!key) return { provider, model, status: "Choose a provider" };
   if (!provider) return { provider, model, problem: true, status: catalog.source === "t3" ? "Not in T3" : "Not detected", title: `No ${catalog.source === "t3" ? "T3 provider" : "detected harness"} named ${key}` };
   if (!provider.available) return { provider, model, problem: true, status: catalog.source === "t3" ? "T3 cannot run it" : "Not detected", title: provider.reason };
   if (catalog.source !== "t3") return { provider, model, status: "Unverified", title: provider.reason };
-  if (rung.model && !model) return { provider, model, problem: true, status: "Model not in T3", title: `${provider.label} does not list ${rung.model}` };
+  if (candidate.model && !model) return { provider, model, problem: true, status: "Model not in T3", title: `${provider.label} does not list ${candidate.model}` };
   return { provider, model, status: "Available in T3", title: provider.reason };
 }
 
@@ -1412,29 +1410,29 @@ function withCurrent(values, current) {
   return current && !values.includes(current) ? [...values, current] : values;
 }
 
-function providerPicker(rung, index, id, disabled, patch) {
+function providerPicker(candidate, index, id, disabled, patch) {
   const providers = (app.state.catalog || { providers: [] }).providers;
-  const current = rung.provider || rung.driver || "";
+  const current = candidate.provider || candidate.driver || "";
   const options = [{ value: "", label: "Choose a provider" }, ...providers.map((item) => ({ value: item.id, label: `${item.label}${item.available ? "" : " (not available)"}` }))];
   if (current && !providers.some((item) => item.id === current)) options.push({ value: current, label: `${current} (not detected)` });
   return select(options, current, (value) => {
     const provider = providers.find((item) => item.id === value);
-    const keep = provider && provider.models.some((model) => model.id === rung.model);
-    patch({ provider: value || undefined, driver: provider ? provider.driver : rung.driver, model: keep ? rung.model : provider && provider.models.length ? provider.models[0].id : rung.model });
-  }, { label: `provider of rung ${index + 1}`, disabled, fid: `rung#${id}:provider`, wide: true });
+    const keep = provider && provider.models.some((model) => model.id === candidate.model);
+    patch({ provider: value || undefined, driver: provider ? provider.driver : candidate.driver, model: keep ? candidate.model : provider && provider.models.length ? provider.models[0].id : candidate.model });
+  }, { label: `provider of candidate ${index + 1}`, disabled, fid: `candidate#${id}:provider`, wide: true });
 }
 
-function modelPicker(rung, fit, index, id, disabled, patch, custom) {
+function modelPicker(candidate, fit, index, id, disabled, patch, custom) {
   const models = fit.provider ? fit.provider.models : [];
   const options = [{ value: "", label: "Choose a model" }, ...models.map((model) => ({ value: model.id, label: model.label || model.id }))];
-  if (rung.model && !models.some((model) => model.id === rung.model)) options.push({ value: rung.model, label: `${rung.model} (not listed)` });
+  if (candidate.model && !models.some((model) => model.id === candidate.model)) options.push({ value: candidate.model, label: `${candidate.model} (not listed)` });
   options.push({ value: "__other", label: "Other model…" });
-  return select(options, rung.model || "", (value) => {
+  return select(options, candidate.model || "", (value) => {
     if (value === "__other") return custom();
     const model = models.find((item) => item.id === value);
-    const effort = model && rung.effort && model.efforts.length && !model.efforts.includes(rung.effort) ? undefined : rung.effort;
+    const effort = model && candidate.effort && model.efforts.length && !model.efforts.includes(candidate.effort) ? undefined : candidate.effort;
     patch({ model: value || undefined, effort });
-  }, { label: `model of rung ${index + 1}`, disabled, fid: `rung#${id}:model`, wide: true });
+  }, { label: `model of candidate ${index + 1}`, disabled, fid: `candidate#${id}:model`, wide: true });
 }
 
 function chainEditor(getChain, onChange, disabled, errors, store, onInput) {
@@ -1467,7 +1465,7 @@ function chainEditor(getChain, onChange, disabled, errors, store, onInput) {
     const to = index + delta;
     if (index === -1 || !reorder(index, to)) return;
     requestAnimationFrame(() => {
-      const target = document.querySelector(`[data-fid="rung#${id}:provider"]`);
+      const target = document.querySelector(`[data-fid="candidate#${id}:provider"]`);
       if (target) target.focus();
     });
   };
@@ -1476,15 +1474,15 @@ function chainEditor(getChain, onChange, disabled, errors, store, onInput) {
   const models = new Set();
   for (const entry of app.explain.effective) {
     if (entry.path[0] === "roles" && entry.path[2] === "chain" && Array.isArray(entry.value)) {
-      for (const rung of entry.value) models.add(rung.model);
+      for (const candidate of entry.value) models.add(candidate.model);
     }
   }
-  const rows = chain.map((rung, index) => {
+  const rows = chain.map((candidate, index) => {
     const id = renderIds[index];
     const text = (key, value, label) => {
       const name = `${id}:${key}`;
       const input = h("input", { type: "text", class: "cell-input", value: store.raw.has(name) ? store.raw.get(name) : value || "", disabled,
-        "aria-label": `${label} of rung ${index + 1}`, "data-fk": `rung:${index}:${key}`, "data-fid": `rung#${id}:${key}`, list: key === "provider" || key === "model" ? `${listId}-${key}` : undefined });
+        "aria-label": `${label} of candidate ${index + 1}`, "data-fk": `candidate:${index}:${key}`, "data-fid": `candidate#${id}:${key}`, list: key === "provider" || key === "model" ? `${listId}-${key}` : undefined });
       input.addEventListener("input", () => {
         store.raw.set(name, input.value);
         update(id, { [key]: input.value.trim() || undefined }, true);
@@ -1500,17 +1498,17 @@ function chainEditor(getChain, onChange, disabled, errors, store, onInput) {
       const at = indexOf(id);
       return at === -1 ? undefined : (getChain()[at] || {}).options;
     }, index, disabled, (options, typing) => update(id, { options }, typing), store.opts.get(id), id, onInput);
-    const driver = rung.driver || (["codex", "claudeAgent", "cursor", "opencode", "pi", "grok"].includes(rung.provider) ? rung.provider : undefined);
+    const driver = candidate.driver || (["codex", "claudeAgent", "cursor", "opencode", "pi", "grok"].includes(candidate.provider) ? candidate.provider : undefined);
     const enabled = displayedLeaf(["harnesses"]).value;
     const excluded = driver && Array.isArray(enabled) && !enabled.includes(driver);
-    const fit = catalogFit(rung);
-    const row = h("article", { class: `rung-card${excluded ? " excluded" : ""}`, draggable: disabled ? undefined : "true", "data-index": String(index) },
-      h("header", { class: "rung-heading" }, h("span", { class: "handle", "aria-hidden": "true", text: "⋮⋮" }),
+    const fit = catalogFit(candidate);
+    const row = h("article", { class: `candidate-card${excluded ? " excluded" : ""}`, draggable: disabled ? undefined : "true", "data-index": String(index) },
+      h("header", { class: "candidate-heading" }, h("span", { class: "handle", "aria-hidden": "true", text: "⋮⋮" }),
         h("code", { class: "accent", text: `#${index + 1}` }), h("strong", { text: index ? "Fallback" : "First choice" }),
         h("span", { class: "spacer" }), h("small", { class: excluded || fit.problem ? "warning-text" : "muted", title: fit.title, text: excluded ? "Disabled by harnesses" : fit.status }),
-        h("button", { type: "button", class: "icon", text: "↑", "aria-label": `Move rung ${index + 1} up`, disabled: disabled || index === 0, "data-fid": `rung#${id}:up`, onclick: () => move(id, -1) }),
-        h("button", { type: "button", class: "icon", text: "↓", "aria-label": `Move rung ${index + 1} down`, disabled: disabled || index === chain.length - 1, "data-fid": `rung#${id}:down`, onclick: () => move(id, 1) }),
-        h("button", { type: "button", class: "icon", text: "×", "aria-label": `Remove rung ${index + 1}`, disabled: disabled || chain.length <= vocab.chainMin, "data-fid": `rung#${id}:rm`,
+        h("button", { type: "button", class: "icon", text: "↑", "aria-label": `Move candidate ${index + 1} up`, disabled: disabled || index === 0, "data-fid": `candidate#${id}:up`, onclick: () => move(id, -1) }),
+        h("button", { type: "button", class: "icon", text: "↓", "aria-label": `Move candidate ${index + 1} down`, disabled: disabled || index === chain.length - 1, "data-fid": `candidate#${id}:down`, onclick: () => move(id, 1) }),
+        h("button", { type: "button", class: "icon", text: "×", "aria-label": `Remove candidate ${index + 1}`, disabled: disabled || chain.length <= vocab.chainMin, "data-fid": `candidate#${id}:rm`,
           onclick: () => {
             const at = indexOf(id);
             if (at === -1 || getChain().length <= vocab.chainMin) return;
@@ -1518,18 +1516,18 @@ function chainEditor(getChain, onChange, disabled, errors, store, onInput) {
             store.opts.delete(id);
             onChange(getChain().filter((_, other) => other !== at));
           } })),
-      h("div", { class: "rung-fields" },
-        h("label", null, h("span", { class: "muted", text: "Provider" }), providerPicker(rung, index, id, disabled, (patch) => update(id, patch))),
-        h("label", null, h("span", { class: "muted", text: "Model" }), store.custom?.has(`${id}:model`) || (rung.model && !fit.provider) ? text("model", rung.model, "model")
-          : modelPicker(rung, fit, index, id, disabled, (patch) => update(id, patch), () => { (store.custom ||= new Set()).add(`${id}:model`); render(); })),
-        h("label", null, h("span", { class: "muted", text: "Effort" }), select(["", ...(fit.model && fit.model.efforts.length ? withCurrent(fit.model.efforts, rung.effort) : vocab.effort)].map((value) => ({ value, label: value || "Inherit" })), rung.effort || "",
-          (value) => update(id, { effort: value || undefined }), { label: `effort of rung ${index + 1}`, disabled, fid: `rung#${id}:effort` }))),
-      h("div", { class: "rung-fast" }, h("span", { class: "muted", text: "Fast" }),
-        seg([{ value: "inherit", label: "Inherit" }, { value: "on", label: "On", disabled: fit.model?.fast === false && rung.fast !== true }, { value: "off", label: "Off" }], rung.fast === undefined ? "inherit" : rung.fast ? "on" : "off",
-          (value) => update(id, { fast: value === "inherit" ? undefined : value === "on" }), { label: `fast of rung ${index + 1}`, disabled, fk: `rung#${id}:fast` }),
+      h("div", { class: "candidate-fields" },
+        h("label", null, h("span", { class: "muted", text: "Provider" }), providerPicker(candidate, index, id, disabled, (patch) => update(id, patch))),
+        h("label", null, h("span", { class: "muted", text: "Model" }), store.custom?.has(`${id}:model`) || (candidate.model && !fit.provider) ? text("model", candidate.model, "model")
+          : modelPicker(candidate, fit, index, id, disabled, (patch) => update(id, patch), () => { (store.custom ||= new Set()).add(`${id}:model`); render(); })),
+        h("label", null, h("span", { class: "muted", text: "Effort" }), select(["", ...(fit.model && fit.model.efforts.length ? withCurrent(fit.model.efforts, candidate.effort) : vocab.effort)].map((value) => ({ value, label: value || "Inherit" })), candidate.effort || "",
+          (value) => update(id, { effort: value || undefined }), { label: `effort of candidate ${index + 1}`, disabled, fid: `candidate#${id}:effort` }))),
+      h("div", { class: "candidate-fast" }, h("span", { class: "muted", text: "Fast" }),
+        seg([{ value: "inherit", label: "Inherit" }, { value: "on", label: "On", disabled: fit.model?.fast === false && candidate.fast !== true }, { value: "off", label: "Off" }], candidate.fast === undefined ? "inherit" : candidate.fast ? "on" : "off",
+          (value) => update(id, { fast: value === "inherit" ? undefined : value === "on" }), { label: `fast of candidate ${index + 1}`, disabled, fk: `candidate#${id}:fast` }),
         fit.model?.fast === false ? h("small", { class: "muted", text: "This model has no fast mode." }) : null),
-      h("details", { class: "rung-options" }, h("summary", { text: "Driver and raw options" }),
-        h("label", null, "Driver ", text("driver", rung.driver, "driver")), opts));
+      h("details", { class: "candidate-options" }, h("summary", { text: "Driver and raw options" }),
+        h("label", null, "Driver ", text("driver", candidate.driver, "driver")), opts));
     row.addEventListener("keydown", (event) => {
       if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
         event.preventDefault();
@@ -1547,16 +1545,16 @@ function chainEditor(getChain, onChange, disabled, errors, store, onInput) {
   });
   const roleName = app.route.screen === "role" ? app.route.name : null;
   const crossFamily = roleName && ((app.drafts.role?.fields.crossFamily === "__inherit" ? undefined : app.drafts.role?.fields.crossFamily) ?? displayedLeaf(["roles", roleName, "crossFamily"]).value);
-  const attempts = chain.map((rung, index) => ({ rung, index }));
-  if (crossFamily && app.against) attempts.sort((a, b) => Number((a.rung.driver || a.rung.provider) === app.against) - Number((b.rung.driver || b.rung.provider) === app.against));
+  const attempts = chain.map((candidate, index) => ({ candidate, index }));
+  if (crossFamily && app.against) attempts.sort((a, b) => Number((a.candidate.driver || a.candidate.provider) === app.against) - Number((b.candidate.driver || b.candidate.provider) === app.against));
   return h("section", { class: "chain" },
     h("datalist", { id: `${listId}-provider` }, knownKinds().map((value) => h("option", { value }))),
     h("datalist", { id: `${listId}-model` }, [...models].filter(Boolean).map((value) => h("option", { value }))),
     h("div", { class: "chain-head" }, h("h3", { text: "Model chain" }), h("span", { class: "muted", text: "Configured order. Drag or use the arrows to reorder." })),
     h("p", { class: "muted", text: "Changing the chain replaces the whole inherited list." }),
     errors.length ? h("p", { class: "err", text: errors.map((issue) => `${issue.path}: ${issue.message}`).join(" · ") }) : null,
-    h("div", { class: "chain-layout" }, h("div", { class: "rung-list" }, rows,
-      h("button", { type: "button", class: "link", text: "+ Add fallback", disabled: disabled || chain.length >= vocab.chainMax, "data-fk": "rung:add",
+    h("div", { class: "chain-layout" }, h("div", { class: "candidate-list" }, rows,
+      h("button", { type: "button", class: "link", text: "+ Add fallback", disabled: disabled || chain.length >= vocab.chainMax, "data-fk": "candidate:add",
         onclick: () => {
           if (getChain().length >= vocab.chainMax) return;
           store.ids = [...ids(), newRowId()];
@@ -1565,14 +1563,14 @@ function chainEditor(getChain, onChange, disabled, errors, store, onInput) {
       h("aside", { class: "attempt-panel" }, h("h3", { text: "Attempt order" }),
         crossFamily ? h("label", { class: "attempt-driver" }, "Main driver ", select([{ value: "", label: "Select to preview" }, ...knownKinds()], app.against,
           (value) => { app.against = value; render(); }, { label: "Main driver for order preview", fk: "attempt-driver" })) : null,
-        h("p", { class: "muted", text: crossFamily && app.against ? "Other driver families go first. Rung numbers keep their configured positions." : "First eligible target runs. Later eligible targets are fallbacks." }),
-        attempts.map(({ rung, index }) => h("div", { class: "attempt-row" }, h("code", { text: `#${index + 1}` }), h("code", { text: rung.model || "Choose a model" }))),
+        h("p", { class: "muted", text: crossFamily && app.against ? "Other driver families go first. Candidate numbers keep their configured positions." : "First eligible target runs. Later eligible targets are fallbacks." }),
+        attempts.map(({ candidate, index }) => h("div", { class: "attempt-row" }, h("code", { text: `#${index + 1}` }), h("code", { text: candidate.model || "Choose a model" }))),
         h("p", { class: "muted", text: app.state.catalog?.source === "t3" ? "The lists come from the providers that T3 reported when the editor started." : "Availability is unverified until T3 checks the targets. Start the editor from omt-setup to list the T3 models." }),
         h("h3", { text: "When an attempt fails" }),
-        h("p", { text: "Try the next rung if the provider, model, or options are refused." }),
+        h("p", { text: "Try the next candidate if the provider, model, or options are refused." }),
         h("p", { text: "A driver-only provider refusal gets one retry. A mode or capability denial stops the chain." }),
         h("p", { class: "warning-text", text: "A skill that requires another family stops if only the same family remains." }),
-        h("h3", { text: "Fast mode" }), h("p", { text: "Rung, then role, then model, then off. Explicit Off stops inheritance. Raw options apply last." }))));
+        h("h3", { text: "Fast mode" }), h("p", { text: "Candidate, then role, then model, then off. Explicit Off stops inheritance. Raw options apply last." }))));
 }
 
 // ----- s4 profile editor -----
@@ -1816,7 +1814,7 @@ function profileEditor(name) {
   const adding = app.drafts.pAdd;
   const addInput = adding ? h("input", {
     type: "text", class: "text", "data-fk": "prof:add", "aria-label": adding.type === "role" ? "role.field" : "model id",
-    placeholder: adding.type === "role" ? "role.field, e.g. execute.fast" : "model id, e.g. gpt-6.1-sol", value: adding.value,
+    placeholder: adding.type === "role" ? "role.field, e.g. execute.fast" : "model id, e.g. gpt-6.2-sol", value: adding.value,
   }) : null;
   if (addInput) {
     addInput.addEventListener("input", () => { touch(adding); adding.value = addInput.value; });
@@ -2064,7 +2062,7 @@ function rootScreen() {
   const effList = list || kinds;
   const orphaned = roleNames().filter((role) => {
     const chain = stackOf(["roles", role, "chain"]).value;
-    return Array.isArray(chain) && chain.length > 0 && !chain.some((rung) => effList.includes(rung.driver || rung.provider));
+    return Array.isArray(chain) && chain.length > 0 && !chain.some((candidate) => effList.includes(candidate.driver || candidate.provider));
   });
   const missing = kinds.filter((item) => !effList.includes(item));
   const harnessCtl = h("span", { class: "hlist" }, h("span", { class: "faint", text: "[" }), chips,
@@ -2681,8 +2679,8 @@ function directoryScreen(kind) {
     names.map((name) => h("article", { class: "directory-row" },
       h("div", null, h("a", { class: "directory-name", href: `#/role/${encodeURIComponent(name)}`, text: name }),
         h("p", { class: "muted", text: roleDesc(name) }), roleUses(name)),
-      h("div", { class: "chain-chips" }, (displayedLeaf(["roles", name, "chain"]).value || []).map((rung, i) => h("span", { class: "model-chip" },
-        h("small", { class: "muted", text: i ? "Fallback" : "First choice" }), h("code", { text: `${rung.model}${rung.effort ? ` · ${rung.effort}` : ""}` })))))));
+      h("div", { class: "chain-chips" }, (displayedLeaf(["roles", name, "chain"]).value || []).map((candidate, i) => h("span", { class: "model-chip" },
+        h("small", { class: "muted", text: i ? "Fallback" : "First choice" }), h("code", { text: `${candidate.model}${candidate.effort ? ` · ${candidate.effort}` : ""}` })))))));
 }
 
 // The values that a profile sets itself, each with the value of its parent profile when the parent sets it.
@@ -2880,7 +2878,7 @@ function harnessesPanel() {
   const recommended = catalog.providers.filter((item) => item.available).map((item) => item.driver);
   return h("section", { class: "harnesses-panel" },
     h("div", { class: "section-head" }, h("h2", { text: "Harnesses" }), sourceBadge(["harnesses"])),
-    h("p", { class: "muted", text: "The drivers that child tasks may run on. omt skips the model chain rungs of a driver that is off. All on is the same as no harnesses key." }),
+    h("p", { class: "muted", text: "The drivers that child tasks may run on. omt skips the model chain candidates of a driver that is off. All on is the same as no harnesses key." }),
     h("div", { class: "harness-list" }, drivers.map((driver) => {
       const provider = catalog.providers.find((item) => item.driver === driver);
       const on = current ? current.includes(driver) : true;
@@ -3261,7 +3259,7 @@ function skillEditor(key, filePath) {
 }
 
 // The instructions file that each built-in role's child reads. A custom role reads the generic file.
-const ROLE_FILES = new Set(["design", "execute", "explore", "grill", "guardrail", "oracle", "plan-review", "qa", "research", "review", "ui", "writing"]);
+const ROLE_FILES = new Set(["design", "execute", "explore", "grill", "oracle", "plan-review", "qa", "research", "review", "ui", "writing"]);
 
 function roleInstructionsLink(name) {
   const path = `references/roles/${ROLE_FILES.has(name) ? name : "_generic"}.md`;
@@ -3309,7 +3307,7 @@ function stageModel(skill) {
         [both ? "Small + both families: 2 reviewers, no oracle." : oracle ? "Small: one oracle replaces the reviewer." : "Small: one reviewer."], ["review"]),
       stage("merge", "Merge findings", "main", "Main removes duplicates and ranks findings by severity."),
       stage("oracle", oracle ? "Oracle" : "Oracle off", "conditional", oracle ? "Large changes get one pass after the reviewer groups." : "Continue with the merged findings.", [work("review.oracle")], ["Small + both families has no oracle pass."], ["oracle"]),
-      stage("pr", "Pull request checks", "conditional", "These steps run only for a pull request target.", ["ci", "verify", "tests", "guardrails", "crap"].map((key) => work(`review.${key}`)), ["Guardrails propose checks for the findings."], ["guardrail"]),
+      stage("pr", "Pull request checks", "conditional", "These steps run only for a pull request target.", ["ci", "verify", "tests", "crap"].map((key) => work(`review.${key}`))),
       stage("report", "Report", "main", "Findings by severity, with file and line references."),
       stage("fix", "Owner decides", "owner", v(work("review.fixLoop")) === "offer" ? "Offer to fix findings. Main fixes only after the owner agrees." : "Report findings without a fix offer.", [work("review.fixLoop"), "limits.maxReviewRounds"],
         v(work("review.fixLoop")) === "offer" ? [`↺ Owner agrees: Main fixes, then a fresh review. At most ${rounds} rounds.`, "Owner declines: finish."] : ["Finish after the report."], ["review", "qa"]),

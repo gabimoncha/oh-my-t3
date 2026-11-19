@@ -72,7 +72,7 @@ Done when: the owner has the verdict and any offer.
 
 ## PR review
 
-Use the steps above. When any of `review.ci`, `review.verify`, `review.tests`, `review.guardrails`, or `review.crap` is not `off`, read [pr-extras.md](pr-extras.md) and run those extras at the steps it names. The defaults turn all five off.
+Use the steps above. When any of `review.ci`, `review.verify`, `review.tests`, or `review.crap` is not `off`, read [pr-extras.md](pr-extras.md) and run those extras at the steps it names. The defaults turn all four off.
 
 ### PR 1. Target
 

@@ -20,7 +20,7 @@ test("profiles apply root first after the config, with roles, limits, workflow, 
   const config = configured({
     roles: { execute: { fast: false }, writing: null },
     limits: { maxParallel: 2, maxReviewRounds: 7 },
-    models: { "gpt-6.1-sol": { fast: false }, custom: { fast: true } },
+    models: { "gpt-6.2-sol": { fast: false }, custom: { fast: true } },
     profiles: {
       normal: { roles: { execute: { description: "Normal worker." } }, workflow: { plan: { testLayers: ["e2e", "unit"] } } },
       parent: {
@@ -31,7 +31,7 @@ test("profiles apply root first after the config, with roles, limits, workflow, 
           execute: { fast: true },
           extra: { description: "Extra worker.", access: "edit", chain: [{ driver: "codex", model: "custom" }] },
         },
-        models: { "gpt-6.1-sol": { fast: true } },
+        models: { "gpt-6.2-sol": { fast: true } },
       },
       custom: {
         description: "Custom.",
@@ -39,7 +39,7 @@ test("profiles apply root first after the config, with roles, limits, workflow, 
         limits: { maxDepth: 2 },
         roles: { execute: { chain: [{ driver: "codex", model: "chosen" }] }, explore: null },
         workflow: { build: { oracle: "always" }, plan: { testLayers: ["unit"] } },
-        models: { "gpt-6.1-sol": {}, custom: { fast: false } },
+        models: { "gpt-6.2-sol": {}, custom: { fast: false } },
       },
     },
   });
@@ -59,7 +59,7 @@ test("profiles apply root first after the config, with roles, limits, workflow, 
   assert.equal(result.workflow.build.qa, "planned");
   assert.equal(result.workflow.plan.review, "one");
   assert.deepEqual(result.workflow.plan.testLayers, ["unit"]);
-  assert.deepEqual(result.models, { "gpt-6.1-sol": { fast: true }, custom: { fast: false } });
+  assert.deepEqual(result.models, { "gpt-6.2-sol": { fast: true }, "gpt-6.2-astra": { fast: true }, custom: { fast: false } });
   assert.deepEqual(result.issues, []);
   assert.deepEqual(config, before);
   result.workflow.plan.testLayers.push("e2e");
@@ -78,11 +78,11 @@ test("custom profiles without extends inherit normal, and preset workflows are c
   assert.equal(prototype.workflow.build.oracle, "off");
   assert.deepEqual(normal.workflow.review, {
     reviewers: "auto", families: "one", oracle: "on", fixLoop: "offer",
-    ci: "off", verify: "off", tests: "off", guardrails: "off", crap: "off",
+    ci: "off", verify: "off", tests: "off", crap: "off",
   });
   assert.deepEqual(prototype.workflow.review, {
     reviewers: 1, families: "one", oracle: "off", fixLoop: "offer",
-    ci: "off", verify: "off", tests: "off", guardrails: "off", crap: "off",
+    ci: "off", verify: "off", tests: "off", crap: "off",
   });
 });
 

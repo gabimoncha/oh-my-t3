@@ -1,6 +1,6 @@
 // The built-in omt defaults. omt reads this file when it is built, so a change reaches users in the next release.
 // Users review the changes with omt doctor or omt update before they apply. Edit it with `bun run defaults:edit`.
-// T3 names each built-in provider instance after its driver kind. A rung that names the instance with "provider"
+// T3 names each built-in provider instance after its driver kind. A candidate that names the instance with "provider"
 // gets T3 re-check of a stale provider snapshot, which a target with only "driver" does not get.
 {
   "version": 1,
@@ -27,7 +27,6 @@
           "ci": "off",
           "verify": "off",
           "tests": "off",
-          "guardrails": "off",
           "crap": "off"
         },
         "git": {
@@ -72,7 +71,10 @@
     }
   },
   "models": {
-    "gpt-6.1-sol": {
+    "gpt-6.2-sol": {
+      "fast": true
+    },
+    "gpt-6.2-astra": {
       "fast": true
     }
   },
@@ -89,14 +91,14 @@
         {
           "provider": "codex",
           "driver": "codex",
-          "model": "gpt-6.1-terra",
+          "model": "gpt-6.2-sol",
           "effort": "low"
         },
         {
           "provider": "claudeAgent",
           "driver": "claudeAgent",
-          "model": "claude-haiku-5-5",
-          "effort": "medium"
+          "model": "claude-sonnet-5-5",
+          "effort": "low"
         }
       ]
     },
@@ -112,8 +114,8 @@
         {
           "provider": "codex",
           "driver": "codex",
-          "model": "gpt-6.1-sol",
-          "effort": "low"
+          "model": "gpt-6.2-sol",
+          "effort": "medium"
         },
         {
           "provider": "claudeAgent",
@@ -135,14 +137,14 @@
         {
           "provider": "codex",
           "driver": "codex",
-          "model": "gpt-6-astra",
-          "effort": "medium"
+          "model": "gpt-6.2-astra",
+          "effort": "high"
         },
         {
           "provider": "claudeAgent",
           "driver": "claudeAgent",
-          "model": "claude-opus-5-5",
-          "effort": "medium"
+          "model": "claude-fable-5-2",
+          "effort": "high"
         }
       ]
     },
@@ -159,12 +161,12 @@
           "provider": "claudeAgent",
           "driver": "claudeAgent",
           "model": "claude-opus-5-5",
-          "effort": "low"
+          "effort": "medium"
         },
         {
           "provider": "codex",
           "driver": "codex",
-          "model": "gpt-6.1-sol",
+          "model": "gpt-6.2-sol",
           "effort": "high"
         }
       ]
@@ -181,14 +183,14 @@
         {
           "provider": "codex",
           "driver": "codex",
-          "model": "gpt-6-astra",
-          "effort": "medium"
+          "model": "gpt-6.2-sol",
+          "effort": "xhigh"
         },
         {
           "provider": "claudeAgent",
           "driver": "claudeAgent",
           "model": "claude-opus-5-5",
-          "effort": "medium"
+          "effort": "high"
         }
       ]
     },
@@ -204,13 +206,13 @@
         {
           "provider": "codex",
           "driver": "codex",
-          "model": "gpt-6-astra",
+          "model": "gpt-6.2-astra",
           "effort": "medium"
         },
         {
           "provider": "claudeAgent",
           "driver": "claudeAgent",
-          "model": "claude-opus-5-5",
+          "model": "claude-fable-5-2",
           "effort": "medium"
         }
       ]
@@ -227,37 +229,14 @@
         {
           "provider": "codex",
           "driver": "codex",
-          "model": "gpt-6.1-sol",
+          "model": "gpt-6.2-sol",
           "effort": "medium"
         },
         {
           "provider": "claudeAgent",
           "driver": "claudeAgent",
           "model": "claude-sonnet-5-5",
-          "effort": "low"
-        }
-      ]
-    },
-    "guardrail": {
-      "description": "Turn review findings into deterministic checks and rule fixes, so that the next change cannot repeat them.",
-      "access": "read-only",
-      "result": "guardrail",
-      "t3Role": "review",
-      "interactionMode": "plan",
-      "runtimeMode": "inherit",
-      "crossFamily": false,
-      "chain": [
-        {
-          "provider": "claudeAgent",
-          "driver": "claudeAgent",
-          "model": "claude-opus-5-5",
-          "effort": "high"
-        },
-        {
-          "provider": "codex",
-          "driver": "codex",
-          "model": "gpt-6-astra",
-          "effort": "high"
+          "effort": "medium"
         }
       ]
     },
@@ -279,7 +258,7 @@
         {
           "provider": "codex",
           "driver": "codex",
-          "model": "gpt-6-astra",
+          "model": "gpt-6.2-astra",
           "effort": "medium"
         }
       ]
@@ -296,13 +275,13 @@
         {
           "provider": "claudeAgent",
           "driver": "claudeAgent",
-          "model": "claude-opus-5-5",
+          "model": "claude-fable-5-2",
           "effort": "medium"
         },
         {
           "provider": "codex",
           "driver": "codex",
-          "model": "gpt-6-astra",
+          "model": "gpt-6.2-astra",
           "effort": "high"
         }
       ]
@@ -319,13 +298,13 @@
         {
           "provider": "claudeAgent",
           "driver": "claudeAgent",
-          "model": "claude-opus-5-5",
-          "effort": "low"
+          "model": "claude-fable-5-2",
+          "effort": "medium"
         },
         {
           "provider": "codex",
           "driver": "codex",
-          "model": "gpt-6.1-sol",
+          "model": "gpt-6.2-astra",
           "effort": "high"
         }
       ]

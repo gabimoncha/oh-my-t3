@@ -7,7 +7,7 @@ import type { OmtConfig } from "../../src/types.ts";
 import { caps } from "./shared.ts";
 
 test("formatTarget prints instance and driver targets with sorted options", () => {
-  assert.equal(formatTarget({ providerInstanceId: "codex", model: "gpt-6-astra" }), "codex/gpt-6-astra");
+  assert.equal(formatTarget({ providerInstanceId: "codex", model: "gpt-6.2-astra" }), "codex/gpt-6.2-astra");
   assert.equal(
     formatTarget({
       providerInstanceId: "claudeAgent",
@@ -17,8 +17,8 @@ test("formatTarget prints instance and driver targets with sorted options", () =
     "claudeAgent/claude-opus-5-5 contextWindow=1m effort=high fastMode=true",
   );
   assert.equal(
-    formatTarget({ driverKind: "codex", model: "gpt-6.1-sol", options: { reasoningEffort: "medium" } }),
-    "codex(driver)/gpt-6.1-sol reasoningEffort=medium",
+    formatTarget({ driverKind: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "medium" } }),
+    "codex(driver)/gpt-6.2-sol reasoningEffort=medium",
   );
 });
 
@@ -35,11 +35,11 @@ test("formatRolesTable matches the section 5.3 layout", () => {
   assert.equal(
     formatRolesTable(resolveAll(config, caps())),
     [
-      "ROLE         STATUS      TARGET                                         ACCESS     MODE     CROSS",
-      "execute      resolved    claudeAgent/claude-opus-5-5 effort=low         edit       default  no",
-      "review       resolved    codex/gpt-6-astra reasoningEffort=medium       edit       default  yes",
-      "oracle       unavailable -                                              edit       default  yes",
-      "  rung 1 grok/grok-build: provider grok cannot run child tasks: Provider instance is disabled.; Provider executable is not installed.",
+      "ROLE         STATUS      TARGET                                                        ACCESS     MODE     CROSS",
+      "execute      resolved    claudeAgent/claude-opus-5-5 effort=medium                     edit       default  no",
+      "review       resolved    codex/gpt-6.2-sol reasoningEffort=xhigh serviceTier=priority  edit       default  yes",
+      "oracle       unavailable -                                                             edit       default  yes",
+      "  candidate 1 grok/grok-build: provider grok cannot run child tasks: Provider instance is disabled.; Provider executable is not installed.",
       "",
       "verified against orchestrator_capabilities",
       "",
@@ -47,7 +47,7 @@ test("formatRolesTable matches the section 5.3 layout", () => {
   );
 });
 
-test("formatRolesTable shows skipped rungs and the chosen rung's notes, not later rungs", () => {
+test("formatRolesTable shows skipped candidates and the chosen candidate's notes, not later candidates", () => {
   const config: OmtConfig = {
     ...DEFAULT_CONFIG,
     roles: {
@@ -64,8 +64,8 @@ test("formatRolesTable shows skipped rungs and the chosen rung's notes, not late
   const lines = formatRolesTable(resolveAll(config, caps())).split("\n");
   assert.equal(lines[1], "execute      resolved    codex/gpt-6-luna reasoningEffort=xhigh         edit       default  no");
   assert.deepEqual(lines.slice(2, 4), [
-    "  rung 1 grok/grok-build: provider grok cannot run child tasks: Provider instance is disabled.; Provider executable is not installed.",
-    "  rung 2 codex/gpt-6-luna: effort max mapped to xhigh for option reasoningEffort",
+    "  candidate 1 grok/grok-build: provider grok cannot run child tasks: Provider instance is disabled.; Provider executable is not installed.",
+    "  candidate 2 codex/gpt-6-luna: effort max mapped to xhigh for option reasoningEffort",
   ]);
   assert.equal(lines[4], "");
 });
@@ -76,7 +76,7 @@ test("formatRolesTable widens columns and prints the unverified footer", () => {
   assert.ok(output.endsWith("\nunverified: pass --capabilities <file> to check the chains against T3\n"));
   assert.equal(lines.length, 1 + Object.keys(DEFAULT_CONFIG.roles).length + 3);
   const planReview = lines.find((line) => line.startsWith("plan-review"));
-  assert.match(planReview ?? "", /^plan-review\s+unverified\s+codex\/gpt-6-astra reasoningEffort=medium\s+read-only\s+plan\s+yes$/);
+  assert.match(planReview ?? "", /^plan-review\s+unverified\s+codex\/gpt-6.2-astra reasoningEffort=high serviceTier=priority\s+read-only\s+plan\s+yes$/);
   const long: OmtConfig = {
     ...DEFAULT_CONFIG,
     roles: {

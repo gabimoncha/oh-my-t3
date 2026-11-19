@@ -11,7 +11,6 @@ A role names a kind of work. The config maps each role to a chain of targets (pr
 | `review` | edit | review | One review round of a diff. Fixes local findings when it may edit, and reports the rest. Cross-family. |
 | `oracle` | edit | review | The final gate over the whole change, from the other family. Cross-family. |
 | `qa` | edit | test | Running the given checks and device flows. Edits nothing and writes no tests. |
-| `guardrail` | read-only | guardrail | Turning review findings into checks and rule fixes. Edits nothing. |
 | `writing` | edit | work | One docs unit as an independent track. |
 | `design` | edit | work | Design variants and the design spec ([omt-design](../../omt-design/SKILL.md)). |
 | `ui` | edit | work | One UI unit, from its design spec or the task requirements. |

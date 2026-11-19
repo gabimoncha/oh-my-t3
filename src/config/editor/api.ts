@@ -36,7 +36,7 @@ import {
   ROLE_KEYS,
   ROLE_NAME_PATTERN,
   ROOT_KEYS,
-  RUNG_KEYS,
+  CANDIDATE_KEYS,
   RUNTIME_MODE_VALUES,
   T3_ROLE_VALUES,
   WORKFLOW_RULES,
@@ -81,7 +81,7 @@ export class EditorError extends Error {
 const VOCAB = {
   rootKeys: ROOT_KEYS,
   roleKeys: ROLE_KEYS,
-  rungKeys: RUNG_KEYS,
+  candidateKeys: CANDIDATE_KEYS,
   limitKeys: LIMIT_KEYS,
   profileKeys: PROFILE_KEYS,
   modelKeys: MODEL_KEYS,

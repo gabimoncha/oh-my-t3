@@ -470,6 +470,21 @@ test("doctor --project checks the shim and the exclude block, and skips path and
   assert.deepEqual(readdirSync(g.project), [".omt3"], "doctor writes nothing");
 });
 
+test("doctor --project reports a guardrails.md with text as a leftover and keeps it, and deletes an empty one", async () => {
+  const f = projectFixture();
+  await f.runOk(["install", "--project", "--yes"]);
+  const file = join(f.project, ".omt3", "guardrails.md");
+  writeFileSync(file, "# Proposals\n");
+  const report = await doctor(f, ["--project"]);
+  assert.equal(report.report.checks.at(-1)?.id, "leftovers");
+  assert.equal(report.get("leftovers").status, "INFO");
+  assert.match(report.get("leftovers").message, /guardrails\.md holds proposals from the retired guardrails step/);
+  assert.equal(readFileSync(file, "utf8"), "# Proposals\n");
+  writeFileSync(file, "");
+  assert.equal((await doctor(f, ["--project"])).report.checks.some((c) => c.id === "leftovers"), false);
+  assert.equal(existsSync(file), false);
+});
+
 // A fixture whose project is a real git repository with one commit.
 function gitFixture(files: Record<string, string> = {}) {
   const f = projectFixture(false);

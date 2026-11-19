@@ -105,7 +105,7 @@ These claims are wrong or incomplete:
 
 #### What a skills-plus-CLI layer can copy
 
-- The seam vocabulary. omt already has one seam. A role is the Definition, a chain rung is a Provider, and a skill step is the Consumer (inferred).
+- The seam vocabulary. omt already has one seam. A role is the Definition, a chain candidate is a Provider, and a skill step is the Consumer (inferred).
 - Layer provenance. `--dump-config` and `--dump-default-config` show the merged tree and the tree without user layers. omt has `omt config show` and `--defaults` (`omt:docs/spec.md:372-379`), but it does not show which layer set a value (inferred from the spec).
 - One extension-point table per kind of change (`dsh:docs/architecture.md:143-164`). omt's spec plays this role for the CLI.
 - The loop, HMR, effects, and waterfalls need a runtime that omt does not have. T3 owns the loop (`omt:docs/design.md:11`).

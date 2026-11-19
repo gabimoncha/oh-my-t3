@@ -1,4 +1,6 @@
-import { findProjectRoot, manifestPath, projectManifestPath, projectConfigPath, userConfigPath } from "../paths.ts";
+import { rm } from "node:fs/promises";
+import { join } from "node:path";
+import { findProjectRoot, manifestPath, omtDir, projectManifestPath, projectConfigPath, userConfigPath } from "../paths.ts";
 import type { CliContext, ConfigLayer, DefaultsChange, OmtConfig } from "../types.ts";
 import { projectWriteTarget, writeTargetFor } from "../install/fsops.ts";
 import { confirmApply } from "../install/confirm.ts";
@@ -6,8 +8,8 @@ import { OmtError } from "../util/errors.ts";
 import { readFileIfExists, writeFileAtomic } from "../util/fs.ts";
 import { isRecord } from "../util/json.ts";
 import { DEFAULT_CONFIG, diffDefaults, formatValue } from "./defaults.ts";
-import { parseJsonc, setTopLevelValue } from "./jsonc.ts";
-import { validateLayer, WORKFLOW_RULES } from "./validate.ts";
+import { parseJsonc, setJsoncValue } from "./jsonc.ts";
+import { retiredKeyPaths, validateLayer, WORKFLOW_RULES } from "./validate.ts";
 
 type Context = Pick<CliContext, "cwd" | "env" | "homedir">;
 type Scope = "user" | "project";
@@ -115,9 +117,6 @@ export async function activeDefaults(ctx: Context): Promise<{ config: OmtConfig;
 export interface DefaultsPlan {
   path: string;
   before: string | undefined;
-  configPath: string;
-  configBefore: string | undefined;
-  configAfter: string | undefined;
   changes: DefaultsChange[];
   firstReview: boolean;
   changed: boolean;
@@ -138,18 +137,49 @@ export async function planDefaults(ctx: Context, scope: Scope, target: OmtConfig
     const value = parseJsonc(text, configPath);
     layers.push({ source: configPath, layer: validateLayer(value, configPath).layer });
   }
-  const configPath = scope === "project" ? projectConfigPath(findProjectRoot(ctx.cwd)) : userConfigPath(ctx.env, ctx.homedir);
-  const configBefore = await readFileIfExists(configPath);
-  const value = configBefore === undefined ? undefined : parseJsonc(configBefore, configPath);
-  const configAfter = configBefore !== undefined && isRecord(value) && Object.hasOwn(value, "defaults")
-    ? setTopLevelValue(configBefore, "defaults", undefined)
-    : configBefore;
   const changes = snapshot === undefined ? [] : diffDefaults(snapshot.config, target, layers);
   return {
-    path, before, configPath, configBefore, configAfter, changes, target,
+    path, before, changes, target,
     firstReview: snapshot === undefined,
-    changed: before !== undefined && (snapshot === undefined || changes.length > 0 || configAfter !== configBefore),
+    changed: before !== undefined && (snapshot === undefined || changes.length > 0),
   };
+}
+
+export interface RetiredCleanup {
+  configPath: string;
+  keys: string[]; // dotted paths of the retired keys in the scope's config
+  files: string[]; // files of retired features
+}
+
+// Removes what an earlier release left and this release ignores: each retired key of the scope's config, and in a
+// project an empty .omt3/guardrails.md. Neither has an effect, so the cleanup asks nothing. A guardrails.md with text
+// stays, because it holds proposals that the user may still want.
+export async function cleanRetired(ctx: Context, scope: Scope, options: { dryRun: boolean }): Promise<RetiredCleanup> {
+  const root = findProjectRoot(ctx.cwd);
+  const configPath = scope === "project" ? projectConfigPath(root) : userConfigPath(ctx.env, ctx.homedir);
+  const before = await readFileIfExists(configPath);
+  const value = before === undefined ? undefined : parseJsonc(before, configPath);
+  const keys = isRecord(value) ? [...new Set(retiredKeyPaths(value))] : [];
+  const files: string[] = [];
+  if (scope === "project") {
+    const guardrails = join(omtDir(root), "guardrails.md");
+    if ((await readFileIfExists(guardrails))?.trim() === "") files.push(guardrails);
+  }
+  if (options.dryRun) return { configPath, keys, files };
+  if (before !== undefined && keys.length > 0) {
+    const after = keys.reduce((text, key) => setJsoncValue(text, key.split("."), undefined), before);
+    await writeFileAtomic(scope === "project" ? await projectWriteTarget(root, configPath) : await writeTargetFor(configPath), after);
+  }
+  for (const file of files) await rm(await projectWriteTarget(root, file), { force: true });
+  return { configPath, keys, files };
+}
+
+export function formatRetiredCleanup(cleanup: RetiredCleanup, dryRun: boolean): string {
+  const verb = dryRun ? "would remove" : "removed";
+  let text = "";
+  if (cleanup.keys.length > 0) text += `${verb} the retired keys from ${cleanup.configPath}: ${cleanup.keys.join(", ")}\n`;
+  for (const file of cleanup.files) text += `${verb} the empty ${file}; the guardrails step is retired\n`;
+  return text;
 }
 
 export function formatDefaultsPlan(plan: DefaultsPlan): string {
@@ -163,24 +193,19 @@ export function formatDefaultsPlan(plan: DefaultsPlan): string {
     const overridden = change.overriddenBy === undefined ? "" : ` (overridden by ${change.overriddenBy})`;
     text += `  ${change.path}: ${change.from} -> ${change.to}${overridden}\n`;
   }
-  if (plan.configAfter !== plan.configBefore) text += `  remove the retired defaults pin from ${plan.configPath}\n`;
   return text;
 }
 
 export async function applyDefaults(ctx: CliContext, scope: Scope, plan: DefaultsPlan): Promise<void> {
-  if ((await readFileIfExists(plan.path)) !== plan.before || (await readFileIfExists(plan.configPath)) !== plan.configBefore) {
-    throw new OmtError("defaults_changed", "the defaults or config changed while confirmation was open; nothing was written", { hint: "run the command again" });
+  if ((await readFileIfExists(plan.path)) !== plan.before) {
+    throw new OmtError("defaults_changed", "the defaults changed while confirmation was open; nothing was written", { hint: "run the command again" });
   }
   const root = findProjectRoot(ctx.cwd);
   const target = scope === "project" ? await projectWriteTarget(root, plan.path) : await writeTargetFor(plan.path);
-  const configTarget = plan.configAfter !== plan.configBefore
-    ? scope === "project" ? await projectWriteTarget(root, plan.configPath) : await writeTargetFor(plan.configPath)
-    : undefined;
   const snapshot: DefaultsSnapshot = { version: 1, cliVersion: ctx.version, config: plan.target };
   const manifest = JSON.parse(plan.before ?? "null") as unknown;
   if (!isRecord(manifest)) throw new OmtError("defaults_install", "install omt before accepting defaults", { hint: "run omt install" });
   await writeFileAtomic(target, `${JSON.stringify({ ...manifest, acceptedDefaults: snapshot }, null, 2)}\n`);
-  if (configTarget !== undefined && plan.configAfter !== undefined) await writeFileAtomic(configTarget, plan.configAfter);
 }
 
 export async function reviewDefaults(
@@ -189,10 +214,11 @@ export async function reviewDefaults(
   options: { yes: boolean; dryRun: boolean; json: boolean },
   target: OmtConfig = DEFAULT_CONFIG,
 ): Promise<{ changed: boolean; applied: boolean; changes: DefaultsChange[] }> {
+  const say = options.json ? ctx.stderr : ctx.stdout;
+  say(formatRetiredCleanup(await cleanRetired(ctx, scope, { dryRun: options.dryRun }), options.dryRun));
   const plan = await planDefaults(ctx, scope, target);
   const result = { changed: plan.changed, applied: false, changes: plan.changes };
   if (!plan.changed) return result;
-  const say = options.json ? ctx.stderr : ctx.stdout;
   say(formatDefaultsPlan(plan));
   if (options.dryRun) {
     say("Dry run: nothing was written.\n");

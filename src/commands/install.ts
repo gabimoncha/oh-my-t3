@@ -1,4 +1,5 @@
 import { relative } from "node:path";
+import { cleanRetired, formatRetiredCleanup } from "../config/defaultsState.ts";
 import { loadConfig } from "../config/load.ts";
 import { applyInstall } from "../install/apply.ts";
 import { confirmApply } from "../install/confirm.ts";
@@ -114,6 +115,7 @@ export async function run(ctx: CliContext, seams: UpdateCheckSeams = {}): Promis
       ctx.stderr(projectsWarning(error));
     });
   }
+  ctx.stdout(formatRetiredCleanup(await cleanRetired(ctx, scope, { dryRun: false }), false));
   if (!changes) {
     ctx.stdout("Everything is up to date.\n");
     await updateCheck(ctx, scope === "project", seams);

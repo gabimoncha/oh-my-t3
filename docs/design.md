@@ -26,15 +26,15 @@ T3 does not give us roles, model routing, briefs, review loops, or done criteria
 
 ### Roles, not model names
 
-Skills and plans name a role such as `execute`, `review`, or `qa`. One config maps each role to an ordered chain of rungs. A rung is a provider, a model, and an effort level. The first rung that T3 can run wins.
+Skills and plans name a role such as `execute`, `review`, or `qa`. One config maps each role to an ordered chain of candidates. A candidate is a provider, a model, and an effort level. The first candidate that T3 can run wins.
 
-This comes from omp model roles and OmO categories. It matters more in T3 than in either source, because T3 can reach several providers at once. A role chain such as "Opus 5.5 at low effort, then GPT-6.1-Sol at high effort" survives a missing subscription or a disabled provider.
+This comes from omp model roles and OmO categories. It matters more in T3 than in either source, because T3 can reach several providers at once. A role chain such as "Opus 5.5 at low effort, then GPT-6.2-Sol at high effort" survives a missing subscription or a disabled provider.
 
 T3 validates `target.options` strictly. An unknown option id or a value outside the list fails the whole call. Each driver also names effort differently: Claude uses `effort`, Codex uses `reasoningEffort`, Pi uses `thinking`. So the CLI maps one effort ladder (`off` to `max`) onto the option that each model advertises, and picks the nearest supported value.
 
 ### Reviewers come from the other family
 
-The `plan-review`, `review`, and `oracle` roles are cross-family. The skill passes the worker's provider to `omt brief --against`, and the CLI tries the rungs of the other family first. A reviewer from another family misses fewer of the worker's blind spots. The owner chose this rule. When the other family is not available, the same family reviews, because a review from the same family is better than no review. The family is the driver, so a driver that runs models of several vendors (Cursor, OpenCode) counts as its own family.
+The `plan-review`, `review`, and `oracle` roles are cross-family. The skill passes the worker's provider to `omt brief --against`, and the CLI tries the candidates of the other family first. A reviewer from another family misses fewer of the worker's blind spots. The owner chose this rule. When the other family is not available, the same family reviews, because a review from the same family is better than no review. The family is the driver, so a driver that runs models of several vendors (Cursor, OpenCode) counts as its own family.
 
 The ledger records the provider of each dispatch. So `--against auto` finds the worker of a unit, or the main implementer of a plan, without help from the agent.
 
@@ -54,19 +54,19 @@ The stress test was a separate skill, `omt-grill`, with its own `grill` role and
 
 ### Design is optional, and the owner steers
 
-The `design` role makes design variants and the design spec, and the `ui` role implements a UI unit from an approved spec or task requirements. `design` starts on Opus at medium effort and falls back to Astra at high effort. `ui` starts on Opus at low effort and falls back to Sol at high effort. A UI unit follows an approved spec when one exists. Otherwise it implements the task requirements directly. The user can request a design pass first, but no design tool or spec is required. Anthropic's optional `frontend-design` skill guides visual choices during design and direct UI implementation. Once a spec is approved, the implementation follows it without loading the skill again. Setup checks for the skill and recommends installing it when missing. No model reviews a design: `review`, `oracle`, and `plan-review` tasks leave `docs/design/` out. When the user requests a design pass, the designer draws with the tool that `design.tool` names, a new Paper file or HTML mockups, and `design.variants` for each screen, 3 in the normal profile, so the owner compares real options side by side. The owner picks one variant per screen, may mix variants across screens, steers them in their own words, and approves the spec. Code review of `ui` units still runs as for any other unit.
+The `design` role makes design variants and the design spec, and the `ui` role implements a UI unit from an approved spec or task requirements. `design` and `ui` start on Fable at medium effort and fall back to Astra at high effort. A UI unit follows an approved spec when one exists. Otherwise it implements the task requirements directly. The user can request a design pass first, but no design tool or spec is required. Anthropic's optional `frontend-design` skill guides visual choices during design and direct UI implementation. Once a spec is approved, the implementation follows it without loading the skill again. Setup checks for the skill and recommends installing it when missing. No model reviews a design: `review`, `oracle`, and `plan-review` tasks leave `docs/design/` out. When the user requests a design pass, the designer draws with the tool that `design.tool` names, a new Paper file or HTML mockups, and `design.variants` for each screen, 3 in the normal profile, so the owner compares real options side by side. The owner picks one variant per screen, may mix variants across screens, steers them in their own words, and approves the spec. Code review of `ui` units still runs as for any other unit.
 
 ### A CLI for the deterministic parts, skills for the judgment
 
 Config merging, chain resolution, option mapping, brief rendering, and plan counting are deterministic. An LLM does them badly and expensively, so the `omt` CLI does them. Planning, splitting work, reading results, and deciding what to do next need judgment, so skills carry them.
 
-The CLI cannot call T3 itself. Claude and Codex sessions get the T3 MCP server through config, not through environment variables, so a shell command has no credential. Routing is therefore unverified by default: the CLI trusts the chain and maps the effort, `delegate_task` validates the target, and the skill moves to the next rung on a typed T3 error. An agent can pass a saved copy of `orchestrator_capabilities` to check the chains ahead of time.
+The CLI cannot call T3 itself. Claude and Codex sessions get the T3 MCP server through config, not through environment variables, so a shell command has no credential. Routing is therefore unverified by default: the CLI trusts the chain and maps the effort, `delegate_task` validates the target, and the skill moves to the next candidate on a typed T3 error. An agent can pass a saved copy of `orchestrator_capabilities` to check the chains ahead of time.
 
 The skills need the CLI. Users always install the CLI, and the CLI installs the skills, so a manual path for routing, briefs, and the ledger only doubled the skill text. When no CLI is found, a skill points to the agent quick start and stops. T3 is still the final validator: on a typed T3 error, `omt brief --fallback` picks the next target.
 
 ### The CLI does the bookkeeping
 
-The skills once told the model to record each dispatch and result in the ledger by hand, compare the active count with the parallel limit, hash the plan before each review, find the next rung after a refused target, check the branch, and stage and commit only the run's own paths. Each of these steps is deterministic, and each one cost tokens and turns when a model did it. The skill text was about 36,600 words, and most of it was this bookkeeping.
+The skills once told the model to record each dispatch and result in the ledger by hand, compare the active count with the parallel limit, hash the plan before each review, find the next candidate after a refused target, check the branch, and stage and commit only the run's own paths. Each of these steps is deterministic, and each one cost tokens and turns when a model did it. The skill text was about 36,600 words, and most of it was this bookkeeping.
 
 So the CLI took it over, and the skills dropped to about 16,000 words. A dispatch takes three calls: `omt brief --save --json` checks the limit and records the start, `delegate_task` runs the child, and `omt ledger done` closes the start and says whether the child can be settled. `omt git start`, `commit`, `pr`, and `stack` record the files that a run found changed, commit only the run's own files, and open draft PRs or a PR stack. `omt git behind` catches a branch up. The skills keep only the workflow decisions. `test/skills/budget.test.ts` holds a word budget for each skill file, so the text cannot grow back without a failing test.
 
@@ -88,7 +88,7 @@ One snapshot in the existing install record preserves the last accepted defaults
 
 ### Harnesses filter the chains
 
-Many users run only Claude Code or only Codex. A config that rewrote all 13 chains for one harness would stop getting new defaults. The `harnesses` key instead removes the rungs of a missing harness when omt resolves a role, so the chains still come from the accepted defaults. omt detects the harnesses from the T3 settings and `PATH`, or from the live provider list that an agent passes with `--capabilities`. T3's rule for an enabled provider comes from its source code, not a documented API, and omt does not read T3's settings per project. So the install and `omt detect` show the result and ask before they write the key.
+Many users run only Claude Code or only Codex. A config that rewrote all 13 chains for one harness would stop getting new defaults. The `harnesses` key instead removes the candidates of a missing harness when omt resolves a role, so the chains still come from the accepted defaults. omt detects the harnesses from the T3 settings and `PATH`, or from the live provider list that an agent passes with `--capabilities`. T3's rule for an enabled provider comes from its source code, not a documented API, and omt does not read T3's settings per project. So the install and `omt detect` show the result and ask before they write the key.
 
 ### The owner reads a plan summary
 
@@ -100,11 +100,11 @@ omt once drew each final plan as an HTML page with a flowchart of the units. Own
 
 A child sees nothing of the parent conversation. Every task therefore carries a brief with a fixed shape: role persona, task, context, scope, constraints, done condition, verify commands, and the required final message format. OmO's worker contract (task, deliverable, scope, verify, stop condition) is the model for this.
 
-`task_status.summary` is the child's last assistant message. Each role therefore ends with a fixed result block: `STATUS` for workers, `VERDICT` for reviewers, qa, and guardrail tasks, and `ANSWER` for researchers. The parent reads the block and checks the evidence itself. A worker's "done" is a claim until the parent or a `qa` task confirms it.
+`task_status.summary` is the child's last assistant message. Each role therefore ends with a fixed result block: `STATUS` for workers, `VERDICT` for reviewers and qa tasks, and `ANSWER` for researchers. The parent reads the block and checks the evidence itself. A worker's "done" is a claim until the parent or a `qa` task confirms it.
 
 ### Read-only roles run in plan mode
 
-A live experiment showed that a Claude child in T3 `plan` interaction mode runs read-only commands, stays in plan mode, and returns its final message intact. Explore, research, plan-review, and guardrail roles therefore default to `interactionMode: "plan"`. The defaults make `review` and `oracle` edit roles, so that the `omt-ulw` reviewer can fix local findings. `omt-code-review` still sets `interactionMode: "plan"` on each of its review and oracle tasks, so its reviewers only report. On Claude, Codex, Cursor, and OpenCode, T3 enforces read-only access for those children, and the brief does not have to rely on the child's restraint. T3 has no plan-mode handling for Pi, so a Pi child in a read-only role relies on its brief alone. No default rung uses Pi; a custom chain that adds Pi to a read-only role accepts that risk.
+A live experiment showed that a Claude child in T3 `plan` interaction mode runs read-only commands, stays in plan mode, and returns its final message intact. Explore, research, and plan-review roles therefore default to `interactionMode: "plan"`. The defaults make `review` and `oracle` edit roles, so that the `omt-ulw` reviewer can fix local findings. `omt-code-review` still sets `interactionMode: "plan"` on each of its review and oracle tasks, so its reviewers only report. On Claude, Codex, Cursor, and OpenCode, T3 enforces read-only access for those children, and the brief does not have to rely on the child's restraint. T3 has no plan-mode handling for Pi, so a Pi child in a read-only role relies on its brief alone. No default candidate uses Pi; a custom chain that adds Pi to a read-only role accepts that risk.
 
 Plan mode has one trap. T3 stores a proposed plan as its own item type, and `task_status.summary` reads only assistant messages. A child that answers with a proposed plan (Claude's ExitPlanMode, or Codex plan output) can hide its result block from the summary. Every plan-mode brief therefore tells the child to stay in plan mode and put the block in its final assistant message. When a summary still comes back empty, the main thread reads the child thread, which includes proposed plans.
 
@@ -134,7 +134,7 @@ The editor is not a daemon. It runs in the foreground of `omt config edit --web`
 
 ### Profiles select the workflow
 
-A role selects a model. A profile selects the plan, build, and review steps. Keeping those choices separate lets a project use the same roles for normal work, prototypes, and PR reviews. Sparse profile overrides inherit `normal`, so a custom workflow states only its differences. A plan header keeps the selected profile across context resets. The main thread reloads it after a reset or a switch, so an owner can switch the remaining work. The owner chose to turn off the five PR extras of `omt-code-review` (CI, changed-flow QA, test offers, guardrails, and CRAP) in both presets, so a plain review runs only the reviewers and the oracle. A profile turns each extra on.
+A role selects a model. A profile selects the plan, build, and review steps. Keeping those choices separate lets a project use the same roles for normal work, prototypes, and PR reviews. Sparse profile overrides inherit `normal`, so a custom workflow states only its differences. A plan header keeps the selected profile across context resets. The main thread reloads it after a reset or a switch, so an owner can switch the remaining work. The owner chose to turn off the four PR extras of `omt-code-review` (CI, changed-flow QA, test offers, and CRAP) in both presets, so a plain review runs only the reviewers and the oracle. A profile turns each extra on.
 
 ### Git actions follow a config policy
 
@@ -144,7 +144,7 @@ The skills act through `omt git commit`, `pr`, and `stack`, which apply the same
 
 ### The main thread writes tests, and qa runs them
 
-The main thread writes the approved tests while it builds, and it makes the required failure proofs in a private copy of the working tree. `qa` runs the verify commands, the final checks, and the device flows, and it edits nothing. A check that edits nothing cannot hide a failure behind a change, and its result is evidence only of what ran. `qa` puts Claude rungs first, because a Codex child cannot reach the local device daemon, so only `qa` drives a device. QA of a `ui` unit checks behavior, not looks: the owner compares the looks with the design.
+The main thread writes the approved tests while it builds, and it makes the required failure proofs in a private copy of the working tree. `qa` runs the verify commands, the final checks, and the device flows, and it edits nothing. A check that edits nothing cannot hide a failure behind a change, and its result is evidence only of what ran. `qa` puts Claude candidates first, because a Codex child cannot reach the local device daemon, so only `qa` drives a device. QA of a `ui` unit checks behavior, not looks: the owner compares the looks with the design.
 
 ### New tests need a plan line
 
@@ -153,10 +153,6 @@ Each new test maps to an owner-approved `## Tests` line. This makes the test's f
 ### Build locks follow open files
 
 A kernel lock on an inherited fd 3 survives a wrapper crash while another holder remains. Nothing guesses that a lock is stale or takes it over. The lock file keeps its inode, and the kernel releases the lock when the last holder closes it. Commands that leave processes behind run outside the lock with a serial plan. Without `flock` or `lockf`, the CLI still runs the command and the plan keeps shared builds serial.
-
-### Guardrails prefer checks that can fail
-
-A lint rule, type rule, test, or CI check can catch a repeated defect without another model judgment. The guardrail role therefore proposes a deterministic check before a rule correction or a new rule. Each check proposal names a command that fails before the fix and passes after it. Judgment-only findings get no proposal. Local `.omt3/guardrails.md` records proposals for separate work without adding them to the PR branch.
 
 ### Limits that T3 does not set
 

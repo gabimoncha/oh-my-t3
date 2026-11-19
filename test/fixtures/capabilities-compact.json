@@ -6,7 +6,7 @@
       "displayName": "Codex",
       "models": [
         {
-          "id": "gpt-6.1-sol",
+          "id": "gpt-6.2-sol",
           "options": [
             {
               "id": "reasoningEffort",
@@ -31,7 +31,7 @@
           ]
         },
         {
-          "id": "gpt-6-astra",
+          "id": "gpt-6.2-astra",
           "options": [
             {
               "id": "reasoningEffort",
@@ -138,6 +138,25 @@
                 false,
                 true
               ]
+            }
+          ]
+        },
+        {
+          "id": "claude-fable-5-2",
+          "label": "Claude Fable 5.2",
+          "options": [
+            {
+              "id": "effort",
+              "values": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max",
+                "ultracode",
+                "ultrathink"
+              ],
+              "default": "medium"
             }
           ]
         },
