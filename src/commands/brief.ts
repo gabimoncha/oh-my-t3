@@ -53,7 +53,11 @@ Options:
   --tried <key>            with --fallback and without --save: a target key that
                            was tried already; repeatable
   --strict                 with --against: exit 1 when the chosen target is in
-                           the family of the --against worker
+                           the family of the --against worker, and leave that
+                           family out of the fallbacks
+  --workflow               the child is a T3 workflow agent: it works in its own
+                           worktree, commits its edits there, and submits its
+                           result as structured output
   -h, --help               print this help
 `;
 
@@ -140,6 +144,7 @@ export const run: CommandRun = async (ctx) => {
     fallback: { type: "boolean" },
     tried: { type: "string", multiple: true },
     strict: { type: "boolean" },
+    workflow: { type: "boolean" },
   }, { maxPositionals: 1 });
   const [name] = positionals;
   if (name === undefined) throw usageError("brief needs a <role>");
@@ -204,6 +209,7 @@ export const run: CommandRun = async (ctx) => {
   if (values.plan !== undefined) input.plan = values.plan;
   if (values.profile !== undefined) input.profile = profile.name;
   if (values.unit !== undefined) input.unit = values.unit;
+  if (values.workflow === true) input.workflow = true;
 
   const projectRoot = findProjectRoot(ctx.cwd);
   const localCli = projectShimPath(projectRoot);
@@ -247,8 +253,10 @@ export const run: CommandRun = async (ctx) => {
   const list = targetChoices(resolution);
   const strictFamily = values.strict === true && against.against !== undefined && role.crossFamily === true
     ? workerFamily(against.against, caps, against.drivers) : undefined;
+  const sameFamily = (choice: TargetChoice) =>
+    strictFamily !== undefined && candidateFamily(choice.candidate, caps, against.drivers) === strictFamily;
   const checkStrict = (chosen: TargetChoice) => {
-    if (strictFamily !== undefined && candidateFamily(chosen.candidate, caps, against.drivers) === strictFamily) {
+    if (sameFamily(chosen)) {
       throw new OmtError("same_family", `no ${name} target outside ${strictFamily} is left`, {
         hint: "a review from the author's own family does not count; tell the user which targets failed",
       });
@@ -268,7 +276,7 @@ export const run: CommandRun = async (ctx) => {
         runtimeMode: args.runtimeMode,
         mode: "async",
       },
-      fallbacks: list.slice(list.indexOf(chosen) + 1).map((choice) => choice.target),
+      fallbacks: list.slice(list.indexOf(chosen) + 1).filter((choice) => !sameFamily(choice)).map((choice) => choice.target),
       targetKey: chosen.key,
     };
     if (clientRequestId !== undefined) output.delegateTask.clientRequestId = clientRequestId;

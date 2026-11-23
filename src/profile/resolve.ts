@@ -9,6 +9,7 @@ export type ProfileSource = "argument" | "plan" | "config" | "default";
 export interface ResolvedProfile {
   name: string;
   source: ProfileSource;
+  t3Workflow: boolean;
   workflow: Workflow;
   limits: OmtConfig["limits"];
   roles: OmtConfig["roles"];
@@ -78,11 +79,13 @@ export function profileSteps(config: OmtConfig, name: string): ProfileStep[] {
 }
 
 export function resolveProfile(config: OmtConfig, name: string): ResolvedProfile {
-  const steps = profileSteps(config, name);
+  const chain = profileChain(config, name);
+  const steps = chainSteps(config, chain);
   const applied = steps.at(-1)?.config ?? profileBase(config);
   return {
     name,
     source: "argument",
+    t3Workflow: chain.reduce((on, entry) => entry.profile.t3Workflow ?? on, false),
     workflow: applied.profiles.normal!.workflow as Workflow,
     limits: applied.limits,
     roles: applied.roles,

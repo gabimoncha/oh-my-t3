@@ -153,6 +153,10 @@ export const CONFIG_SCHEMA = {
       properties: {
         description: { type: "string", minLength: 1, maxLength: DESCRIPTION_MAX },
         extends: { type: "string", pattern: ROLE_NAME_PATTERN },
+        t3Workflow: {
+          type: "boolean",
+          description: "Run the review and QA steps of omt-ulw and omt-code-review as T3 workflows when T3 Workflows is on. Default false.",
+        },
         workflow: { $ref: "#/$defs/workflow" },
         limits: { $ref: "#/properties/limits" },
         roles: { $ref: "#/properties/roles" },

@@ -39,9 +39,11 @@ export const run: CommandRun = async (ctx) => {
     checkPositionals(positionals, 2);
     if (name !== undefined && values.profile !== undefined) throw usageError("profile show accepts a name or --profile, not both");
     const { profile } = await loadEffectiveConfigReporting(ctx, { profile: name ?? values.profile, plan: values.plan });
-    const { name: selected, source, workflow, limits, roles, models } = profile;
-    const output = { profile: selected, source, workflow, limits, roles, models };
-    ctx.stdout(values.json ? formatJson(output) : `profile: ${selected}\nsource: ${source}\n${formatJson({ workflow, limits, roles, models })}`);
+    const { name: selected, source, t3Workflow, workflow, limits, roles, models } = profile;
+    const output = { profile: selected, source, t3Workflow, workflow, limits, roles, models };
+    ctx.stdout(values.json
+      ? formatJson(output)
+      : `profile: ${selected}\nsource: ${source}\nt3Workflow: ${t3Workflow}\n${formatJson({ workflow, limits, roles, models })}`);
     return 0;
   }
   throw usageError(subcommand === undefined ? "profile needs a subcommand: list or show" : `unknown profile subcommand "${subcommand}"`, "use list or show");

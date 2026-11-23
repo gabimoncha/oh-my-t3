@@ -278,6 +278,10 @@
           "type": "string",
           "pattern": "^[a-z][a-z0-9-]{0,31}$"
         },
+        "t3Workflow": {
+          "type": "boolean",
+          "description": "Run the review and QA steps of omt-ulw and omt-code-review as T3 workflows when T3 Workflows is on. Default false."
+        },
         "workflow": {
           "$ref": "#/$defs/workflow"
         },
