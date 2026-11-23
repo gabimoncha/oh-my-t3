@@ -27,7 +27,6 @@ This page is the reference for the code, the skills, and the tests. [`design.md`
 | `test` | `bun test` |
 | `typecheck` | `sh scripts/tsrs.sh -p tsconfig.json` |
 | `schema` | `bun scripts/build-schema.ts` |
-| `defaults:edit` | `bun scripts/edit-defaults.ts` (section 5.1, maintainer mode) |
 | `build` | `bun scripts/build.ts` (section 5) |
 | `release` | `bun scripts/release.ts` (section 17) |
 | `verify` | `bun run typecheck && bun test` |
@@ -50,11 +49,9 @@ src/
   main.ts                main(), createContext(), command registry, help text
   types.ts               shared types (section 3)
   paths.ts               path helpers (section 4)
-  util/                  errors.ts, args.ts, fs.ts, output.ts, json.ts, ids.ts, open.ts (opens a URL in the default browser)
+  util/                  errors.ts, args.ts, fs.ts, output.ts, json.ts, ids.ts
   config/                jsonc.ts, defaults.ts and defaults.jsonc and defaultsText.ts (section 6.4), defaultsState.ts, target.ts, validate.ts, merge.ts, load.ts, starter.ts, schema.ts,
                          explain.ts (the source of each value, section 5.1)
-  config/editor/         server.ts, api.ts, catalog.ts, skillFiles.ts, diff.ts, assets.ts, assetText.ts: the config editor of omt config edit --web
-                         and of bun run defaults:edit (section 5.1)
   routing/               capabilities.ts, effort.ts, resolve.ts, format.ts, family.ts
   brief/                 templates.ts, render.ts
   plan/                  template.ts, parse.ts
@@ -78,7 +75,6 @@ src/
 scripts/
   build-schema.ts        writes schema/omt.schema.json from src/config/schema.ts
   build.ts               builds dist/cli.js and the omt binaries (section 5)
-  edit-defaults.ts       starts the config editor in maintainer mode (section 5.1)
   release.ts             writes the npm packages, archives, and SHA256SUMS (section 17)
   tsrs.sh                runs the native tsrs binary for the type check (section 1)
 schema/
@@ -86,7 +82,6 @@ schema/
 templates/
   worktree-setup.mjs     the standalone worktree setup runner (section 5.11)
   worktree-setup.d.mts   its types for src/worktree/runner.ts
-  config-editor/         index.html, app.css, and app.js: the config editor page (section 5.1)
 skills/
   omt/                   router skill and shared references
   omt-ulw/ omt-plan/ omt-design/ omt-code-review/ omt-research/ omt-setup/
@@ -515,7 +510,7 @@ Argument parsing uses `node:util` `parseArgs` with `strict: true` and `allowPosi
 | `update` | `omt update [--check] [--dry-run] [--yes] [--skills-only] [--project] [--json]` (section 5.14) |
 | `doctor` | `omt doctor [--project] [--capabilities <file>] [--yes] [--dry-run] [--json]` |
 | `init` | `omt init` |
-| `config` | `omt config [show \| explain \| path \| validate \| init] [--json] [--defaults] [--force]`, `omt config explain [--profile <name>] [--json]`, `omt config edit --web [--no-open] [--capabilities <file>]` |
+| `config` | `omt config [show \| explain \| path \| validate \| init] [--json] [--defaults] [--force]`, `omt config explain [--profile <name>] [--json]` |
 | `detect` | `omt detect [--capabilities <file>] [--json] [--write] [--user \| --project] [--dry-run] [--yes]` |
 | `roles` | `omt roles [--capabilities <file>] [--role <name>]... [--plan <slug>] [--profile <name>] [--json]` |
 | `route` | `omt route <role> [--capabilities <file>] [--against <provider\|driver\|auto>] [--plan <slug>] [--profile <name>] [--unit <id>]` |
@@ -552,13 +547,12 @@ Build. `bun run build` runs `bun scripts/build.ts [--bundle] [--binary] [--targe
 - `<outdir>/cli.js` comes from `bun build --target=node --define OMT_BUILD='"bundle"' src/cli.ts`. `bun build` keeps the source shebang, `#!/usr/bin/env bun`, so the script replaces the first line with `#!/usr/bin/env node`. The file then has exactly one shebang. The script sets its mode to 0755.
 - `<outdir>/bin/omt` comes from `bun build --compile --minify --asset ./skills --define OMT_BUILD='"binary"' src/cli.ts`. The skills land at `/$bunfs/root/skills`. With `--target`, each target goes to `<outdir>/bin/<target>/omt`, and a cross-compile downloads the Bun runtime of that target.
 
-Both outputs inline the worktree setup runner, its module and its text (section 5.11), and the config editor page (section 5.1), so neither needs a `templates/` folder.
+Both outputs inline the worktree setup runner, its module and its text (section 5.11), so neither needs a `templates/` folder.
 
 ### 5.1 `omt config`
 
 - `show` (the default subcommand) prints the merged config as JSON, before the selected profile is applied (section 6.7). `--defaults` prints the installed release's current defaults (section 6.4) instead. Config issues go to stderr, and the command still exits 0.
 - `explain` prints the layer that sets each value, as the section on value sources below describes.
-- `edit --web` starts the config editor, as the section on the config editor below describes. `edit` without `--web` is a usage error with the hint `use omt config edit --web`. `--web`, `--no-open`, and `--capabilities` with another subcommand are usage errors.
 - `path` prints two lines: `user: <path> (present)` or `(absent)`, then `project: <path> (present)` or `(absent)`. Neither path goes through `realpath`. The CLI takes its cwd from `$PWD` when `$PWD` resolves to `process.cwd()` and `findProjectRoot($PWD)` resolves to the same real directory as `findProjectRoot(process.cwd())`; otherwise it uses `process.cwd()`. So the project root always names the physical project, and `$PWD` changes only how it prints.
 - `validate` prints each issue as `<severity> <source> <path>: <message>`, or `<severity> <source>: <message>` when the path is empty. A JSONC syntax error is one issue with an empty path and the message `<line>:<column>: <reason>`, so the file path appears once. It prints `config ok` when there is no issue. It exits 1 when any issue is an error. `--json` prints `{ "ok": boolean, "issues": ConfigIssue[] }`.
 - `init` writes the starter user config (section 6.5) and prints `create <path>` or `overwrite <path>`. It refuses to overwrite an existing file unless `--force` is given.
@@ -599,103 +593,6 @@ The sources come from the merge steps, not from the paths that a file names:
 - `effective` applies the same rules to the profile steps. `profileBase(config)` in `src/profile/resolve.ts` is the config before the first resolution step, and `profileSteps(config, name)` returns the config after each step of the chain, from `normal` to the named profile. `resolveProfile` uses both. `effective` has one entry per leaf of the resolved `roles`, `limits`, `models`, and `workflow`, and its paths start with these keys. In the base step, a `workflow` path has the source `{ kind: "defaults" }`, from the accepted `normal` profile before file overrides, and any other path has its `root` source. A profile step that sets or creates a path gives the source `{ kind: "profile", profile, declaredIn }`, where `declaredIn` is the `root` source of `profiles.<profile>.<path>`. For a filled-in field of a role that the profile creates, `declaredIn` is the `root` source of `profiles.<profile>.roles.<role>.access`.
 
 The text output starts with the two file paths, `user: <path>` and `project: <path>`, then `defaults: <source>` and `profile: <name> (<source>)`. Then come the lines `root:`, `removed:` (only when `removed` is not empty), and `effective:`, each followed by its entries. An entry is one line, `<dotted path>  <value>  <label>`, and one line `  over <label>: <value>` per `overridden` item. Values print with `formatValue` of `src/config/defaults.ts`. A `removed` entry prints as `<dotted path>  <label>`. The labels are `defaults`, `user`, `project`, and `profile <name> (<label of declaredIn>)`. `--json` prints the `ExplainReport`.
-
-Config editor. `omt config edit --web [--no-open] [--capabilities <file>]` reads the capabilities file with `readCapabilities` when given, and calls `startConfigEditor(ctx, { open, capabilities })` from `src/config/editor/server.ts`. It prints `omt config editor: <url>` and `Press Ctrl-C to stop. The editor also stops when you close its tab.`, waits until the server stops, prints `editor stopped`, and exits 0. On SIGINT or SIGTERM it closes the server and exits 0. It removes its signal handlers after the close. Without `--no-open`, it opens `http://127.0.0.1:<port>/` with `openUrl(url, platform)` from `src/util/open.ts`. This page asks for the full editor URL from the terminal and accepts only a URL on the same origin with a session token path. The browser opener never receives the token. The opener uses `open` on darwin, `cmd /c start "" <url>` on win32, and `xdg-open` on other platforms, spawned detached with `stdio: "ignore"`. When the opener cannot start, the command prints `warning: could not open a browser; open the URL yourself` to stderr and keeps running. With `--no-open`, nothing is spawned.
-
-```ts
-interface ConfigEditorOptions {
-  open: boolean;
-  idleMs?: number; // default 120_000
-  closeGraceMs?: number; // default 5_000
-}
-
-interface ConfigEditor {
-  url: string; // http://127.0.0.1:<port>/<token>/
-  port: number;
-  closed: Promise<void>; // resolves when the server has stopped
-  close(): Promise<void>;
-}
-```
-
-Server. The editor uses `node:http` and listens on host `127.0.0.1`, port 0. A listen error fails with `OmtError` code `editor_listen`. The token is 32 bytes from `randomBytes`, as base64url. The editor and API paths start with `/<token>/`. The public paths `/` and `/login.js` serve only the login page and its script. Neither response contains a token or configuration. omt runs no other server, and the editor runs only while the command runs.
-
-Request checks, in this order:
-
-1. The `Host` header must equal `127.0.0.1:<port>`, else 403 `forbidden`. A request without `Host` gets the same 403.
-2. Except for `/` and `/login.js`, the path must start with `/<token>/`, compared with `timingSafeEqual`, and the rest must be a route, else 404 `not_found`. The two public routes accept GET only and use the same Host, Origin, fetch metadata, and response header checks.
-3. When `Origin` is present, it must equal `http://127.0.0.1:<port>`, else 403 `forbidden`. `Origin: null` fails this check. A POST without `Origin` gets 403 `forbidden`.
-4. When `Sec-Fetch-Site` is present, it must be `same-origin` or `none`, else 403 `forbidden`.
-5. The method must be the route's method, else 405 `method_not_allowed` with an `Allow` header. `OPTIONS` gets this 405 too.
-6. An `Expect` header other than `100-continue` gets 417 `expectation_failed`.
-7. `api/preview` and `api/write` need `Content-Type: application/json`, else 415 `unsupported_media_type`.
-8. On a POST route, a body over 1 MiB gets 413 `payload_too_large` with `Connection: close`. A `Content-Length` over 1 MiB gets the 413 before the body is read, and a chunked body gets it at the first byte over the limit. The server drops the rest of the upload. A GET route reads no body, so this check does not apply to it.
-
-A CONNECT request and a protocol upgrade go through checks 1 to 4. When they pass, the request gets 405 `method_not_allowed` with `Allow`, and the server closes the socket. A request that does not parse gets 431 for a header overflow, 413 for a chunk-extension overflow, 408 for a request timeout, and 400 otherwise, all with code `bad_request`.
-
-Every response, error responses and the parser-error responses included, has these headers: `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin`, and `Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`. No response has an `Access-Control-*` header. `Referrer-Policy` is `same-origin` and not `no-referrer`, because with `no-referrer` a browser sends `Origin: null` on the page's own POST requests, which check 3 refuses. The page loads nothing from another origin, so no `Referer` with the token leaves it. An error body is `{ "ok": false, "code", "message", "hint"?, "newErrors"? }` and has no stack trace. An unexpected error gets 500 `internal_error`, and the server prints a warning to stderr.
-
-Routes under `/<token>/`:
-
-| Route | Method | Response |
-| --- | --- | --- |
-| `""` | GET | `index.html` |
-| `app.css`, `app.js` | GET | the page assets |
-| `api/state` | GET | the editor state |
-| `api/explain?profile=<name>` | GET | `explainConfig` for that profile |
-| `api/skill?name=<skill>` | GET | `{ name, text }`: the `SKILL.md` of a bundled skill |
-| `api/skill-files?name=<skill>` | GET | maintainer mode only: `{ files: [{ path, hash, text }] }` |
-| `api/skill-file` | POST | maintainer mode only: saves one skill file |
-| `api/preview` | POST | the edit result, with nothing written |
-| `api/write` | POST | the write result |
-| `api/ping` | POST | 204 |
-| `api/close` | POST | 204 |
-
-The page assets come from `src/config/editor/assetText.ts`, a Bun macro that reads `templates/config-editor/<name>`. `src/config/editor/assets.ts` imports it `with { type: "macro" }`, as `src/worktree/runner.ts` imports the runner text (section 5.11).
-
-`api/state` returns `{ version, mode, defaults: { source }, files: [{ kind, path, present, hash, text, issues }], profiles, selectedProfile, issues, explain, vocab, catalog, skills }`. `files` holds the user file, then the project file. `hash` is the SHA-256 hex of the file text, and `hash` and `text` are `null` for an absent file. `files[].issues` holds the issues of that file, and `issues` holds the issues of the merged config. `explain` is never `null`. It is the report of the selected profile. When that profile does not resolve, it is the report of `normal`. When `normal` does not resolve either, it has the `root` entries, the `removed` entries, and no `effective` entries, and the issues say why. `vocab` holds the keys, values, ranges, and patterns that `validateLayer` accepts, from the constants of `src/config/validate.ts` and `EFFORT_LADDER`, so the page offers the same choices.
-
-`catalog` comes from `editorCatalog` in `src/config/editor/catalog.ts`: `{ source: "t3" | "local", providers: [{ id, driver, label, available, reason, models: [{ id, label?, efforts, fast }] }] }`. With capabilities, `source` is `t3`, each T3 provider is one entry, `available` is `canRunChildTask`, `efforts` are the choices of the model's first effort option that are on `EFFORT_LADDER`, and `fast` is true when the model has a `serviceTier` choice `priority` or a boolean `fastMode` option. Without capabilities, `source` is `local`, the entries are the default harnesses with the result of `detectHarnesses`, the models are the chain models of the defaults and the merged config for that driver, `efforts` is `EFFORT_LADDER`, and `fast` is `null`. `skills` lists the folder names under `<packageRoot>/skills` that match `^[a-z][a-z0-9-]{0,63}$`.
-
-`api/skill` reads `<packageRoot>/skills/<name>/SKILL.md`. A name that does not match the pattern above, or a skill without the file, gets 404 `unknown_skill`.
-
-Maintainer mode. `bun run defaults:edit [--no-open] [--capabilities <file>]` runs `scripts/edit-defaults.ts` in an omt clone. It starts the same server with `maintainer: { defaultsPath, skillsRoot }`, where `defaultsPath` is `src/config/defaults.jsonc` and `skillsRoot` is `skills/` of the clone. The published CLI has no way to start this mode. In maintainer mode:
-
-- `mode` is `defaults`. Otherwise it is `config`.
-- `files` holds `defaultsPath` with kind `user`, then a project entry with `path: ""` and `present: false`. The server reads no user or project config. An edit request with `file: "project"` gets 400 `bad_request`.
-- The merge base is an empty config, `{ version: 1, profile: "normal", profiles: {}, models: {}, roles: {}, limits: {} }`, not the accepted or current defaults. So `explain` shows the values of the file itself, and a removed key is gone.
-- Step 4 of an edit request also makes a new error when the candidate fails `isCompleteDefaults` of `src/config/defaultsState.ts`, the same check as for an accepted defaults snapshot.
-- `skills` lists the skill folders under `skillsRoot`.
-- `api/skill-files` lists `SKILL.md`, then each `.md` file under `references/` in path order, each with its SHA-256 `hash` and `text`. A symlink is not listed. A skill without `SKILL.md` gets 404 `unknown_skill`.
-- `api/skill-file` takes `{ name, path, base, text }`. `path` must be `SKILL.md` or `references/<path>.md` with at most 5 folder levels and no `..`; another value, a bad name, or a non-string `text` gets 400 `bad_request`. The route writes existing files only: an absent file gets 404 `unknown_skill_file`. A file whose real path is outside the skill folder gets 400 `bad_request`. A `base` that differs from the current text gets 409 `skill_changed`. A `SKILL.md` that does not start with `---` and `name: <name>` gets 422 `skill_frontmatter`. Otherwise the route writes the text atomically and returns `{ path, hash, text }`. The server runs it in the same queue as the config writes.
-
-Outside maintainer mode, `api/skill-files` and `api/skill-file` get 404 `not_found`.
-
-`api/explain` without a `profile` value gets 400 `bad_request`. An unknown name gets 400 `unknown_profile` with the known profiles in the hint. A profile whose chain does not resolve gets 422 `profile_invalid`.
-
-Edit requests. `api/preview` and `api/write` take the body `{ "file": "user" | "project", "base": string, "edits": ({ "path": string[], "value": unknown } | { "path": string[], "remove": true })[] }`. `base` is the `hash` of the file text that the page edited. A body that is not a JSON object, a `file` that is neither name, a `base` that is not a string, fewer than 1 or more than 200 edits, a path that is empty or has an empty segment, a `path[0]` that is not in `ROOT_KEYS` or is `$schema` or `version`, or an edit without exactly one of `value` and `remove: true` gets 400 `bad_request`. Both routes then do these steps:
-
-1. Read the target file with `readConfigTarget` (section 5.12). An absent file gets 404 `config_not_found` with its hint, `run omt init` or `run omt config init`.
-2. Compare the SHA-256 of the text with `base`. A difference gets 409 `config_changed` with the message `<path> changed since the editor loaded it; nothing was written` and the hint `reload the page`.
-3. Apply the edits in order with `setJsoncValue` (section 7). A `remove` edit passes `undefined`. A target that does not parse gets 422 `jsonc_parse`, and a failed edit gets 422 `jsonc_edit`, each with its message.
-4. Check the candidate text with `layerFromText`, and merge it with the other file's layer through `mergeConfigLayers`. Do the same with the current text. An error issue of the candidate whose `source`, `path`, and `message` the current files do not have is a new error. Warnings never block.
-
-`api/preview` returns `{ text, diff, issues, newErrors }` and writes nothing. `diff` comes from `lineDiff` in `src/config/editor/diff.ts`: `{ op: " " | "+" | "-"; line: string }[]`, from the longest common subsequence of the lines. When either text has over 5,000 lines, the diff removes every old line and adds every new line.
-
-`api/write` refuses a new error with 422 `config_invalid`, the message `the change adds <n> config errors; nothing was written` (`1 config error` for one error), and `newErrors`. Otherwise it writes the candidate text with `writeConfigTarget(target, snapshot, next)` (section 5.12), where `snapshot` is the text of step 1, and returns `{ "ok": true, "state" }` with the new editor state. When the candidate equals the snapshot, it writes nothing. A `config_changed` error from `writeConfigTarget` gets the 409 of step 2. The server runs previews and writes one at a time, in the order in which their bodies complete, from step 1 to the end of the atomic write. So of two writes with the same `base`, the second reads the new text and gets 409. A writer outside omt can still change the file between the last read and the rename, as for other config writes.
-
-Editor page. The initial view is Skills, with all 10 bundled skills. Build, Code review, Plan, and Design have a configured flow, and a selected stage shows its editable keys. Every skill page shows the skill description, its child roles, and its `SKILL.md` from `api/skill`, rendered read-only as text nodes: the page never inserts the file as HTML. A relative link in the file points to the file on GitHub, and a link with another scheme than `http` or `https` is plain text. Roles and Profiles have separate lists and focused editors. The candidate fields Provider, Model, and Effort are dropdowns from `catalog`; Model also accepts a custom value. A profile card lists the values that the profile sets and the commands that select it. Settings holds the harnesses, with one checkbox per catalog driver, the limits, and the model options; the workflow keys, the roles, and the `profile` key are on the Skills pages, the Roles pages, and the header. A source badge opens help, the saved layer history, the edit destination, and reset. There is no layer strip, introductory legend, or permanent source inspector.
-
-In maintainer mode, the header names `src/config/defaults.jsonc` in place of the file picker, and the page calls the user layer `built-in`. A skill page shows the skill files from `api/skill-files` in three columns: the file list, a text area, and the rendered preview, which follows each key press. Save, or Cmd-S or Ctrl-S in the text area, sends `api/skill-file`. A role page links to the role's file under `skills/omt/references/roles/`, or to `_generic.md` for a custom role: in maintainer mode it opens that file in the Router skill page, and otherwise it opens the file on GitHub.
-
-`Show values for` fetches an explain report without staging a `profile` edit. During the request, dependent edits are disabled. A failed request retains the last successful report and identifies its profile. Late responses cannot replace a newer selection. `Saved default` stages a root `profile` edit in the selected file. The saved default can still be overridden by a command argument or plan header. The page compares the current preview with the saved-default explain report to compute changed values; it does not hard-code preset differences.
-
-Dropdowns, segments, and checkboxes stage changes immediately. Text and number fields stage on Enter or change, and invalid input stays in its draft. Workflow edits target `profiles.<preview>.workflow.*`. Roles, limits, and models use base or profile scope, separately from the User or Project file destination. Both the flows and the settings list read the same pending edits, including inherited profile changes and file precedence. The page marks unsaved values, names their destination, offers Undo, and identifies shadowed edits before a write. Boolean overrides support Inherit, On, and Off. Multi-field role and profile drafts use Add changes. Chain cards retain configured candidate numbers and support reorder, driver and raw options, and explicit fast inheritance. Cross-family attempt order is a local preview for a selected main driver. Without capabilities, a candidate never claims verified availability.
-
-Review changes shows a per-file diff and validation. Write project file or Write user file writes only the reviewed request for that file. Other files keep their queues and original hash bases. New errors block writes; warnings do not. Reload and review is an explicit conflict action: it loads the newer file, keeps the queued edits, rebases only that file, and requires a new review before writing. Discard asks before clearing a file's queue. A beforeunload handler warns about unsaved queues and dirty drafts. The disconnected state keeps them in the tab. A missing optional file is neutral and unavailable as a destination; file help gives its path and init command.
-
-Flows describe configured skill behavior, not live task state. Build QA always remains in the flow; `build.qa` controls the approved test list. A required oracle replaces the review child even when build review is off. Build review and QA run in sequence. Review loops and QA retries show their limits. Code review has separate sizing, family, oracle, pull request, and owner-approved fix rules. Plan review has at most two rounds. Design loops through owner feedback without an automatic model review.
-
-Lifetime. The page posts `api/ping` at load and then every 5 seconds. An `api/close` starts a timer of `closeGraceMs`, also before the first ping, and stops the idle timer. A ping in that time cancels the close. Else the server stops. A reload sends a close, and the new page pings at load, so the server keeps running. Each ping starts an idle timer of `idleMs`. When it runs out with no ping, the server stops. The default of 120 seconds is longer than the one-minute timer interval that Chrome gives a tab that stays hidden for more than 5 minutes. With no ping and no close, the server runs until SIGINT, SIGTERM, or `close()`. `close()` stops both timers and the listener, waits for the running preview or write to finish, closes the open connections, and then resolves `closed`.
 
 ### 5.2 `omt init`
 
@@ -1025,7 +922,7 @@ The runner sets no global configuration and no store or cache path, so the user'
 
 `activeDefaults` reads the project manifest, then the user manifest. The first accepted snapshot supplies the base config. A snapshot from an older release can lack a workflow key that a later release added, outside the `git` group. `withNewWorkflowKeys` gives each missing key its current default before the completeness check and in `activeDefaults`, so the snapshot stays valid. `planDefaults` compares the snapshot as saved, so the review lists such a key as `none -> <default>`. Without a snapshot it uses `DEFAULT_CONFIG`. `parseDefaultsSnapshot` validates the saved config and rejects a saved `update` key, which only the user config can set and fails with `defaults_snapshot` when it is invalid. There is no archived set catalog, date selector, or `omt defaults` command.
 
-Config targets. `src/config/target.ts` exports `configTarget`, `readConfigTarget`, and `writeConfigTarget` for detect and the config editor. `--project` selects the project config, `--user` selects the user config, and no flag selects the project file when present, else the user file. Both flags together are a usage error. An absent target fails with exit 1 and the hint `run omt init` or `run omt config init`. `writeConfigTarget` checks the file text after confirmation. A difference fails with `config_changed` and writes nothing. A writer outside omt can still change the file between that read and the atomic rename.
+Config targets. `src/config/target.ts` exports `configTarget`, `readConfigTarget`, and `writeConfigTarget` for detect. `--project` selects the project config, `--user` selects the user config, and no flag selects the project file when present, else the user file. Both flags together are a usage error. An absent target fails with exit 1 and the hint `run omt init` or `run omt config init`. `writeConfigTarget` checks the file text after confirmation. A difference fails with `config_changed` and writes nothing. A writer outside omt can still change the file between that read and the atomic rename.
 
 ### 5.13 `omt detect`
 
@@ -1401,7 +1298,7 @@ A JSONC syntax error in a file becomes one error issue, and that file is skipped
 
 ### 6.4 Defaults
 
-`src/config/defaults.ts` exports one `DEFAULT_CONFIG` and `diffDefaults(from, to, overrides): DefaultsChange[]`. The values of `DEFAULT_CONFIG` are in `src/config/defaults.jsonc`. `src/config/defaultsText.ts` is a Bun macro that reads the file, and `defaults.ts` imports it `with { type: "macro" }` and parses the text with `parseJsonc`, so the bundle and the binary hold the text and read no file. The file is in the layout that `setJsoncValue` writes, so that a save from `bun run defaults:edit` changes only the edited lines. `test/defaults.test.ts` checks that the file has no validation issue and passes `isCompleteDefaults`. Each release updates this configuration directly. The accepted snapshot in the install record supplies the active base until the user accepts the current defaults (section 5.12).
+`src/config/defaults.ts` exports one `DEFAULT_CONFIG` and `diffDefaults(from, to, overrides): DefaultsChange[]`. The values of `DEFAULT_CONFIG` are in `src/config/defaults.jsonc`. `src/config/defaultsText.ts` is a Bun macro that reads the file, and `defaults.ts` imports it `with { type: "macro" }` and parses the text with `parseJsonc`, so the bundle and the binary hold the text and read no file. `test/defaults.test.ts` checks that the file has no validation issue and passes `isCompleteDefaults`. Each release updates this configuration directly. The accepted snapshot in the install record supplies the active base until the user accepts the current defaults (section 5.12).
 
 `diffDefaults` compares leaf values in both configurations. Arrays, including role chains, compare as one leaf. Chains print as `driver/model effort, ...`, with `provider` when no driver is set and ` fast` for a fast candidate. Other values print as JSON. A missing value prints `none`. Added or removed objects report each leaf.
 
@@ -2575,7 +2472,6 @@ Required coverage:
 - Schema: the committed schema equals the generated one, and it allows the same keys as the validator.
 - CLI: `--help`, `--version`, an unknown command (exit 2), and an unknown flag (exit 2), run as a child process. `test/cli.test.ts` also checks that `omt help` and `omt help config` print the same text as `omt --help` and `omt config -h`. `test/cli-help.test.ts` runs every command in `COMMANDS` except `hook` with probe arguments from its usage text. It records the options of each `parseArgs` call through `observeParseArgs` in `src/util/args.ts`, and fails when a usage text does not name a flag that its parser accepts, or when no probe of a command reaches a parser.
 - Config explain: `test/e2e/config-explain.test.ts` runs `omt config explain` and `omt config explain --profile fast-proto --json` as a child process with a temp user and project config, and checks a source from the defaults, the user file, the project file, and a profile.
-- Config editor: `test/config/editor-server.test.ts` checks that the server refuses a wrong token, a wrong `Host`, a foreign `Origin`, `Origin: null`, a POST without `Origin`, `Sec-Fetch-Site: cross-site`, an unknown path, a wrong method, a wrong `Content-Type`, and a body over 1 MiB, and that no response has an `Access-Control-*` header. It checks 409 `config_changed` for a stale `base` and for the second of two writes with the same `base`, and 422 `config_invalid` for a new error, each with the file unchanged. It checks that `closed` resolves after a close beacon with no ping, before and after the first ping, and that a ping after the beacon keeps the server open. `test/e2e/config-edit-web.test.ts` runs `omt config edit --web --no-open` as a child process with the `childEnv` helper, reads the URL, loads the page and `api/state`, pings, writes a nested profile value, checks that the file keeps every comment, and sends SIGINT for exit 0. `test/config/editor-maintainer.test.ts` checks maintainer mode: the empty base, that the user config is not read, the completeness check, a write to the defaults file, the skill file list without a symlink, a skill file save, 409 for a stale `base`, 422 for a changed `SKILL.md` name, 400 for a path outside `references/` or through a symlink, 404 for a new file, and 404 for both skill file routes outside maintainer mode. `test/config/editor-catalog.test.ts` checks the catalog with and without capabilities, the compact option form, the `SKILL.md` reads and the refused names, and that the page renders skill markdown without HTML and with no `javascript:` link.
 - Commands: `roles`, `route`, `brief`, and `doctor` in `test/commands/`, including the `brief --json` payload fields, the title rule, `brief --json --against` with its target and fallbacks, `route --against auto` against a ledger, and the `CROSS` column and `crossFamily` field of `omt roles`.
 - End to end: one child-process flow in a temp `HOME` (`test/e2e.test.ts`) runs `install`, `doctor`, `roles`, `route`, `init`, `plan`, `profile`, `brief`, `ledger`, `hook`, and `uninstall` in a temp git project. It runs the CLI with `process.execPath`, because a version-manager `node` shim can fail when `HOME` is a temp directory. A second flow runs `install --project --hooks --yes` in a temp git project, runs `.omt3/bin/omt`, checks that `git status --porcelain` is empty, and uninstalls.
 
