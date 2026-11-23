@@ -95,7 +95,7 @@ The skills follow the git rules in your message and your `AGENTS.md` or `CLAUDE.
 
 1. Before the first edit, `omt git start` records the files that were already changed.
 2. `omt git commit` commits only the files that the run changed. A file that you changed before the run stays out of the commit.
-3. T3's `pull_request_create` tool pushes the branch and opens a draft PR, or returns the branch's open PR. To get a PR that is ready for review, ask for one in your message or in your `AGENTS.md`.
+3. `git push -u origin HEAD` pushes the branch, and T3's `pull_request_create` tool opens a draft PR, or returns the branch's open PR. To get a PR that is ready for review, ask for one in your message or in your `AGENTS.md`.
 
 Before a run, the skills sync the branch: they fetch and merge the default branch in. `omt-ulw` makes one commit for the run after QA passes, then opens the PR. `omt-code-review` commits each approved fix and pushes it to the PR branch. For a PR by another author, it asks you first.
 
