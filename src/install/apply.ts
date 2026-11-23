@@ -14,6 +14,7 @@ import { removesRetired, replaceableSteps, sha256 } from "./plan.ts";
 import type { FileStep, HookStep, InstallPlan, PlanAction, SkillStep, UninstallPlan } from "./plan.ts";
 import { BACKUPS_GITIGNORE } from "./project.ts";
 import { isManagedDir, PACKAGE_NAME, writeMarker } from "./skills.ts";
+import { applyWorkflows, removeWorkflows, workflowRecords } from "./workflows.ts";
 
 export interface ApplyResult {
   changed: string[]; // paths written, created, or removed
@@ -330,6 +331,7 @@ function installManifest(plan: InstallPlan, now: Date, fields: Pick<Manifest, "c
       .filter((link) => !removesRetired(link))
       .filter((link) => owns(plan, link.action, ownedLinks.has(link.path), plan.project?.existing.links.includes(link.path) === true))
       .map((link) => ({ path: link.path, target: link.target })),
+    ...(plan.workflows === undefined ? {} : { workflows: workflowRecords(plan.workflows) }),
     ...fields,
   };
 }
@@ -439,6 +441,14 @@ export async function applyInstall(plan: InstallPlan, now: Date): Promise<ApplyR
     }
   }
 
+  for (const step of plan.workflows?.steps ?? []) {
+    if (step.action !== "replace") continue;
+    const backup = join(await backupDir(), "workflows", step.name);
+    await movePath(step.path, backup);
+    result.backups.push(backup);
+  }
+  if (plan.workflows !== undefined) result.changed.push(...await applyWorkflows(plan.workflows));
+
   let configCreated = false;
   if (plan.config.action === "create" && !(await pathExists(plan.config.path))) {
     await writeFileAtomic(plan.config.path, starter);
@@ -496,6 +506,7 @@ export async function applyUninstall(plan: UninstallPlan, now: Date): Promise<Ap
     result.changed.push(skill.path);
   }
   for (const hook of plan.hooks) await writeHook(hook, backupDir, result, false, plan.project?.root);
+  result.changed.push(...await removeWorkflows(plan.workflows));
   if (plan.project?.shim !== undefined) {
     await removePath(plan.project.shim.path);
     result.changed.push(plan.project.shim.path);

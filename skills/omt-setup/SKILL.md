@@ -71,7 +71,7 @@ Done when: you finished each step of worktrees.md that applies.
 ### 7. Change a profile or a role
 
 1. Run `omt config path`. Pick the project file for one project, or the user file for all. When it is absent, propose `omt init` or `omt config init`.
-2. Read the file and `omt config show --defaults`. Write the JSONC edit with its key path by the [configuration guide](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/configuration.md). A new role needs `description`, `access`, and `chain`. A `chain` replaces the old chain, and `null` removes a role.
+2. Read the file and `omt config show --defaults`. Write the JSONC edit with its key path by the [configuration guide](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/configuration.md). A new role needs `description`, `access`, and `chain`. A `chain` replaces the old chain, and `null` removes a role. To run the review and QA steps as T3 workflows, set `profiles.normal.t3Workflow` to `true`. That needs the doctor's `workflows` line to say that T3 Workflows is on; otherwise tell the user to turn it on in T3 Settings → Labs → Workflows.
 3. Show the edit and ask. After yes, make it, and keep every other byte of the file.
 4. The check: `omt config validate`, then `omt profile show <name>`.
 

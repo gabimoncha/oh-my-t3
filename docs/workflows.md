@@ -43,6 +43,29 @@ In T3 plan mode, the main thread writes nothing: it leaves out `--save`, records
 - `omt-research` answers a narrow question in the main thread, with a `path:line` or a URL for each fact. A broad question gets 2 to 4 read-only tasks in parallel, and the main thread checks each claim before it answers.
 - `omt-design` draws the variants of each screen with the tool that `workflow.design.tool` names. `paper`, the default, draws in a new Paper file when Paper's tools load, and in HTML mockups otherwise. `html` draws HTML mockups only. When the first model of the `design` role is the main thread's model, the main thread draws the variants itself. Otherwise one routed `design` task draws them, with the configured fallbacks. Both use Anthropic's `frontend-design` skill when available. You pick one variant per screen and steer until you approve. Then the main thread writes `docs/design/<slug>.md`, and on request it builds the screens with the build steps 7 to 12.
 
+## Run the review and QA steps as T3 workflows
+
+You can run the fixed steps of a build or a review as [T3 workflows](https://github.com/pingdotgg/t3code/blob/main/docs/user/workflows.md) instead of child tasks. Both paths stay: without the switch, omt runs every step in the thread as above.
+
+1. Turn on **Settings → Labs → Workflows** in T3.
+2. Run `omt install` or `omt update`. A user install copies `omt.ts` into the T3 workflows folder (`T3CODE_WORKFLOWS`, or `~/.t3/workflows`). `omt doctor` shows the file and whether Workflows is on.
+3. Turn on the profile switch in `.omt3/config.jsonc` (or the user config):
+
+```jsonc
+{ "profiles": { "normal": { "t3Workflow": true } } }
+```
+
+Every profile extends `normal`, so this line turns it on for `prototype` and your own profiles too.
+
+With the switch on:
+
+- `omt-ulw` commits the build, then starts the workflow `omt-ulw` for steps 8 to 11. The reviewer from the other family works in its own worktree from the build commit and commits its fixes there. QA runs every check on that commit. When a check fails, the reviewer fixes it, and QA runs the failed checks again, at most 2 times.
+- `omt-code-review` starts the workflow `omt-code-review` for its 1 to 4 reviewers, in parallel, and the oracle. The reviewers report only. With `review.fixLoop: offer`, the workflow asks you on the Workflows page whether the main thread fixes the findings.
+- The models come from omt's roles, with the same fallbacks and the same cross-family rule.
+- Each run ends by sending a message to the thread that started it. The thread then merges the fixes with a fast-forward, applies its own judgment to the findings, and opens the draft PR, because a workflow cannot open one.
+
+When Workflows is off, or `t3 workflow start` fails, the skill prints one line and runs the steps in the thread. Follow each run on the T3 Workflows page, or with `t3 workflow show <run>`.
+
 ## Review a pull request
 
 In a T3 thread, run the skill:

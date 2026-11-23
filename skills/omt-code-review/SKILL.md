@@ -44,6 +44,8 @@ Done when: each changed file outside `docs/design/` is in exactly one group.
 
 ### 3. Dispatch the reviewers
 
+With `t3Workflow` on, run steps 3 and 5 as a T3 workflow by [t3-workflows.md](../omt/references/t3-workflows.md), then go to step 4.
+
 Per group, run `omt brief review ... --plan review-<slug> --unit G<k> --round <n> --profile <profile> --save --json`; a small-shape oracle uses `omt brief oracle --unit oracle`. Each task holds the group's diff command, the change's intent, and the report-only lines. Round 1 passes no `--against`, because the author is unknown. Dispatch them together with `mode: "async"`.
 
 A round after fixes dispatches 1 `review` child over all fixes of the round, with `--unit FIX --against <your family>`. Its task gives each finding, its fix, and `git diff HEAD -- <fix paths>`. From round 2, `--prior-file` carries the earlier findings and your responses.

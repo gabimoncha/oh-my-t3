@@ -21,6 +21,7 @@ const TARGETS: Record<string, number> = {
   "omt/references/results.md": 500,
   "omt/references/worktrees.md": 500,
   "omt/references/planning.md": 350,
+  "omt/references/t3-workflows.md": 800,
   "omt/references/roles/*.md": 2_600,
   "omt/references/results/*.md": 240,
 };

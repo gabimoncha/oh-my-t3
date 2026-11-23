@@ -85,6 +85,8 @@ templates/
 skills/
   omt/                   router skill and shared references
   omt-ulw/ omt-plan/ omt-design/ omt-code-review/ omt-research/ omt-setup/
+workflows/
+  omt.ts                 the T3 workflows omt-ulw and omt-code-review (section 14.9)
 test/
   helpers.ts             temp dirs and a fake CliContext
   run.ts                 command helpers
@@ -682,7 +684,8 @@ Options:
 | `--save` | save the full brief to evidence; with `--json`, return a short task that names the saved file; with `--json`, `--plan`, and `--unit`, also check the parallel limit and record the start |
 | `--fallback` | with `--json`: use the first target in the resolved order that this plan, unit, role, and round have not tried |
 | `--tried <key>` | with `--fallback` and no recorded start: a target key that was tried already; repeatable |
-| `--strict` | with `--against`: exit 1 when the chosen target is in the `--against` worker's family |
+| `--strict` | with `--against`: exit 1 when the chosen target is in the `--against` worker's family, and leave every target of that family out of `fallbacks` |
+| `--workflow` | the child is a T3 workflow agent (section 14.9): an edit role commits in its own worktree, `qa` and read-only roles commit nothing, and the final message asks for structured output, not the result block; the plan-mode line drops its result-block sentence |
 
 `--attempt <n>` (default 1) is the attempt number for the request id (section 10). `--round`, `--depth`, and `--attempt` are positive integers. `--task` and `--task-file` exclude each other, and so do `--context` and `--context-file`. Only one flag can read stdin. An empty task is a usage error. An unknown role exits 1. The brief's `maxDepth` is `--max-depth` when given, else `limits.maxDepth` from the effective config. A `--depth` greater than that max is a usage error (exit 2) with a hint that names `--max-depth`. The retired roles `verify`, `quick`, and `deep` are not in the defaults (section 6.4), so `omt brief verify` exits 1 like any unknown role. `--plan` must match the plan slug regex (section 5.5) and `--unit` must match `^[A-Za-z0-9._-]{1,64}$`; a mismatch is a usage error. When the rendered brief is longer than 120,000 characters, the command prints nothing to stdout and exits 1 with a hint to shorten `--context` or `--prior-file`.
 
@@ -780,8 +783,8 @@ Prints the absolute paths of the project state, resolved through `findProjectRoo
 ### 5.9 `omt profile`
 
 - `list` prints a table of profile names and descriptions in config order. `--json` prints an array of `{ name, description }`. It includes the presets and custom profiles. `--plan` and `--profile` are usage errors with `list`.
-- `show [<name>] [--plan <slug>] [--profile <name>]` prints the resolved profile from section 6.7. A positional name and `--profile` are alternatives. Giving both exits 2. Text output starts with `profile: <name>` and `source: <source>`, then JSON for `workflow`, `limits`, `roles`, and `models`.
-- `show --json` prints `{ profile, source, workflow, limits, roles, models }`. `source` is `argument` for a positional name or `--profile`, `plan` for a plan header selection, `config` for a config selection other than `normal`, and `default` otherwise. A config that explicitly selects `normal` still gives `default`.
+- `show [<name>] [--plan <slug>] [--profile <name>]` prints the resolved profile from section 6.7. A positional name and `--profile` are alternatives. Giving both exits 2. Text output starts with `profile: <name>`, `source: <source>`, and `t3Workflow: <true|false>`, then JSON for `workflow`, `limits`, `roles`, and `models`.
+- `show --json` prints `{ profile, source, t3Workflow, workflow, limits, roles, models }`. `source` is `argument` for a positional name or `--profile`, `plan` for a plan header selection, `config` for a config selection other than `normal`, and `default` otherwise. A config that explicitly selects `normal` still gives `default`.
 - `show --plan <slug>` requires the plan file, even with an explicit name. A missing file exits 1 with `plan_not_found`. An unknown profile exits 2 and lists known names. A cycle or a chain deeper than eight profiles exits 1 and names the chain.
 - Profile role-merge issues go to stderr. Valid fields still appear in the output.
 
@@ -1372,6 +1375,8 @@ Only the user starter has a commented `// "update": "off",` line after the `limi
 When the `--profile` argument or the plan header names a retired profile (section 6.2), `effectiveConfig` selects `normal` and adds the warning `profile "pr-review" is no longer used; normal runs the PR steps` to its `issues`, with the source `--profile` or `plan header`. Commands print this warning on stderr. `omt plan new --profile` and `omt plan profile` write `normal` to the plan header, and `omt brief` writes `--profile normal` in the brief.
 
 `effectiveConfig(loaded, { profile?, planProfile? })` returns the loaded fields plus the resolved `profile`. Its `config` has the selected name and the profile-applied `roles`, `limits`, and `models`. The resolved `profile` contains the full `workflow` and its merge issues. `omt config show` returns the layers before this application. `omt profile show` returns the resolved values.
+
+`profiles.<name>.t3Workflow` is a boolean, default `false`, and no preset sets it. The resolved `t3Workflow` is the value of the last profile in the chain, from `normal` to the selected profile, that sets it. A value that is not a boolean is an error, `must be true or false`, and the key is dropped. When it is `true`, `omt-ulw` and `omt-code-review` run their fixed steps as T3 workflows (section 14.9).
 
 The following keys are under `profiles.<name>.workflow`. The table shows the resolved preset values. `normal` defines the full workflow. `prototype` extends `normal` with sparse overrides.
 
@@ -2021,6 +2026,7 @@ Then doctor runs these checks and prints one line per check, such as `PASS  conf
 | `t3` | `t3SettingsPath()` exists | it does not exist | | |
 | `homes` | every T3 `claudeAgent` instance that sets `config.homePath` has the skills linked in `<homePath>/skills` | an instance with a `homePath` that lacks the skills; a settings file that cannot be read or is not valid JSON | | no instance sets a `homePath` |
 | `roles` | every role resolves (only with `--capabilities`) | some roles are unavailable | the `execute` role is unavailable | |
+| `workflows` | user scope only: every bundled workflow file is current in the T3 workflows folder and T3 Workflows is on (section 14.9) | a file is missing, outdated, locally modified, or not managed; run omt install | | the files are current and Workflows is off or cannot be checked; no T3 home; no bundled workflow file |
 
 With `--project`, doctor checks the project scope (section 14.8). It runs `runtime`, `config`, `defaults`, and `harnesses` as above, and `skills`, `links`, and `hooks` against the project paths. It replaces `path` and `homes` with these checks, keeps `t3` and `roles`, adds `worktree` after `t3`, and adds `leftovers` after `worktree` only while `.omt3/guardrails.md` holds text. `worktree` checks the checkout of the current directory, which can be a linked worktree, while the other project checks use the main checkout:
 
@@ -2232,6 +2238,25 @@ Install and uninstall have already changed the project files when they edit the 
 
 User scope and project scope never read or write each other's files, except the project list: `install --project` and `uninstall --project` edit it, and `omt update` reads it and syncs each recorded project.
 
+### 14.9 T3 workflows
+
+`workflows/omt.ts` defines two T3 workflows for the T3 Code workflow engine. The bundle and the binary carry `workflows/` next to `skills/`.
+
+Install. Only a user install (and `omt update` of user scope) plans the file, because T3 reads one workflows folder for the machine: `T3CODE_WORKFLOWS`, else `<T3 home>/workflows`, where the T3 home is `T3CODE_HOME` or `~/.t3`. Without `T3CODE_WORKFLOWS` and without the T3 home, the plan shows `skip (no T3 home at <path>)` and writes nothing. When `T3CODE_WORKFLOWS` names a file, the plan skips too. The plan section is `T3 workflows (<folder>):` with one line per bundled file:
+
+- `create` when the file is absent, `unchanged` when it equals the bundled file.
+- `conflict` with `(not managed by omt)` when the manifest has no record of the path, or `(locally modified)` when its hash differs from the record. `--force` makes it `replace`: the old file moves to the backups folder. `omt update` keeps it.
+- `update` otherwise, unless a run of a workflow that the installed file defines is `running`, `waiting`, or `paused`. Then the step is `keep` with `(<n> unfinished T3 workflow runs use it; run omt update after they end or are cancelled)`, because T3 refuses a file that drops a version in use. The count comes from `t3 workflow list --json`; `OMT_T3` names another `t3` command. When that command fails, the count is 0.
+
+The manifest records each path that omt wrote, or that it owns and keeps, as `workflows: [{ path, sha256 }]`. `omt uninstall` removes each recorded file whose hash matches and whose workflows have no unfinished run. A file with an unfinished run is `keep`, and the manifest stays with the reason `a T3 workflow file is kept`. An edited file is `keep` unless `--force`.
+
+Workflows. A changed file raises the `version` of each changed workflow; `test/workflows.test.ts` maps the versions to the file hash. Every step that runs omt calls the payload's `omt` command in the payload's `project` folder. Each agent comes from `omt brief <role> --workflow --json` (section 5.4), and `agent.try` walks the target and its fallbacks; it moves on only when T3 could not start the agent. Agents return typed results that mirror the result blocks.
+
+- `omt-ulw` takes `{ project, plan, round, base, head, review, family, context, scope, checks, flows, thread, omt }`. With `review` not `off`, the `review` or `oracle` role (unit `REVIEW` or `F2`, `--against <family> --strict`) reviews `git diff <base>..<head>` in a worktree from `head`, fixes and commits local findings, and returns its findings, fixes, and `head`. Unless the verdict is `BLOCK`, a `qa` agent runs `checks` and `flows` in a worktree from the current head. After a failed run, the reviewer's thread (or a new `execute` agent when review is off) fixes and commits, and QA runs the failed checks again, at most 2 times. It returns `{ outcome: verified | checks-failed | blocked, head, review, fixes, qa, qaRuns }`.
+- `omt-code-review` takes `{ project, checkout, slug, round, intent, groups, oracle, fixLoop, thread, omt }`. It runs one report-only agent per group in plan mode, at most 4 at a time, with `--against` when the group sets it. Each reads the change with `git -C <checkout>`. With `oracle` set, an `oracle` agent with `--against <oracle> --strict` confirms or refutes every finding. With `fixLoop` and a P0 to P2 finding, it asks the owner `fix` or `report only`, with a 2-day timeout. It returns `{ groups, oracle, fix: approved | declined | not asked }`.
+
+Wake-up. T3 does not wake the thread that started a run. So the last step of each workflow runs `t3 thread send <thread> <summary>`, with the run id, the verdicts, the merge command, and `t3 workflow show <run> --json`. `onEnd` sends a message for a run that ends `stopped`, `skipped`, or `cancelled`. A skill reads its thread id from `T3CODE_THREAD_ID`, which T3 sets in every agent shell.
+
 ## 15. Skills
 
 ### 15.1 Common rules
@@ -2400,6 +2425,7 @@ Top-level threads. `delegate_task` makes children. Only when the user asks for s
 - `worktrees.md`: the T3 worktree setup on first use. Run `omt worktree check`. Work out the effective saved setup script in the order of T3's `resolveProjectScripts`: `projectSettingsOverrides[projectId].defaultProjectScripts` first (an empty list wins), then `defaultProjectScripts` when `projectSettingsFolded` is true, then the legacy `projectScriptOverrides`, then the project's `scripts`. Keep a compatible setup and verify a custom command (frozen install, `async: false`, store reuse across two checkouts). Generate a missing setup only with the owner's yes. Import it only after `t3.json`, `.t3/`, and for pnpm `pnpm-workspace.yaml` are committed on the base branch of new worktrees and the owner's yes covers activation, with the inherited scripts copied in. Never change `defaultProjectScripts`. Read the effective scripts back, or report activation as unverified.
 - `roles/<role>.md`: one persona file per default role, plus `_generic.md`. Each persona keeps its access, its stop conditions, and its result kind, and leaves out the rules that the rendered brief's `Constraints` already states (section 9.2).
 - `results/<kind>.md`: the contracts from section 11.
+- `t3-workflows.md`: the path for a profile with `t3Workflow: true` (section 14.9). `omt-ulw` step 8 and `omt-code-review` step 3 point to it. It gives the input JSON of each workflow, the key (`omt-ulw/<slug>/<head>`, `omt-code-review/<slug>/r<round>`), the start command `t3 workflow start`, and the fallback: when the start fails or `T3CODE_THREAD_ID` is empty, print `t3 workflow unavailable: <first error line>; running the steps in this thread` and run the in-thread steps. `omt-ulw` commits the build with `omt git commit` before the start. After the wake-up message, the main thread reads `run.result`, merges `result.head` with `git merge --ff-only` (a plain merge when that fails), applies its step 9 judgment, and opens the PR by step 12. `omt-code-review` merges the findings by step 4 and reports by step 6.
 
 ### 15.4 Pull request review
 

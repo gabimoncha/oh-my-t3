@@ -51,6 +51,8 @@ import {
 } from "./project.ts";
 import type { Runner } from "./project.ts";
 import { classifySkill, isManagedDir, listBundledSkills, readMarker } from "./skills.ts";
+import { planWorkflowRemoval, planWorkflows } from "./workflows.ts";
+import type { WorkflowPlan, WorkflowStep } from "./workflows.ts";
 
 export type TargetName = "agents" | LinkRootName;
 export const TARGET_NAMES: readonly TargetName[] = ["agents", "claude", "gemini"];
@@ -208,6 +210,7 @@ export interface InstallPlan {
   hook?: HookStep;
   previous?: Manifest;
   project?: ProjectInstallSteps;
+  workflows?: WorkflowPlan; // user scope only
   scratch: string[]; // scratch directories that an interrupted run left next to the agents root
 }
 
@@ -240,6 +243,7 @@ export interface UninstallPlan {
   manifest: { path: string; action: PlanAction; reason?: string; rewrite?: Manifest }; // `rewrite`: the reduced manifest to write
   purge: boolean;
   project?: ProjectUninstallSteps;
+  workflows: WorkflowStep[];
   scratch: string[];
 }
 
@@ -620,6 +624,7 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
     scratch: paths.root === undefined ? [] : await listScratch(paths.agentsRoot),
   };
   if (previous !== undefined) plan.previous = previous;
+  if (scope === "user") plan.workflows = await planWorkflows(ctx, previous?.workflows);
   if (sync) {
     const unmanaged = new Set(skills.filter((step) => step.action === "conflict" && step.reason !== "locally modified").map((step) => step.name));
     for (const link of links) {
@@ -731,7 +736,7 @@ async function planRetired(
 }
 
 export function replaceableSteps(plan: InstallPlan): { action: PlanAction; path: string; reason?: string }[] {
-  return [...plan.skills, ...plan.links, ...(plan.project === undefined ? [] : [plan.project.shim])];
+  return [...plan.skills, ...plan.links, ...(plan.project === undefined ? [] : [plan.project.shim]), ...(plan.workflows?.steps ?? [])];
 }
 
 export function installConflicts(plan: InstallPlan): number {
@@ -739,7 +744,7 @@ export function installConflicts(plan: InstallPlan): number {
 }
 
 export function installHasChanges(plan: InstallPlan): boolean {
-  const steps: { action: PlanAction }[] = [...plan.skills, ...plan.links, plan.config];
+  const steps: { action: PlanAction }[] = [...plan.skills, ...plan.links, plan.config, ...(plan.workflows?.steps ?? [])];
   if (plan.scratch.length > 0) return true;
   if (plan.hook !== undefined) steps.push(plan.hook);
   if (plan.project !== undefined) {
@@ -1043,8 +1048,13 @@ export async function buildUninstallPlan(
     config,
     manifest: { path: manifestFile, action: manifest !== undefined || (await pathExists(manifestFile)) ? "remove" : "unchanged" },
     purge: options.purge,
+    workflows: scope === "user" ? await planWorkflowRemoval(ctx, manifest?.workflows, options.force === true) : [],
     scratch: paths.root === undefined ? [] : await listScratch(paths.agentsRoot),
   };
+  // The manifest keeps the record of a kept workflow file, so a later uninstall still removes it.
+  if (plan.workflows.some((step) => step.action === "keep") && plan.manifest.action === "remove") {
+    plan.manifest = { ...plan.manifest, action: "keep", reason: "a T3 workflow file is kept" };
+  }
   if (paths.root !== undefined) {
     plan.project = await planProjectUninstall(paths.root, manifest, paths);
     const stays = await createdThatStays(plan, paths.root, manifest);
@@ -1074,6 +1084,7 @@ export function uninstallHasChanges(plan: UninstallPlan): boolean {
   return (
     plan.links.some((link) => link.action === "remove") ||
     plan.skills.some((skill) => skill.action === "remove") ||
+    plan.workflows.some((step) => step.action === "remove") ||
     plan.hooks.length > 0 ||
     plan.config.action === "remove" ||
     plan.manifest.action === "remove" ||
@@ -1126,6 +1137,11 @@ export function renderInstallPlan(plan: InstallPlan): string {
     plan.hook === undefined
       ? "  none     (add --hooks to install the Claude Code ultrawork hook)\n"
       : line(plan.hook.action, `Claude UserPromptSubmit in ${plan.hook.settingsPath}`);
+  if (plan.workflows !== undefined && (plan.workflows.steps.length > 0 || plan.workflows.skipped !== undefined)) {
+    text += `T3 workflows (${plan.workflows.dir}):\n`;
+    if (plan.workflows.skipped !== undefined) text += `  skip     (${plan.workflows.skipped})\n`;
+    for (const step of plan.workflows.steps) text += line(step.action, step.name, step.reason);
+  }
   if (plan.project !== undefined) {
     const project = plan.project;
     text += `Project (${project.root}):\n`;
@@ -1156,6 +1172,10 @@ export function renderUninstallPlan(plan: UninstallPlan): string {
   for (const hook of plan.hooks) {
     const reason = hook.restoreBackup === undefined ? undefined : `restores the backup ${hook.restoreBackup}`;
     text += line(hook.action, `Claude UserPromptSubmit in ${hook.settingsPath}`, reason);
+  }
+  if (plan.workflows.length > 0) {
+    text += "T3 workflows:\n";
+    for (const step of plan.workflows) text += line(step.action, step.path, step.reason);
   }
   text += "Config:\n";
   // "unchanged" here means the file does not exist.

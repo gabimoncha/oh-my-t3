@@ -164,6 +164,7 @@ Add the profile under `profiles` in either config file. The starter configs hold
 | --- | --- |
 | `description` | Text of at most 300 characters. Required for a new profile. Without it, omt drops the profile and `omt config validate` reports the error. |
 | `extends` | The name of the parent profile. A profile without `extends` inherits `normal`. |
+| `t3Workflow` | `true` runs the review and QA steps of `omt-ulw` and the reviewers of `omt-code-review` as T3 workflows when T3 Workflows is on. Default `false`. A child profile inherits it. See [Run the review and QA steps as T3 workflows](workflows.md#run-the-review-and-qa-steps-as-t3-workflows). |
 | `workflow` | Switches of the plan, design, build, and review steps, per group and key. The `git` group is retired: a config that still sets it loads with a warning, and `omt update`, `omt doctor`, and `omt install` remove it. The [spec](spec.md#67-profiles-and-workflow) lists every key and its values. |
 | `limits` | Limits for runs with this profile. See [Set limits](#set-limits). |
 | `roles` | Role overrides, with the fields of [Add a custom role](#add-a-custom-role). |

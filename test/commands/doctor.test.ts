@@ -22,7 +22,7 @@ test("doctor prints one line per check and exits 0 without failures", async () =
   const project = makeProject();
   const { ctx } = await project.runOk(["doctor"]);
   const ids = ctx.out().trimEnd().split("\n").map((line) => line.split(/\s+/)[1]);
-  assert.deepEqual(ids, ["runtime", "config", "defaults", "harnesses", "skills", "links", "hooks", "path", "t3", "homes"]);
+  assert.deepEqual(ids, ["runtime", "config", "defaults", "harnesses", "skills", "links", "hooks", "path", "t3", "homes", "workflows"]);
   assert.match(ctx.out(), /^PASS  config     10 roles$/m);
 });
 

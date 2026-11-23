@@ -97,6 +97,8 @@ Done when: every unit is marked done and its verify command passed in your own r
 
 ### 8. Review
 
+With `t3Workflow` on, run steps 8 to 11 as a T3 workflow by [t3-workflows.md](../omt/references/t3-workflows.md), then go to step 12.
+
 - When `build.oracle` requires the oracle for the tier, the review child uses the `oracle` role, also when `build.review` is `off`, with `--unit F2`.
 - Otherwise it uses the `review` role with `--unit REVIEW`.
 - With `build.review: off` and no required oracle, skip this step and step 9.
@@ -144,7 +146,7 @@ Done when: every check passed in a QA run, or the owner has the failures.
 
 ### 12. Ship and report
 
-After every check passed, make one commit for the run with `omt git commit`, then push and open a draft PR with `pull_request_create` ([Git actions](../omt/references/delegation.md#git-actions)). Then follow [Pull requests](../omt/references/delegation.md#pull-requests).
+After every check passed, make one commit for the run with `omt git commit` (after a workflow, only for changes since its run), then push and open a draft PR with `pull_request_create` ([Git actions](../omt/references/delegation.md#git-actions)). Then follow [Pull requests](../omt/references/delegation.md#pull-requests).
 
 The report contains:
 

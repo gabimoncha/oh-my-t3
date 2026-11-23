@@ -33,6 +33,7 @@ import {
 import { worktreeSummary } from "../worktree/check.ts";
 import { DEFAULT_HARNESSES, harnessEffects } from "./harness.ts";
 import { classifySkill, isManagedDir, listBundledSkills } from "./skills.ts";
+import { planWorkflows, t3Workflows } from "./workflows.ts";
 import type { BundledSkill } from "./skills.ts";
 
 export type CheckStatus = "PASS" | "WARN" | "FAIL" | "INFO";
@@ -292,6 +293,26 @@ async function checkT3(ctx: CliContext): Promise<DoctorCheck> {
     : check("t3", "WARN", `${path} does not exist; is T3 Code installed? (set T3CODE_HOME for a custom location)`);
 }
 
+// The T3 workflow files of a user install, and whether T3 runs them.
+async function checkWorkflows(ctx: CliContext, loaded: ScopeManifest): Promise<DoctorCheck> {
+  const plan = await planWorkflows(ctx, "manifest" in loaded ? loaded.manifest?.workflows : undefined);
+  if (plan.skipped !== undefined) return check("workflows", "INFO", `not installed: ${plan.skipped}`);
+  if (plan.steps.length === 0) return check("workflows", "INFO", "the omt CLI has no bundled workflow files");
+  const groups: Record<string, string[]> = { missing: [], outdated: [], modified: [], unmanaged: [] };
+  for (const step of plan.steps) {
+    if (step.action === "create") groups.missing?.push(step.name);
+    else if (step.action === "update" || step.action === "keep") groups.outdated?.push(step.name);
+    else if (step.action === "conflict") (step.reason === "locally modified" ? groups.modified : groups.unmanaged)?.push(step.name);
+  }
+  const state = t3Workflows(ctx);
+  const problems = Object.entries(groups)
+    .filter(([, names]) => names.length > 0)
+    .map(([kind, names]) => `${kind}: ${names.join(", ")}`);
+  if (problems.length > 0) return check("workflows", "WARN", `${problems.join("; ")} in ${plan.dir}; run omt install. ${state.message}`);
+  const installed = `${plan.steps.map((step) => step.name).join(", ")} installed in ${plan.dir}`;
+  return check("workflows", state.state === "on" ? "PASS" : "INFO", `${installed}; ${state.message}`);
+}
+
 function expandHome(path: string, homedir: string): string {
   if (path === "~") return homedir;
   return path.startsWith("~/") ? join(homedir, path.slice(2)) : path;
@@ -463,7 +484,7 @@ export async function runDoctor(
       ...await checkLeftovers(paths),
     );
   } else {
-    checks.push(await checkPath(ctx), await checkT3(ctx), await checkHomes(ctx, names));
+    checks.push(await checkPath(ctx), await checkT3(ctx), await checkHomes(ctx, names), await checkWorkflows(ctx, loaded));
   }
   if (caps !== undefined) {
     checks.push(checkRoles(resolveAll(loadedConfig.config, caps, undefined, loadedConfig.config.harnesses)));

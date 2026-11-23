@@ -172,6 +172,7 @@ function confirmedSteps(plan: InstallPlan): string {
     plan.skills.map((step) => [step.name, step.action]),
     plan.links.map((link) => [link.path, link.action]),
     plan.project?.shim.action ?? null,
+    (plan.workflows?.steps ?? []).map((step) => [step.path, step.action]),
   ]);
 }
 
@@ -201,8 +202,9 @@ export async function planHere(ctx: CliContext, scope: "user" | "project"): Prom
 }
 
 function planned(base: SyncEntry, plan: InstallPlan): SyncEntry {
-  const changed = plan.skills.filter((step) => step.action === "create" || step.action === "update" || step.action === "replace" || step.action === "remove");
-  const kept = plan.skills.filter((step) => step.action === "keep");
+  const steps = [...plan.skills, ...(plan.workflows?.steps ?? [])];
+  const changed = steps.filter((step) => step.action === "create" || step.action === "update" || step.action === "replace" || step.action === "remove");
+  const kept = steps.filter((step) => step.action === "keep");
   return {
     ...base,
     plan,
