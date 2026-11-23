@@ -10,8 +10,7 @@ export const RETIRED_ROLES: readonly string[] = ["verify", "quick", "deep", "pla
 // A selection of a retired profile resolves to normal, which now runs the PR review steps.
 export const RETIRED_PROFILES: readonly string[] = ["pr-review"];
 
-// The values live in defaults.jsonc, so that `bun run defaults:edit` can save them. test/defaults.test.ts checks that
-// the file is a complete, valid config.
+// The values live in defaults.jsonc. test/defaults.test.ts checks that the file is a complete, valid config.
 export const DEFAULT_CONFIG: OmtConfig = parseJsonc(defaultsText(), "src/config/defaults.jsonc") as OmtConfig;
 
 function formatChain(chain: unknown[]): string {

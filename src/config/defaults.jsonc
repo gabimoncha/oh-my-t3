@@ -1,5 +1,5 @@
 // The built-in omt defaults. omt reads this file when it is built, so a change reaches users in the next release.
-// Users review the changes with omt doctor or omt update before they apply. Edit it with `bun run defaults:edit`.
+// Users review the changes with omt doctor or omt update before they apply.
 // T3 names each built-in provider instance after its driver kind. A candidate that names the instance with "provider"
 // gets T3 re-check of a stale provider snapshot, which a target with only "driver" does not get.
 {
