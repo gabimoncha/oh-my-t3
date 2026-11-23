@@ -19,7 +19,7 @@ In `plan` mode, dispatch only read-only children and `plan-review`, with no `--s
 
 Then run the [branch check](../omt/references/delegation.md#branch-check).
 
-Done when: you know your mode and your family, and the branch check printed its result.
+Done when: you know your mode and your family, and the branch is synced, or the user has the question.
 
 ### 1. Pick the slug and explore
 

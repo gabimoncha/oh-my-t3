@@ -164,7 +164,7 @@ Add the profile under `profiles` in either config file. The starter configs hold
 | --- | --- |
 | `description` | Text of at most 300 characters. Required for a new profile. Without it, omt drops the profile and `omt config validate` reports the error. |
 | `extends` | The name of the parent profile. A profile without `extends` inherits `normal`. |
-| `workflow` | Switches of the plan, design, build, and review steps, per group and key. The `git` group sets when the skills commit, push, open a PR, or merge without a question (`auto`) and when they ask first (`ask`). Its `owners` key lists the GitHub orgs whose repos count as your own; the default is none, so an org repo asks. Its `maxPrFiles` key is the most changed files in one PR (default 100, `0` for no limit). Over the limit, the skills split the branch into stacked PRs with the `gh stack` extension. The [spec](spec.md#67-profiles-and-workflow) lists every key and its values. |
+| `workflow` | Switches of the plan, design, build, and review steps, per group and key. The `git` group is retired: a config that still sets it loads with a warning, and `omt update`, `omt doctor`, and `omt install` remove it. The [spec](spec.md#67-profiles-and-workflow) lists every key and its values. |
 | `limits` | Limits for runs with this profile. See [Set limits](#set-limits). |
 | `roles` | Role overrides, with the fields of [Add a custom role](#add-a-custom-role). |
 | `models` | Settings per model id. The only setting is `fast`. |

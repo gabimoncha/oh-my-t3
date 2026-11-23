@@ -15,7 +15,7 @@ import type {
   WorkflowLayer,
 } from "../types.ts";
 import { usageError } from "../util/errors.ts";
-import { RETIRED_BUILD_KEYS, RETIRED_LIMIT_KEYS, RETIRED_PROFILES, RETIRED_REVIEW_KEYS, RETIRED_ROLES } from "./defaults.ts";
+import { RETIRED_BUILD_KEYS, RETIRED_LIMIT_KEYS, RETIRED_PROFILES, RETIRED_REVIEW_KEYS, RETIRED_ROLES, RETIRED_WORKFLOW_GROUPS } from "./defaults.ts";
 import { isRecord } from "../util/json.ts";
 
 export const ROOT_KEYS: readonly string[] = ["$schema", "version", "profile", "profiles", "models", "roles", "limits", "harnesses", "update"];
@@ -41,15 +41,13 @@ export const PRESET_PROFILE_NAMES: readonly string[] = ["normal", "prototype"];
 export const RETIRED_PROFILE_FALLBACK = "normal";
 export const PROFILE_CHAIN_MAX = 8;
 
-type WorkflowRule = { values: readonly string[] } | { minimum: number; maximum: number; auto?: boolean } | { items: readonly string[] } | { strings: string };
+type WorkflowRule = { values: readonly string[] } | { minimum: number; maximum: number; auto?: boolean } | { items: readonly string[] };
 
 // A selection of a retired profile gets this warning and resolves to RETIRED_PROFILE_FALLBACK.
 export function retiredProfileIssue(name: string, source: string, path: string): ConfigIssue | undefined {
   if (!RETIRED_PROFILES.includes(name)) return undefined;
   return { source, path, message: `profile "${name}" is no longer used; ${RETIRED_PROFILE_FALLBACK} runs the PR steps`, severity: "warning" };
 }
-
-export const GIT_OWNER_PATTERN = "^[A-Za-z0-9][A-Za-z0-9-]{0,38}$";
 
 export const WORKFLOW_RULES = {
   plan: {
@@ -72,14 +70,6 @@ export const WORKFLOW_RULES = {
     verify: { values: ["off", "changed-flows"] },
     tests: { values: ["off", "offer"] },
     crap: { values: ["off", "report"] },
-  },
-  git: {
-    branchCommits: { values: ["auto", "ask"] },
-    pullRequests: { values: ["auto", "ask", "off"] },
-    defaultBranch: { values: ["ask", "auto"] },
-    merge: { values: ["ask", "auto"] },
-    owners: { strings: GIT_OWNER_PATTERN },
-    maxPrFiles: { minimum: 0, maximum: 10000 },
   },
 } as const satisfies Record<keyof Workflow, Record<string, WorkflowRule>>;
 
@@ -347,6 +337,10 @@ function validateWorkflow(value: unknown, path: string, out: Collector): Workflo
   const workflow: Record<string, Record<string, unknown>> = {};
   for (const [group, item] of Object.entries(value)) {
     const groupPath = `${path}.${group}`;
+    if (RETIRED_WORKFLOW_GROUPS.includes(group)) {
+      out.retired(groupPath);
+      continue;
+    }
     if (!Object.hasOwn(WORKFLOW_RULES, group)) {
       out.error(groupPath, `unknown workflow group "${group}"; allowed groups: ${Object.keys(WORKFLOW_RULES).join(", ")}`);
       continue;
@@ -372,13 +366,6 @@ function validateWorkflow(value: unknown, path: string, out: Collector): Workflo
           fields[key] = [...field];
         } else {
           out.error(keyPath, `must be an array of ${oneOf(rule.items)}, got ${describe(field)}`);
-        }
-      } else if ("strings" in rule) {
-        const pattern = new RegExp(rule.strings);
-        if (Array.isArray(field) && field.every((entry) => typeof entry === "string" && pattern.test(entry))) {
-          fields[key] = [...field];
-        } else {
-          out.error(keyPath, `must be an array of strings that match ${rule.strings}, got ${describe(field)}`);
         }
       } else if ((rule.auto && field === "auto") ||
         (typeof field === "number" && Number.isInteger(field) && field >= rule.minimum && field <= rule.maximum)) {

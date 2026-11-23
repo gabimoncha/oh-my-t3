@@ -42,7 +42,7 @@ The skill keeps the name `omt-ulw`, and the hook keeps the trigger words `ulw` a
 | 9 | Read the reviewer's fix diff. Fix the reported findings. |
 | 10 | QA: 1 child runs every verify command, the final checks, and the device flows. It edits nothing. |
 | 11 | When a check fails, the main thread fixes it, and QA runs only the failed checks again. At most 2 re-runs; then stop and ask the owner. |
-| 12 | Commit, push, and open or update the PR by the `workflow.git` rules. Report each done condition with its evidence. |
+| 12 | Commit, push, and open or update the PR by the user's git rules. Report each done condition with its evidence. |
 
 The contract changes from "you edit no product files" to "you build; children review and test". A LIGHT run skips the plan review and the owner approval, but it still has one review child and one QA child.
 

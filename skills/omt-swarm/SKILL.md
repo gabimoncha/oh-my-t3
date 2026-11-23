@@ -26,7 +26,7 @@ Invoking this skill is the user request that `t3_thread_launch` needs ([Top-leve
 
 Call `t3_thread_configure` with no arguments. `t3_thread_launch` needs `full-access` runtime and `default` interaction mode. Keep the `modelSelection` driver as `<your family>`.
 
-On the default branch, ask the owner for a feature branch and stop. Then run `omt git behind --ff` ([Branch check](../omt/references/delegation.md#branch-check)). On the first run in a project, or after a `WARN` worktree line, follow [worktrees.md](../omt/references/worktrees.md).
+On the default branch, ask the owner for a feature branch and stop. Then sync the branch by [Branch check](../omt/references/delegation.md#branch-check). On the first run in a project, or after a `WARN` worktree line, follow [worktrees.md](../omt/references/worktrees.md).
 
 Done when: both modes match and you are on an up-to-date feature branch, or you stopped and told the user what to change.
 
@@ -107,7 +107,7 @@ Done when: every accepted fix and kept finding is committed on its track branch,
 
 ### 7. Merge
 
-Before each merge, run `omt git check merge --plan <slug>`. On `auto`, run `git merge --no-ff omt/<slug>/<track>`. On `ask`, ask the owner. On `off`, do not merge, and report it.
+Merge each track with `git merge --no-ff omt/<slug>/<track>`. These merges stay on your feature branch, so they need no yes from the owner.
 
 Resolve each conflict yourself. When it needs deep knowledge of one track, run `git merge --abort`, ask that track with `t3_thread_send` to merge your branch, resolve the conflict, verify, and commit without a push, then wait as in step 4 and merge again. After each merge, mark each unit of the track `done`.
 
@@ -129,8 +129,8 @@ Done when: every check passed in a QA run, or the owner has the failures.
 
 ### 10. Finish
 
-Commit your QA fixes with `omt git commit -m "<message>" --plan <slug>`. Run `omt git pr --title "<title>" --body-file <file> --plan <slug>`, which opens a draft PR. On `split:`, run `omt git stack` by [Git actions](../omt/references/delegation.md#git-actions). Link and watch the PR by [Pull requests](../omt/references/delegation.md#pull-requests).
+Commit your QA fixes with `omt git commit -m "<message>" --plan <slug>`. Push and open a draft PR with `pull_request_create` by [Git actions](../omt/references/delegation.md#git-actions), then watch it by [Pull requests](../omt/references/delegation.md#pull-requests).
 
 The report contains what the `omt-ulw` step 12 report contains, plus each track with its units, branch, and commit, and each merge conflict with its resolution.
 
-Done when: every done condition is in the report with evidence or as an open item, and the PR is linked or its policy reason reported.
+Done when: every done condition is in the report with evidence or as an open item, and the PR is open, or the report says why not.

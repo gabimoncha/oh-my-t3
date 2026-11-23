@@ -4,8 +4,7 @@ Read this page when your user asks you to evaluate, install, or use oh-my-t3 (`o
 
 ## What omt is
 
-omt is a set of skills and a small CLI for agents that run in [T3 Code](https://t3.codes). A T3 thread that runs an omt skill becomes the main thread: it reads the code, asks the user its open questions, writes a plan, and builds the change itself. Then one role-routed T3 child task from the other model family reviews the change, and one child task runs every check. The CLI has no runtime dependencies and sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor` after you set `update` in the user config. `omt update` runs the package manager or mise command of the channel that installed omt. `omt git commit`, `omt git pr`, and `omt git stack` run `gh`, and `omt git pr` and `omt git stack` run `git push`, so they contact the git host of the `origin` remote.
-
+omt is a set of skills and a small CLI for agents that run in [T3 Code](https://t3.codes). A T3 thread that runs an omt skill becomes the main thread: it reads the code, asks the user its open questions, writes a plan, and builds the change itself. Then one role-routed T3 child task from the other model family reviews the change, and one child task runs every check. The CLI has no runtime dependencies and sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor` after you set `update` in the user config. `omt update` runs the package manager or mise command of the channel that installed omt.
 ## 1. Check the fit
 
 Check each requirement on the user's machine. Ask the user about the items that you cannot check yourself.

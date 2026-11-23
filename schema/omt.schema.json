@@ -446,47 +446,8 @@
           }
         },
         "git": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "branchCommits": {
-              "enum": [
-                "auto",
-                "ask"
-              ]
-            },
-            "pullRequests": {
-              "enum": [
-                "auto",
-                "ask",
-                "off"
-              ]
-            },
-            "defaultBranch": {
-              "enum": [
-                "ask",
-                "auto"
-              ]
-            },
-            "merge": {
-              "enum": [
-                "ask",
-                "auto"
-              ]
-            },
-            "owners": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}$"
-              }
-            },
-            "maxPrFiles": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 10000
-            }
-          }
+          "deprecated": true,
+          "description": "No longer used. omt ignores this key."
         }
       }
     }

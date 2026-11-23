@@ -257,3 +257,16 @@ test("a retired review.guardrails key is dropped with a warning, whatever its va
     }]);
   }
 });
+
+test("a retired workflow.git group is dropped with one warning, whatever it holds", () => {
+  for (const value of [{ branchCommits: "ask", owners: ["acme"], maxPrFiles: 10001 }, "auto", null]) {
+    const { layer, issues } = validateLayer({ profiles: { normal: { workflow: { git: value, review: { crap: "off" } } } } }, "src");
+    assert.deepEqual(layer, { profiles: { normal: { workflow: { review: { crap: "off" } } } } });
+    assert.deepEqual(issues, [{
+      source: "src",
+      path: "profiles.normal.workflow.git",
+      message: "profiles.normal.workflow.git is no longer used; remove it",
+      severity: "warning",
+    }]);
+  }
+});

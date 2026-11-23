@@ -52,7 +52,6 @@ export function isCompleteDefaults(layer: ConfigLayer): boolean {
     layer.profiles[layer.profile] == null) return false;
   const workflow: Record<string, Record<string, unknown> | undefined> = layer.profiles.normal.workflow;
   for (const [group, rules] of Object.entries(WORKFLOW_RULES)) {
-    if (group === "git") continue;
     const values = workflow[group];
     if (values == null || Object.keys(rules).some((key) => values[key] === undefined)) return false;
   }
@@ -72,7 +71,6 @@ export function withNewWorkflowKeys<T extends ConfigLayer>(layer: T): T {
   const current: Record<string, Record<string, unknown> | undefined> = workflow as Record<string, Record<string, unknown> | undefined>;
   const filled: Record<string, Record<string, unknown>> = {};
   for (const group of Object.keys(WORKFLOW_RULES)) {
-    if (group === "git") continue;
     const values = current[group];
     if (values == null) continue;
     filled[group] = { ...defaults[group], ...values };

@@ -3293,7 +3293,7 @@ function stageModel(skill) {
         [review === "every-round" && !skip ? `↺ Fixes → review again, ≤ ${rounds} rounds.` : review === "first-round" ? "Review runs once. Fixes are not reviewed again." : skip ? "Continue to QA." : "Only the required oracle runs.",
           "BLOCK → back to plan or owner. Open findings → owner."], ["review", "oracle"]),
       stage("qa", "QA", "child", "After review, QA runs checks and device flows. Main fixes failures.", [], ["↺ Rerun failed checks at most twice.", "Open failures go to the owner."], ["qa"]),
-      stage("ship", "Ship", "main", "Commit, open a pull request, and merge under the Git rules.", Object.keys(app.state.vocab.workflow.git).map((key) => work(`git.${key}`))),
+      stage("ship", "Ship", "main", "Commit, then open a draft pull request with pull_request_create.", []),
     ];
   }
   if (skill === "code-review") {
