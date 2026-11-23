@@ -1,6 +1,6 @@
 # How the omt workflows run
 
-This page describes how omt builds a goal, plans, researches, designs, runs parallel tracks, and reviews a pull request. It also describes how the main thread runs a child task, when omt commits and opens a PR, how it adds tests, and how parallel workers share builds. To change these steps, see [Configure roles and profiles](configuration.md).
+This page describes how omt builds a goal, plans, researches, designs, and reviews a pull request, and how the review and QA steps run as T3 workflows. It also describes how the main thread runs a child task, when omt commits and opens a PR, how it adds tests, and how parallel workers share builds. To change these steps, see [Configure roles and profiles](configuration.md).
 
 ## Build a goal
 
@@ -42,20 +42,6 @@ In T3 plan mode, the main thread writes nothing: it leaves out `--save`, records
 - `omt-plan` plans only. The main thread reads the code, asks question batches until no question is open, and writes the plan with its summary last. One `plan-review` task from the other model family reviews it. The main thread fixes the blockers, and one more review checks only those blockers: at most 2 rounds. The reply shows the plan summary. For a vague goal, it offers a [stress test](#stress-test-a-goal-before-you-plan) first.
 - `omt-research` answers a narrow question in the main thread, with a `path:line` or a URL for each fact. A broad question gets 2 to 4 read-only tasks in parallel, and the main thread checks each claim before it answers.
 - `omt-design` draws the variants of each screen with the tool that `workflow.design.tool` names. `paper`, the default, draws in a new Paper file when Paper's tools load, and in HTML mockups otherwise. `html` draws HTML mockups only. When the first model of the `design` role is the main thread's model, the main thread draws the variants itself. Otherwise one routed `design` task draws them, with the configured fallbacks. Both use Anthropic's `frontend-design` skill when available. You pick one variant per screen and steer until you approve. Then the main thread writes `docs/design/<slug>.md`, and on request it builds the screens with the build steps 7 to 12.
-
-## Build parallel tracks
-
-`omt-swarm` builds one plan as parallel tracks. It is opt-in: install it with `omt install --with omt-swarm` (or `omt install --project --with omt-swarm`). Start it by name, with a plan from `omt-plan`. It asks no questions and runs no plan review.
-
-1. The main thread splits the plan units into tracks whose files do not overlap. It does not build.
-2. Each track is a new top-level thread in its own worktree and branch. The track runs the build steps 7 to 12 for its units, with its own review and qa tasks, and commits with no push.
-3. The main thread waits for the tracks inside its turn.
-4. One review task from the other model family reviews every track diff before the merge, and fixes local findings on the track branches. The main thread reads those fixes and fixes the reported findings.
-5. The main thread merges the track branches. A conflict that needs deep knowledge of one track goes back to that track's thread.
-6. One qa task runs every check and device flow on the merged code, with at most 2 re-runs of the failed checks.
-7. The main thread opens one draft PR and reports.
-
-`omt-swarm` needs a thread in `full-access` runtime mode and `default` interaction mode.
 
 ## Review a pull request
 

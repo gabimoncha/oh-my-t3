@@ -102,4 +102,4 @@ When `omt lock run` exits 75, run `omt lock list`. When an active child of this 
 
 ## Top-level threads
 
-`delegate_task` makes children. Only when the user asks for separate threads, use `t3_thread_launch` (one thread with its own `workspaceStrategy`) or `create_threads` (threads in your checkout). `omt-swarm` is that request.
+`delegate_task` makes children. Only when the user asks for separate threads, use `t3_thread_launch` (one thread with its own `workspaceStrategy`) or `create_threads` (threads in your checkout).

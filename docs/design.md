@@ -44,7 +44,9 @@ Before the workflow change, the conductor of an `omt-ulw` run edited no product 
 
 The [workflow fold design](design/workflow-fold.md) follows one rule: keep a child only for black-box verification, for independent parallel work that needs a fresh context, or for a context that one loop cannot hold. So the main thread now explores, asks the owner its questions in batches, plans, and builds in one context. One review child on the other family reviews the whole diff, and one QA child runs every check and device flow. The reviewer fixes local findings itself, because a reviewer that only reports costs one more round for a fix that it could see. The main thread reads the reviewer's fix diff before QA starts, because a child's summary is a claim and the diff is the evidence. QA edits nothing, so its result says only what passed. T3 wakes the main thread when a child ends, so no heartbeat and no `omt-loop` are needed.
 
-The same rule shapes the other flows. `omt-plan`, `omt-research`, and `omt-design` do their work in the main thread and start a child only for a second opinion from the other family, a broad read, or a design that the main thread's model cannot draw. `omt-code-review` gives a small diff 1 reviewer and a large diff 2 to 4 grouped reviewers and 1 oracle, because a review of a few hundred lines fits in one context and more reviewers only repeat findings. `omt-swarm` keeps separate threads, because each track is independent work in its own worktree. Each track runs its own review and QA. Then one review checks all track diffs before the merge, and QA checks the merged code.
+The same rule shapes the other flows. `omt-plan`, `omt-research`, and `omt-design` do their work in the main thread and start a child only for a second opinion from the other family, a broad read, or a design that the main thread's model cannot draw. `omt-code-review` gives a small diff 1 reviewer and a large diff 2 to 4 grouped reviewers and 1 oracle, because a review of a few hundred lines fits in one context and more reviewers only repeat findings.
+
+`omt-swarm` built one plan as parallel tracks, each a top-level thread in its own worktree, and merged them. Each track ran its own review and QA, and the main thread waited for every track inside its turn. The owner removed it. `omt install` and `omt update` delete an installed copy as a skill that is no longer shipped.
 
 ### A vague goal gets a stress test inside the plan
 
@@ -110,7 +112,7 @@ Plan mode has one trap. T3 stores a proposed plan as its own item type, and `tas
 
 ### Children share the checkout
 
-Children stay in one checkout so their changes are integrated throughout the run. A worktree per unit would need repeated setup, integration, and checks after merge. Each unit has an explicit file scope. A large unit that the main thread hands to an `execute` child runs in parallel only when its scope does not overlap other edits, up to the default `maxParallel` of 6. The reviewer and QA never run at the same time, because the reviewer edits files. Shared build state uses a lock. Independent tracks can use `omt-swarm` when the owner asks for separate worktree threads. `omt-swarm` stays in the package, but a default install leaves it out: `omt install --with omt-swarm` adds it.
+Children stay in one checkout so their changes are integrated throughout the run. A worktree per unit would need repeated setup, integration, and checks after merge. Each unit has an explicit file scope. A large unit that the main thread hands to an `execute` child runs in parallel only when its scope does not overlap other edits, up to the default `maxParallel` of 6. The reviewer and QA never run at the same time, because the reviewer edits files. Shared build state uses a lock.
 
 ### Worktrees install their own dependencies
 

@@ -1,5 +1,0 @@
-interface:
-  display_name: "omt swarm"
-  short_description: "Build a plan as parallel worktree tracks, then review, merge, test, and open one PR."
-policy:
-  allow_implicit_invocation: false

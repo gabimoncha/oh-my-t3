@@ -109,9 +109,7 @@ If you do not know what to do next, or you want to change the setup, type `$omt-
 
 The agent can start the first six skills itself. You start `omt` by name.
 
-`omt-swarm` is opt-in. It builds a plan whose units split into independent tracks, each in its own worktree thread, then merges them into one draft pull request. Install it with `omt install --with omt-swarm`, and start it by name.
-
-`omt-grill`, `omt-help`, `omt-loop`, and `omt-show` were removed. `omt-plan` runs the stress test of `omt-grill`, and `omt-setup` answers the questions of `omt-help`. `omt install` and `omt update` remove the old folders.
+`omt-grill`, `omt-help`, `omt-loop`, `omt-show`, and `omt-swarm` were removed. `omt-plan` runs the stress test of `omt-grill`, and `omt-setup` answers the questions of `omt-help`. `omt install` and `omt update` remove the old folders.
 
 A plan and its ledger stay in `.omt3/` after context compaction and across sessions, so one plan can run for days. A profile in `.omt3/config.jsonc` can change the models, the checks, and the limits. See [Configure roles and profiles](docs/configuration.md), or ask `$omt-setup` to make the change.
 
@@ -151,7 +149,6 @@ The [walkthrough](docs/walkthrough.md) follows two real runs on this repository,
 - The config format and the CLI output can change.
 - A run has no task budget. At most 6 child tasks run at the same time by default (`limits.maxParallel`).
 - The `start ulw` phrase works only in Claude Code. In Codex, type `$omt-ulw`.
-- `omt-swarm` needs a thread in `full-access` runtime mode and `default` interaction mode.
 - Child tasks share the checkout of the parent thread. A unit that an `execute` task builds runs in parallel only when its files do not overlap other edits.
 - If you use Codex child tasks, [set the Codex unload delay](docs/install.md#set-the-codex-unload-delay). Codex 0.163.0 keeps each finished child loaded for 30 minutes by default.
 
