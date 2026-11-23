@@ -8,7 +8,7 @@ The [T3 orchestration report](research/t3-orchestrator-v2.md), [OmO report](rese
 
 The user is a developer who runs Claude Code, Codex, Cursor, Pi, or OpenCode agents from T3 Code. That developer wants one sentence ("ulw: add OAuth to the API") to turn into a planned run. The main thread plans and builds the work, and role-routed child tasks check it: one review child and one QA child, with the checks that the profile requires. The normal profile makes the reviewer of HEAVY work a cross-family oracle.
 
-The maintainer inherits a small TypeScript CLI with no runtime dependencies, a set of portable skills, and one config file. Every subagent runs as a T3 child thread, so the T3 UI already shows progress, cancellation, and results. oh-my-t3 adds no daemon. Its only server is the local config editor, which runs only while `omt config edit --web` runs.
+The maintainer inherits a small TypeScript CLI with no runtime dependencies, a set of portable skills, and one config file. Every subagent runs as a T3 child thread, so the T3 UI already shows progress, cancellation, and results. oh-my-t3 adds no daemon and no server.
 
 ## What T3 already gives us
 
@@ -122,15 +122,9 @@ The runner selects a global virtual store with the isolated linker. Each worktre
 
 T3 keeps a finished child loaded for 30 idle minutes. Codex then keeps the thread for its unload delay, which is 1800 seconds from Codex 0.163.0. Each loaded Codex thread starts its own stdio MCP server processes. In one long run, a single Codex app-server had 1,042 child processes: up to 174 copies of each of its 6 MCP servers. Codex native subagents of an idle parent stay loaded until the app-server stops, because T3's idle release unsubscribes only the parent. A settle releases the child at once and unsubscribes its native subagents too. So the main thread settles each child when `omt ledger done` closes its start. In a linked worktree, `omt ledger done` says not to settle, because T3 runs the project's settle script in a settled thread's worktree, and a child that shares the main thread's worktree has that worktree. Owners also set `-c thread_unload_delay_secs=60` in T3's Codex launch arguments, which makes Codex close a settled thread after one minute.
 
-### The config editor shows where each value comes from
+### The config shows where each value comes from
 
 A value in the effective config can come from four places: the accepted defaults, the user config, the project config, or a profile and the file that declares it. `omt config show` prints only the result. A user who wants to know why `limits.maxParallel` is 2 has to read both files and the profile chain. So `omt config explain` prints the layer that sets each value and the lower layers that it overrides. The sources come from the merge steps themselves, not from the keys that a file names. A key-based guess fails for a role that one file removes and another file creates again, and for the fields that omt fills in for a new role.
-
-`omt config edit --web` shows the same sources in a browser page and edits both files. A page fits better than a terminal form for this: the page can show a role chain, a profile and its parent, and the source of each value side by side. Every write goes through `setJsoncValue`, so the user's comments and layout outside the edited value stay. The server returns the diff before a write, and it refuses a write that adds a validation error or that starts from an old copy of the file.
-
-A local HTTP server is a risk, because any web page in the same browser can send requests to it. The editor limits that risk in four ways. It listens on 127.0.0.1 only, so other machines cannot reach it. Each run gets a random port and a 32-byte token in the URL path, so a page that does not know the URL cannot reach a route. The server checks `Host`, which refuses a DNS rebinding attack, and checks `Origin` and `Sec-Fetch-Site`, which refuse a request from another page. It sends no CORS headers, so a browser lets no other origin read a response.
-
-The editor is not a daemon. It runs in the foreground of `omt config edit --web` and stops on Ctrl-C, 5 seconds after its tab closes, or 2 minutes after the last ping from the page. So no process outlives the command, and omt still makes no outbound network calls.
 
 ### Profiles select the workflow
 

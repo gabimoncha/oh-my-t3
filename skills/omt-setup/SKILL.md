@@ -75,8 +75,6 @@ Done when: you finished each step of worktrees.md that applies.
 3. Show the edit and ask. After yes, make it, and keep every other byte of the file.
 4. The check: `omt config validate`, then `omt profile show <name>`.
 
-For a browser editor, run `omt config edit --web` in the background, with `--capabilities <file>` as in step 4, and give the user its URL. The page writes the files, so run only item 4, after the user is done.
-
 Done when: `omt config validate` exits 0, and `omt profile show <name>` shows the new values.
 
 ### 8. Update omt
