@@ -27,12 +27,13 @@ const EXPECTED: Record<string, [access: string, result: string, t3Role: string, 
   review: ["edit", "review", "review", "default", true, ["codex/gpt-6.2-sol/xhigh", "claudeAgent/claude-opus-5-5/high"]],
   oracle: ["edit", "review", "review", "default", true, ["codex/gpt-6.2-astra/medium", "claudeAgent/claude-fable-5-2/medium"]],
   qa: ["edit", "test", "test", "default", false, ["codex/gpt-6.2-sol/medium", "claudeAgent/claude-sonnet-5-5/medium"]],
+  judge: ["read-only", "score", "review", "plan", true, ["codex/gpt-6.2-sol/medium", "claudeAgent/claude-opus-5-5/medium"]],
   writing: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-opus-5-5/medium", "codex/gpt-6.2-astra/medium"]],
   design: ["edit", "work", "design", "default", false, ["claudeAgent/claude-fable-5-2/medium", "codex/gpt-6.2-astra/high"]],
   ui: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-fable-5-2/medium", "codex/gpt-6.2-astra/high"]],
 };
 
-test("the defaults hold the 10 roles with the planned values", () => {
+test("the defaults hold the 11 roles with the planned values", () => {
   assert.deepEqual(Object.keys(DEFAULT_CONFIG.roles).sort(), Object.keys(EXPECTED).sort());
   for (const [name, [access, result, t3Role, mode]] of Object.entries(EXPECTED)) {
     const role = DEFAULT_CONFIG.roles[name];

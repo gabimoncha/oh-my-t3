@@ -46,7 +46,7 @@ test("a user install writes the workflow file, records it, and doctor reports wh
   assert.match(on.message, /omt\.ts installed in .*; T3 Workflows is on$/);
   const off = (await doctor(f, [], { env: { HOME: f.home, OMT_T3: fakeT3("off") } })).get("workflows");
   assert.equal(off.status, "INFO");
-  assert.match(off.message, /T3 Workflows is off/);
+  assert.match(off.message, /T3 Workflows is off, and omt-climb needs it; turn it on in T3 Settings → Labs → Workflows/);
 });
 
 test("omt update replaces the file only when no run of its workflows is unfinished", async () => {

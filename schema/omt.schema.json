@@ -149,7 +149,8 @@
             "review",
             "test",
             "research",
-            "plan"
+            "plan",
+            "score"
           ]
         },
         "t3Role": {

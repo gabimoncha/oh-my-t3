@@ -365,6 +365,7 @@ test("every default role resolves when its models are advertised", () => {
     "review": ["codex", "gpt-6.2-sol", {"reasoningEffort": "xhigh", "serviceTier": "priority"}],
     "oracle": ["codex", "gpt-6.2-astra", {"reasoningEffort": "medium", "serviceTier": "priority"}],
     "qa": ["codex", "gpt-6.2-sol", {"reasoningEffort": "medium", "serviceTier": "priority"}],
+    "judge": ["codex", "gpt-6.2-sol", {"reasoningEffort": "medium", "serviceTier": "priority"}],
     "writing": ["claudeAgent", "claude-opus-5-5", {"effort": "medium"}],
     "design": ["claudeAgent", "claude-fable-5-2", {"effort": "medium"}],
     "ui": ["claudeAgent", "claude-fable-5-2", {"effort": "medium"}],

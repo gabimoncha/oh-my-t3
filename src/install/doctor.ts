@@ -282,7 +282,8 @@ async function checkWorkflows(ctx: CliContext, loaded: ScopeManifest): Promise<D
     .map(([kind, names]) => `${kind}: ${names.join(", ")}`);
   if (problems.length > 0) return check("workflows", "WARN", `${problems.join("; ")} in ${plan.dir}; run omt install. ${state.message}`);
   const installed = `${plan.steps.map((step) => step.name).join(", ")} installed in ${plan.dir}`;
-  return check("workflows", state.state === "on" ? "PASS" : "INFO", `${installed}; ${state.message}`);
+  const climb = state.state === "unknown" ? "; omt-climb needs T3 Workflows" : "";
+  return check("workflows", state.state === "on" ? "PASS" : "INFO", `${installed}; ${state.message}${climb}`);
 }
 
 function expandHome(path: string, homedir: string): string {

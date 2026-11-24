@@ -6,8 +6,8 @@ export type Access = "read-only" | "edit";
 export type InteractionMode = "inherit" | "default" | "plan";
 export type RuntimeMode = "inherit" | "approval-required" | "auto-accept-edits" | "auto" | "full-access";
 export type T3Role = "implementation" | "research" | "review" | "design" | "test" | "general";
-export type ResultKind = "work" | "review" | "test" | "research" | "plan";
-export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan"];
+export type ResultKind = "work" | "review" | "test" | "research" | "plan" | "score";
+export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan", "score"];
 
 export interface Candidate {
   provider?: string; // T3 provider instance id, for example "claudeAgent"

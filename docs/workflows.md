@@ -67,6 +67,19 @@ With the switch on:
 
 When Workflows is off, or `t3 workflow start` fails, the skill prints one line and runs the steps in the thread. Follow each run on the T3 Workflows page, or with `t3 workflow show <run>`.
 
+## Climb to a target score
+
+`omt-climb` turns a goal into a score and repeats change, check, and score until every judge meets a target. Start it by name. Use it when a check gives a number but no pass: an eval with a pass count, a benchmark, a bundle size, or the look of a UI.
+
+It needs T3 Workflows (**Settings → Labs → Workflows**), and it ignores the `t3Workflow` switch. Without Workflows, it stops with one line that says how to turn it on. It has no steps that run in the thread. `omt doctor` reports whether Workflows is on.
+
+1. The main thread asks you for the scorer, the target, the judges and their tiers, the gates (such as the test suite), and the round limit. Then it commits and starts the workflow `omt-climb`.
+2. A judge is a command that prints a number, or a `judge` agent that scores screenshots or outputs from 0 to 10 in each category. Agents see only letter labels, such as `A` and `B`, and never the target, the round, or earlier scores. The baseline (the start commit) and any competitor screenshots are scored in every round, and a judge's baseline score corrects its drift.
+3. Tier 1, the least expensive judge, scores each round. A higher tier, such as Opus, scores only after the lower tiers meet the target.
+4. Below the target, one agent thread applies the judges' findings, runs the gates, and commits in its own worktree. The next round scores its commit.
+5. The run ends at the target. When the score stops rising or the round limit comes, it asks you on the Workflows page: stop, raise the limit, or change the approach.
+6. The last step sends the climb table to the thread. The thread merges the commits with a fast-forward and opens the draft PR.
+
 ## Review a pull request
 
 In a T3 thread, run the skill:

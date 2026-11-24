@@ -104,12 +104,15 @@ If you do not know what to do next, or you want to change the setup, type `$omt-
 | `omt-design` | You want designs or mockups before UI work. |
 | `omt-code-review` | You want a review of uncommitted changes, a branch, a commit, or a pull request. It replaces `omt-review`. |
 | `omt-setup` | You want to know what omt can do, which skill to use, or what to do next, or you want omt set up, configured, or updated: the harnesses, the defaults, models, roles, or profiles. It asks before each write. |
+| `omt-climb` | You want a score raised to a target in rounds: an eval, a benchmark, or the look of a UI that judges score blind. It needs T3 Workflows. |
 
-The agent can start each skill itself. For a question with no change, ask it in the thread: T3 answers it, or sends it to a `research` child.
+The agent can start each skill itself, except `omt-climb`, which you start by name. For a question with no change, ask it in the thread: T3 answers it, or sends it to a `research` child.
 
 `omt-grill`, `omt-help`, `omt-loop`, `omt-research`, `omt-show`, `omt-swarm`, and the `omt` router were removed. `omt-plan` runs the stress test of `omt-grill`, and `omt-setup` answers the questions of `omt-help` and lists the workflows. `omt install` and `omt update` remove the old folders. The `omt` folder stays, without a workflow, because it holds the references that the other skills share.
 
 With T3 Workflows on (**Settings → Labs → Workflows**), the review and QA steps of `omt-ulw` and the reviewers of `omt-code-review` can run as durable T3 workflows. Turn it on with `"profiles": { "normal": { "t3Workflow": true } }` in `.omt3/config.jsonc`. `omt install` copies the workflow file into `~/.t3/workflows`. Without the switch, omt runs every step in the thread. See [Run the review and QA steps as T3 workflows](docs/workflows.md#run-the-review-and-qa-steps-as-t3-workflows).
+
+`omt-climb` runs only as a T3 workflow. Without T3 Workflows it stops and says how to turn it on. See [Climb to a target score](docs/workflows.md#climb-to-a-target-score).
 
 A plan stays in `.omt3/` after context compaction and across sessions, so one plan can run for days. A profile in `.omt3/config.jsonc` can change the models, the checks, and the limits. See [Configure roles and profiles](docs/configuration.md), or ask `$omt-setup` to make the change.
 

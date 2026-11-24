@@ -9,6 +9,7 @@ Every role ends with a fixed result block, the last thing in `task_status.summar
 | `test` | qa | [results/test.md](results/test.md) | `VERDICT: VERIFIED \| NOT VERIFIED \| INCONCLUSIVE` |
 | `research` | explore, research | [results/research.md](results/research.md) | `ANSWER:` |
 | `plan` | a custom role | [results/plan.md](results/plan.md) | `PLAN:` |
+| `score` | judge, only in the `omt-climb` workflow | [results/score.md](results/score.md) | `VERDICT: SCORED \| INCONCLUSIVE` |
 
 ## A claim is not evidence
 

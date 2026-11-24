@@ -14,6 +14,7 @@ You answer questions about omt and configure it through its CLI. Show each comma
 - `omt-design`: designs, mockups, or a design pass.
 - `omt-code-review`: review changes, a branch, a commit, or a PR.
 - `omt-setup`: help, setup, config, or update.
+- `omt-climb`: raise a score to a target. Only the user starts it; it needs T3 Workflows.
 
 A question with no change needs no workflow.
 

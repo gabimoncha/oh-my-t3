@@ -70,6 +70,16 @@ The workflow keeps omt's rules. A step runs `omt brief --workflow --json`, so th
 
 T3 does not wake the thread that started a run, so each run ends with a step that sends the result to that thread with `t3 thread send`, and `onEnd` sends a message when a run stops or is cancelled. A workflow cannot open a PR, so the main thread opens it after the message. When T3 Workflows is off, or `t3 workflow start` fails, the skill prints one line and runs the steps in the thread.
 
+### A climb runs only as a T3 workflow
+
+`omt-ulw` needs done conditions that pass or fail. Some goals have only a score: an eval pass count, a bundle size, or the look of a UI. Theo Browne's T3 Code redesign (2026-11) used a council of three model judges that scored screenshots against Claude Code and Codex until each gave 9.5 or more. It worked, but one thread ran for about 18 hours and called every judge in every round.
+
+`omt-climb` keeps that loop and moves its cost. Judges join in tiers: the least expensive judge scores each round, and the costly judges score only after the lower tiers meet the target. Judges see letter labels, not the target or earlier scores, because a judge who knows the goal may score higher. Competitor scores also drifted up on unchanged screenshots, so the baseline is scored again in every round, and its drift is subtracted. The run asks the owner at a plateau or at the round limit, because more rounds alone do not raise a stalled score.
+
+A first version (PR #31) kept the scores in a `.climb.json` file, with a lock for parallel judges, a parser for score text, and steps to resume after a context reset. T3 Workflows already does each of these: it stores each step's result, runs agents in parallel, returns typed results, and resumes a run after a restart. omt keeps only what T3 lacks: the `judge` role and its brief, and the climb rules. So the owner chose to run a climb only as a workflow, with no in-thread path. Without T3 Workflows, `omt-climb` stops and says how to turn it on. It adds no omt config key, because the T3 setting is the switch.
+
+This is the one place where a model judges looks. The owner chooses the judges and the target, and the owner still reviews `docs/design/`. The skill starts only by name, because a climb can run for hours.
+
 ### A vague goal gets a stress test inside the plan
 
 A plan reviewer finds a missing edge case as a gap in a written plan. At that point the plan has units, scopes, and a test list, and each fix changes them. So `omt-plan` offers a stress test of the goal before it writes the plan, when the goal has no done condition that can fail or when 4 or more owner decisions remain. The main thread lists the edge cases, the options for the direction, and the open questions, and the owner accepts, changes, or drops each edge case by its id. An accepted edge case becomes a test line or a done condition.

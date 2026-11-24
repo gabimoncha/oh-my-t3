@@ -232,6 +232,29 @@
         }
       ]
     },
+    "judge": {
+      "description": "Score blind-labeled screenshots or outputs of an omt-climb round from 0 to 10 in each category, with the main flaw of each. Edits nothing.",
+      "access": "read-only",
+      "result": "score",
+      "t3Role": "review",
+      "interactionMode": "plan",
+      "runtimeMode": "inherit",
+      "crossFamily": true,
+      "chain": [
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6.2-sol",
+          "effort": "medium"
+        },
+        {
+          "provider": "claudeAgent",
+          "driver": "claudeAgent",
+          "model": "claude-opus-5-5",
+          "effort": "medium"
+        }
+      ]
+    },
     "writing": {
       "description": "Write or edit documentation and other prose.",
       "access": "edit",
