@@ -1,0 +1,4 @@
+# Package scripts run their tools (tsc, vite, playwright, wrangler) on Bun, not on the node of
+# their shebang, so the site needs no Node install.
+[run]
+bun = true

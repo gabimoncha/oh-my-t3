@@ -18,7 +18,7 @@ Run each command in `site/` through `mise exec --`. The root `bun run verify` do
 | `bun run dev` | Serve the page with hot reload at http://localhost:3000. |
 | `bun run typecheck` | Type-check `src/`, `e2e/`, and the configs. |
 | `bun run build` | Prerender the page to `dist/client`. |
-| `bun run e2e` | Run the end-to-end tests against `dist/client`. Build first. The first run needs `bunx playwright install chromium webkit`. |
+| `bun run e2e` | Run the end-to-end tests against `dist/client`. Build first. The first run needs `bunx --bun playwright install chromium webkit`. |
 
 Before you report done, run `typecheck`, `build`, and `e2e`, and look at the changed section in a browser at 1440 px and 390 px wide.
 
