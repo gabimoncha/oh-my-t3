@@ -7,7 +7,8 @@ import { errorMessage, OmtError } from "../util/errors.ts";
 import { copyDir, ensureDir, hashDir, lstatIfExists, pathExists, readFileIfExists, writeFileAtomic } from "../util/fs.ts";
 import { writeHookChange } from "./claudeHook.ts";
 import type { HookChange } from "./claudeHook.ts";
-import { movePath, newBackupDir, projectWriteTarget, writeTargetFor } from "./fsops.ts";
+import { isWithin } from "../paths.ts";
+import { movePath, newBackupDir, projectWriteTarget, resolveReal, writeTargetFor } from "./fsops.ts";
 import { mergeManifest, writeManifest } from "./manifest.ts";
 import type { Manifest, ManifestFile } from "./manifest.ts";
 import { removesRetired, replaceableSteps, sha256 } from "./plan.ts";
@@ -112,8 +113,17 @@ async function installSkill(step: SkillStep, plan: InstallPlan): Promise<void> {
 // backup. For a symlink, the install created its target, so the target goes and the link stays.
 // An exact restore writes the install-time backup's bytes back, then deletes that backup.
 // Any other removal backs the file up first.
-async function removeHook(step: HookStep, backupDir: () => Promise<string>, result: ApplyResult, root?: string): Promise<void> {
+async function removeHook(step: HookStep, stateDir: string, backupDir: () => Promise<string>, result: ApplyResult, root?: string): Promise<void> {
   if (root !== undefined) await projectWriteTarget(root, step.settingsPath);
+  if (step.restoreBackup !== undefined) {
+    // The plan checked the backup; a link swapped in since then must not let the restore read or delete a file elsewhere.
+    const real = await resolveReal(step.restoreBackup);
+    if (!isWithin(await resolveReal(join(stateDir, "backups")), real) || (await readFileIfExists(real)) !== step.after) {
+      throw new OmtError("claude_settings", `the backup ${step.restoreBackup} changed after the plan was made; nothing was written`, {
+        hint: "run the command again",
+      });
+    }
+  }
   if (step.removeFile === true) {
     if ((await readFileIfExists(step.settingsPath)) !== step.before) {
       throw new OmtError("claude_settings", `${step.settingsPath} changed after the plan was made; nothing was written`, {
@@ -433,7 +443,7 @@ export async function applyInstall(plan: InstallPlan, now: Date): Promise<ApplyR
 
   const createdFiles = await applyProjectInstall(plan, backupDir, result);
   if (configCreated && plan.project !== undefined) createdFiles.push({ path: plan.config.path, sha256: sha256(starter) });
-  for (const hook of plan.hooks) await removeHook(hook, backupDir, result, plan.project?.root);
+  for (const hook of plan.hooks) await removeHook(hook, plan.stateDir, backupDir, result, plan.project?.root);
   if (plan.project?.exclude !== undefined && plan.project.exclude.action !== "unchanged") result.changed.push(plan.project.exclude.path);
 
   const manifest = installManifest(plan, now, {
@@ -442,8 +452,8 @@ export async function applyInstall(plan: InstallPlan, now: Date): Promise<ApplyR
     backups: result.backups,
     project: plan.project === undefined ? undefined : projectRecord(plan, [...createdFiles, ...createdIgnores], await existing(plan.project.missingDirs)),
   });
-  // Every recorded hook is gone now: removed by this run, or by hand before it.
-  await writeManifest(plan.manifestPath, { ...pruneRetired(mergeManifest(plan.previous, manifest), plan), hooks: [] });
+  // Every recorded hook is gone now, removed by this run or by hand before it, except in a file that did not parse.
+  await writeManifest(plan.manifestPath, { ...pruneRetired(mergeManifest(plan.previous, manifest), plan), hooks: plan.keptHooks });
   return result;
 }
 
@@ -476,7 +486,7 @@ export async function applyUninstall(plan: UninstallPlan, now: Date): Promise<Ap
     await removeSkillDir(skill.path);
     result.changed.push(skill.path);
   }
-  for (const hook of plan.hooks) await removeHook(hook, backupDir, result, plan.project?.root);
+  for (const hook of plan.hooks) await removeHook(hook, plan.stateDir, backupDir, result, plan.project?.root);
   result.changed.push(...await removeWorkflows(plan.workflows));
   if (plan.project?.shim !== undefined) {
     await removePath(plan.project.shim.path);

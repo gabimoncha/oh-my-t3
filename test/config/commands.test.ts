@@ -33,7 +33,7 @@ test("config show --defaults prints the 10 default roles as JSON", async () => {
   const c = ctx(["show", "--defaults"]);
   assert.equal(await config(c), 0);
   const printed = JSON.parse(c.out());
-  assert.deepEqual(printed, DEFAULT_CONFIG);
+  assert.deepEqual(printed, { ...DEFAULT_CONFIG, limits: { maxParallel: 6, ...DEFAULT_CONFIG.limits } });
   assert.equal(Object.keys(printed.roles).length, 10);
   assert.equal("visuals" in printed, false);
 });

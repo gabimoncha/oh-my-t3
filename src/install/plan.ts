@@ -31,7 +31,7 @@ import { allDetected, DEFAULT_HARNESSES, detectHarnesses, formatHarnessLine, for
 import { classifyLink, planLinks } from "./links.ts";
 import type { LinkRoot, LinkRootName, SkippedRoot } from "./links.ts";
 import { manifestText, readManifest, rebaseManifest } from "./manifest.ts";
-import type { Manifest, ManifestExcludeFile, ManifestExisting, ManifestFile } from "./manifest.ts";
+import type { Manifest, ManifestExcludeFile, ManifestExisting, ManifestFile, ManifestHook } from "./manifest.ts";
 import {
   assertInstallSource,
   excludeBlockLines,
@@ -206,6 +206,7 @@ export interface InstallPlan {
   config: ConfigStep;
   harnesses?: HarnessStep;
   hooks: HookStep[]; // removes the retired Claude prompt hook
+  keptHooks: ManifestHook[]; // records of hooks in a settings file that is not valid JSON; a later run retries them
   previous?: Manifest;
   project?: ProjectInstallSteps;
   workflows?: WorkflowPlan; // user scope only
@@ -609,7 +610,7 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
     links,
     skippedRoots: linkPlan.skipped,
     config,
-    hooks: await planHookRemovals(scope, paths, previous, true),
+    ...await planHookRemovals(scope, paths, previous, true).then(({ hooks, kept }) => ({ hooks, keptHooks: kept })),
     scratch: paths.root === undefined ? [] : await listScratch(paths.agentsRoot),
   };
   if (previous !== undefined) plan.previous = previous;
@@ -662,30 +663,42 @@ async function planHookRemovals(
   paths: ScopePaths,
   manifest: Manifest | undefined,
   skipInvalid = false,
-): Promise<HookStep[]> {
-  const settingsPaths = new Map<string, string>([[await resolveReal(paths.settingsPath), paths.settingsPath]]);
+): Promise<{ hooks: HookStep[]; kept: ManifestHook[] }> {
+  // Records match by real path, so a record under an alias of the scope's settings path keeps its backup and created flag.
+  const scopeKey = await resolveReal(paths.settingsPath);
+  const groups = new Map<string, { settingsPath: string; records: ManifestHook[] }>([[scopeKey, { settingsPath: paths.settingsPath, records: [] }]]);
   for (const hook of manifest?.hooks ?? []) {
     const key = await resolveReal(hook.settingsPath);
-    if (!settingsPaths.has(key)) settingsPaths.set(key, hook.settingsPath);
+    const group = groups.get(key) ?? { settingsPath: hook.settingsPath, records: [] };
+    group.records.push(hook);
+    groups.set(key, group);
   }
+  // Only a backup whose real path is in the scope's backups folder may be restored and then deleted.
+  const backupsRoot = await resolveReal(join(paths.stateDir, "backups"));
   const hooks: HookStep[] = [];
-  for (const settingsPath of settingsPaths.values()) {
-    const record = manifest?.hooks.find((hook) => hook.settingsPath === settingsPath);
+  const kept: ManifestHook[] = [];
+  for (const [key, { settingsPath, records }] of groups) {
+    let backup: string | undefined;
+    for (const record of records) {
+      if (record.backup !== undefined && isWithin(backupsRoot, await resolveReal(record.backup))) backup ??= record.backup;
+    }
     let change: HookStep | undefined;
     try {
-      change = await planHookRemoval(settingsPath, record?.backup);
+      change = await planHookRemoval(settingsPath, backup);
     } catch (error) {
-      if (skipInvalid && error instanceof OmtError && error.code === "claude_settings") continue;
-      throw error;
+      if (!skipInvalid || !(error instanceof OmtError) || error.code !== "claude_settings") throw error;
+      // A later run retries the file once it parses again, so its records stay.
+      kept.push(...records);
+      continue;
     }
     if (change === undefined) continue;
     const created =
-      record?.created === true ||
-      (scope === "project" && settingsPath === paths.settingsPath && manifest?.project?.settingsCreated === true);
+      records.some((record) => record.created === true) ||
+      (scope === "project" && key === scopeKey && manifest?.project?.settingsCreated === true);
     if (created && change.empty === true) change.removeFile = true;
     hooks.push(change);
   }
-  return hooks;
+  return { hooks, kept };
 }
 
 // True for a retired skill or link that the apply removes (`replace` backs the skill up first).
@@ -1028,7 +1041,7 @@ export async function buildUninstallPlan(
     links.push(link);
   }
 
-  const hooks = await planHookRemovals(scope, paths, manifest);
+  const { hooks } = await planHookRemovals(scope, paths, manifest);
 
   const configPath = paths.configPath;
   const configExists = await pathExists(configPath);
@@ -1139,9 +1152,12 @@ export function renderInstallPlan(plan: InstallPlan): string {
   text += "Config:\n";
   text += line(plan.config.action, plan.config.path, plan.config.reason);
   if (plan.harnesses !== undefined) text += renderHarnesses(plan.harnesses, plan.config);
-  if (plan.hooks.length > 0) {
+  if (plan.hooks.length + plan.keptHooks.length > 0) {
     text += "Hooks:\n";
     for (const hook of plan.hooks) text += line(hook.action, `Claude UserPromptSubmit in ${hook.settingsPath}`, "retired");
+    for (const path of new Set(plan.keptHooks.map((hook) => hook.settingsPath))) {
+      text += line("keep", `Claude UserPromptSubmit in ${path}`, "retired; not valid JSON, so fix the file and run omt update again");
+    }
   }
   if (plan.workflows !== undefined && (plan.workflows.steps.length > 0 || plan.workflows.skipped !== undefined)) {
     text += `T3 workflows (${plan.workflows.dir}):\n`;

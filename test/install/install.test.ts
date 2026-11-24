@@ -316,6 +316,56 @@ test("a settings.json that is not valid JSON does not stop install and stays as 
   assert.equal((await f.run(["install", "--yes", "--hooks"])).code, 2, "--hooks is gone");
 });
 
+// A record cleared while its file did not parse left the hook in place for good once the user fixed the file.
+test("install keeps the record of a retired hook in an invalid settings.json, warns, and removes the hook once it parses", async () => {
+  const f = makeFixture();
+  await f.runOk(["install", "--yes"]);
+  const valid = `${JSON.stringify(withOldHook({ theme: "dark" }), null, 2)}\n`;
+  writeFile(f.settings, valid.replace("{", "{ not json"));
+  recordOldHook(f, f.settings);
+  const { ctx } = await f.runOk(["install", "--yes"]);
+  assert.match(ctx.out(), /^ {2}keep {5}Claude UserPromptSubmit in .*settings\.json {2}\(retired; not valid JSON, so fix the file and run omt update again\)$/m);
+  assert.equal((readJson(f.manifest).hooks as unknown[]).length, 1);
+
+  writeFile(f.settings, valid);
+  await f.runOk(["install", "--yes"]);
+  assert.deepEqual(readJson(f.settings), { theme: "dark" });
+  assert.deepEqual(readJson(f.manifest).hooks, []);
+});
+
+// A backup that resolves outside the backups folder must be neither restored nor deleted.
+test("install restores no backup through a stamp folder linked outside the backups folder", async () => {
+  const f = makeFixture();
+  await f.runOk(["install", "--yes"]);
+  const outside = join(f.root, "outside");
+  const original = '{ "theme": "dark" }\n';
+  writeFile(join(outside, "claude-settings.json"), original);
+  mkdirSync(f.backups, { recursive: true });
+  symlinkSync(outside, join(f.backups, "20251201000000"));
+  writeFile(f.settings, `${JSON.stringify(withOldHook({ theme: "dark" }), null, 2)}\n`);
+  recordOldHook(f, f.settings, { backup: join(f.backups, "20251201000000", "claude-settings.json") });
+  await f.runOk(["install", "--yes"]);
+  assert.deepEqual(readJson(f.settings), { theme: "dark" });
+  assert.equal(readFileSync(join(outside, "claude-settings.json"), "utf8"), original);
+  assert.ok(existsSync(join(f.backups, STAMP, "claude-settings.json")), "the removal backs the file up instead");
+});
+
+// The record of an old install can name the settings file through another path; its backup must still restore it.
+test("install restores the backup of a hook record that names the settings file through an alias", async () => {
+  const f = makeFixture();
+  await f.runOk(["install", "--yes"]);
+  const original = `${JSON.stringify({ theme: "dark" }, null, 4)}\n`;
+  const backup = join(f.backups, "20251201000000", "claude-settings.json");
+  writeFile(backup, original);
+  writeFile(f.settings, `${JSON.stringify(withOldHook({ theme: "dark" }), null, 2)}\n`);
+  const alias = join(f.root, "claude-alias");
+  symlinkSync(dirname(f.settings), alias);
+  recordOldHook(f, join(alias, "settings.json"), { backup });
+  await f.runOk(["install", "--yes"]);
+  assert.equal(readFileSync(f.settings, "utf8"), original);
+  assert.ok(!existsSync(backup));
+});
+
 test("a user install is refused for a temp or npx cliPath", async () => {
   const f = makeFixture();
   const before = snapshot(f.home);

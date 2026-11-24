@@ -379,7 +379,8 @@ test("config show prints the planned defaults and the roles.test warning", async
   const defaults = await runOk(["config", "show", "--defaults"], options);
   const printed = JSON.parse(defaults.ctx.out()) as OmtConfig;
   assert.equal(printed.limits.maxReviewRounds, 4);
-  assert.equal(Object.hasOwn(printed.limits, "maxParallel"), false);
+  // omt update of v0.7.1 reads this output and rejects defaults without limits.maxParallel, so the first update fails.
+  assert.equal((printed.limits as unknown as Record<string, unknown>).maxParallel, 6);
   assert.ok(printed.roles.qa);
   assert.equal(Object.hasOwn(printed.roles, "guardrail"), false);
   assert.equal(Object.hasOwn(printed.roles, "verify"), false);

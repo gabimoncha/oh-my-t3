@@ -67,3 +67,23 @@ test("omt update removes omt-research, the prompt hook, limits.maxParallel, and 
     assert.ok(!report.report.checks.some((check) => check.id === "hooks"), cwd);
   }
 });
+
+// omt update of v0.7.1 runs this CLI's sync with OMT_UPDATE_DEFER_DEFAULTS=1 and then reviews the defaults with its
+// own code, which knows nothing of the retired ledger, locks, or maxParallel. The deferred sync must clean them.
+test("a deferred update, as v0.7.1 starts it, still removes the retired config keys and project state", async () => {
+  const f = makeFixture();
+  const project = join(f.root, "project");
+  mkdirSync(join(project, ".git"));
+  await f.runOk(["install", "--yes"]);
+  await f.runOk(["install", "--project", "--yes"], { cwd: project });
+  const projectConfig = join(project, ".omt3", "config.jsonc");
+  writeFileSync(projectConfig, '{\n  "version": 1,\n  "limits": { "maxParallel": 2 }\n}\n');
+  const ledger = join(project, ".omt3", "ledger.jsonl");
+  writeFile(ledger, "{}\n");
+  writeFile(join(project, ".omt3", "locks", "build.lock"), "");
+
+  await f.runOk(["update", "--skills-only", "--yes"], { env: { OMT_UPDATE_DEFER_DEFAULTS: "1" } });
+  assert.doesNotMatch(readFileSync(projectConfig, "utf8"), /maxParallel/);
+  assert.ok(!existsSync(ledger));
+  assert.ok(!existsSync(join(project, ".omt3", "locks")));
+});

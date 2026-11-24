@@ -181,6 +181,8 @@ export function parseJsonc(text: string, source: string): unknown {
 interface Member {
   key: string;
   keyStart: number;
+  keyEnd: number;
+  colon: number;
   valueStart: number;
   valueEnd: number;
   comma: number | undefined; // offset of the comma after the value
@@ -226,11 +228,12 @@ function objectMembers(chars: string[], open: number): ObjectScan {
     const keyStart = i;
     const keyEnd = skipString(chars, i);
     const key = JSON.parse(chars.slice(keyStart, keyEnd).join("")) as string;
-    const valueStart = skipSpace(chars, skipSpace(chars, keyEnd) + 1);
+    const colon = skipSpace(chars, keyEnd);
+    const valueStart = skipSpace(chars, colon + 1);
     const valueEnd = skipValue(chars, valueStart);
     i = skipSpace(chars, valueEnd);
     const comma = chars[i] === "," ? i : undefined;
-    members.push({ key, keyStart, valueStart, valueEnd, comma });
+    members.push({ key, keyStart, keyEnd, colon, valueStart, valueEnd, comma });
     if (comma === undefined) break;
     i = skipSpace(chars, comma + 1);
   }
@@ -317,15 +320,25 @@ function removeMember(body: string, members: Member[], index: number): string {
   const last = own ?? member.valueEnd - 1;
   const rest = body.slice(member.valueEnd, last + 1);
   const lineEnd = /^[ \t]*,?$/.test(rest) ? /^[ \t]*(\r?\n)/.exec(body.slice(last + 1)) : null;
-  if (indentOf(body, member) !== undefined && lineEnd !== null) {
+  const indent = indentOf(body, member);
+  const wholeLine = indent !== undefined && lineEnd !== null;
+  if (wholeLine) {
     start = lineStart(body, member.keyStart);
     end = last + 1 + lineEnd[0].length;
   }
-  const ranges: [number, number][] = [[start, end]];
-  if (comma !== undefined && (comma < start || comma >= end)) ranges.push([comma, comma + 1]);
+  // A comment between the key and the colon describes the member's place, not its value, so it stays.
+  const notes = body.slice(member.keyEnd, member.colon).match(/\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g) ?? [];
+  const newline = lineEnd?.[1] ?? "\n";
+  const kept = notes.length === 0
+    ? ""
+    : wholeLine
+      ? notes.map((note) => `${indent}${note}${newline}`).join("")
+      : notes.map((note) => (note.startsWith("//") ? `${note}${newline}` : `${note} `)).join("");
+  const ranges: [number, number, string][] = [[start, end, kept]];
+  if (comma !== undefined && (comma < start || comma >= end)) ranges.push([comma, comma + 1, ""]);
   ranges.sort((a, b) => b[0] - a[0]);
   let out = body;
-  for (const [from, to] of ranges) out = out.slice(0, from) + out.slice(to);
+  for (const [from, to, text] of ranges) out = out.slice(0, from) + text + out.slice(to);
   return out;
 }
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "bun:test";
 import { run as doctor } from "../../src/commands/doctor.ts";
@@ -110,6 +110,26 @@ test("cleanup deletes an empty guardrails.md and keeps one with text", async () 
   writeFile(file, "");
   assert.deepEqual((await cleanRetired(ctx, "user", { dryRun: false })).files, [], "the user scope never touches a project file");
   assert.equal(existsSync(file), true);
+});
+
+// A link at .omt3/locks to a project folder must lose only the link: a followed link deleted the folder.
+test("cleanup removes a symlinked locks or ledger entry itself, never its target, and skips an entry of the wrong type", async () => {
+  const { ctx } = await setup();
+  const keep = join(ctx.cwd, "keep");
+  writeFile(join(keep, "notes.md"), "mine\n");
+  writeFile(join(ctx.cwd, "data.jsonl"), "mine\n");
+  symlinkSync(keep, join(omtDir(ctx.cwd), "locks"));
+  symlinkSync(join(ctx.cwd, "data.jsonl"), join(omtDir(ctx.cwd), "ledger.jsonl"));
+  const cleanup = await cleanRetired(ctx, "project", { dryRun: false });
+  assert.deepEqual(cleanup.files.sort(), [join(omtDir(ctx.cwd), "ledger.jsonl"), join(omtDir(ctx.cwd), "locks")]);
+  assert.throws(() => lstatSync(join(omtDir(ctx.cwd), "locks")));
+  assert.throws(() => lstatSync(join(omtDir(ctx.cwd), "ledger.jsonl")));
+  assert.equal(readFileSync(join(keep, "notes.md"), "utf8"), "mine\n");
+  assert.equal(readFileSync(join(ctx.cwd, "data.jsonl"), "utf8"), "mine\n");
+
+  writeFile(join(omtDir(ctx.cwd), "ledger.jsonl", "inside.txt"), "a folder, not the ledger\n");
+  assert.deepEqual((await cleanRetired(ctx, "project", { dryRun: false })).files, []);
+  assert.ok(existsSync(join(omtDir(ctx.cwd), "ledger.jsonl", "inside.txt")));
 });
 
 test("install removes the retired keys without a prompt", async () => {

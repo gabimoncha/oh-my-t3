@@ -110,6 +110,16 @@ test("removal keeps comments and removes the required comma and whole lines", ()
     '{\n  "a": {\n     // keep\n    "y": 2\n  }\n}');
 });
 
+// The retired-key cleanup removes keys such as limits.maxParallel; a note between the key and the colon was lost.
+test("removal keeps a comment between the key and the colon", () => {
+  check('{\n  "limits": {\n    "maxParallel" /* why */ : 2,\n    "maxDepth": 2\n  }\n}\n', ["limits", "maxParallel"], undefined,
+    { limits: { maxDepth: 2 } }, '{\n  "limits": {\n    /* why */\n    "maxDepth": 2\n  }\n}\n');
+  check('{ "limits": { "maxDepth": 2, "maxParallel" /* why */ : 2 } }', ["limits", "maxParallel"], undefined,
+    { limits: { maxDepth: 2 } }, '{ "limits": { "maxDepth": 2 /* why */  } }');
+  check('{\n  "limits": {\n    "maxParallel" // why\n      : 2,\n    "maxDepth": 2\n  }\n}\n', ["limits", "maxParallel"], undefined,
+    { limits: { maxDepth: 2 } }, '{\n  "limits": {\n    // why\n    "maxDepth": 2\n  }\n}\n');
+});
+
 test("upward removal stops at members, comments, and root keys", () => {
   const note = '{\n  "profiles": {\n    "prototype": { // note\n      "limits": { "maxReviewRounds": 3 } }\n  }\n}\n';
   check(note, ["profiles", "prototype", "limits", "maxReviewRounds"], undefined, { profiles: { prototype: {} } },

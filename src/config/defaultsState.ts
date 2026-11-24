@@ -1,5 +1,5 @@
 import { rm } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { findProjectRoot, manifestPath, omtDir, projectManifestPath, projectConfigPath, userConfigPath } from "../paths.ts";
 import type { CliContext, ConfigLayer, DefaultsChange, OmtConfig } from "../types.ts";
 import { projectWriteTarget, writeTargetFor } from "../install/fsops.ts";
@@ -168,11 +168,13 @@ export async function cleanRetired(ctx: Context, scope: Scope, options: { dryRun
   const keys = isRecord(value) ? [...new Set(retiredKeyPaths(value))] : [];
   const files: string[] = [];
   if (scope === "project") {
+    // Each entry is checked without following a symlink: a link is removed itself, never its target.
     const guardrails = join(omtDir(root), "guardrails.md");
-    if ((await readFileIfExists(guardrails))?.trim() === "") files.push(guardrails);
-    for (const name of ["ledger.jsonl", "locks"]) {
+    if ((await lstatIfExists(guardrails))?.isFile() === true && (await readFileIfExists(guardrails))?.trim() === "") files.push(guardrails);
+    for (const [name, kind] of [["ledger.jsonl", "file"], ["locks", "dir"]] as const) {
       const path = join(omtDir(root), name);
-      if (await lstatIfExists(path) !== undefined) files.push(path);
+      const stat = await lstatIfExists(path);
+      if (stat !== undefined && (stat.isSymbolicLink() || (kind === "file" ? stat.isFile() : stat.isDirectory()))) files.push(path);
     }
   }
   if (options.dryRun) return { configPath, keys, files };
@@ -180,7 +182,7 @@ export async function cleanRetired(ctx: Context, scope: Scope, options: { dryRun
     const after = keys.reduce((text, key) => setJsoncValue(text, key.split("."), undefined), before);
     await writeFileAtomic(scope === "project" ? await projectWriteTarget(root, configPath) : await writeTargetFor(configPath), after);
   }
-  for (const file of files) await rm(await projectWriteTarget(root, file), { recursive: true, force: true });
+  for (const file of files) await rm(join(await projectWriteTarget(root, dirname(file)), basename(file)), { recursive: true, force: true });
   return { configPath, keys, files };
 }
 

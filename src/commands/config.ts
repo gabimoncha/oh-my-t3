@@ -37,9 +37,15 @@ Options:
 
 const SUBCOMMANDS = ["show", "explain", "path", "validate", "init"];
 
+// An omt update run by v0.7.1 reads the new CLI's defaults with this command, and rejects defaults that lack
+// limits.maxParallel. The retired key has no effect here: every later release drops it with a warning.
+function updaterDefaults(): unknown {
+  return { ...DEFAULT_CONFIG, limits: { maxParallel: 6, ...DEFAULT_CONFIG.limits } };
+}
+
 async function show(ctx: CliContext, defaults: boolean): Promise<number> {
   const loaded = await loadConfigReporting(ctx);
-  ctx.stdout(formatJson(defaults ? DEFAULT_CONFIG : loaded.config));
+  ctx.stdout(formatJson(defaults ? updaterDefaults() : loaded.config));
   return 0;
 }
 
