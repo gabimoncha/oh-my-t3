@@ -85,8 +85,9 @@ templates/
 skills/
   omt/                   router skill and shared references
   omt-ulw/ omt-plan/ omt-design/ omt-code-review/ omt-research/ omt-setup/
+  omt-climb/             user-invoked: starts the T3 workflow omt-climb (section 15.2)
 workflows/
-  omt.ts                 the T3 workflows omt-ulw and omt-code-review (section 14.9)
+  omt.ts                 the T3 workflows omt-ulw, omt-code-review, and omt-climb, and the climb rules (section 14.9)
 test/
   helpers.ts             temp dirs and a fake CliContext
   run.ts                 command helpers
@@ -114,8 +115,8 @@ export type Access = "read-only" | "edit";
 export type InteractionMode = "inherit" | "default" | "plan";
 export type RuntimeMode = "inherit" | "approval-required" | "auto-accept-edits" | "auto" | "full-access";
 export type T3Role = "implementation" | "research" | "review" | "design" | "test" | "general";
-export type ResultKind = "work" | "review" | "test" | "research" | "plan";
-export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan"];
+export type ResultKind = "work" | "review" | "test" | "research" | "plan" | "score";
+export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan", "score"];
 
 export interface Candidate {
   provider?: string; // T3 provider instance id, for example "claudeAgent"
@@ -1244,7 +1245,7 @@ A missing file is not an error. Each file is JSONC (section 7). Profile selectio
 - Allowed role keys and values:
   - `description`: a non-empty string of at most 300 characters.
   - `access`: `read-only` or `edit`.
-  - `result`: `work`, `review`, `test`, `research`, or `plan`. The retired kinds `grill` and `guardrail` are errors that say to use `review`.
+  - `result`: `work`, `review`, `test`, `research`, `plan`, or `score`. The retired kinds `grill` and `guardrail` are errors that say to use `review`.
   - `t3Role`: `implementation`, `research`, `review`, `design`, `test`, or `general`.
   - `interactionMode`: `inherit`, `default`, or `plan`.
   - `runtimeMode`: `inherit`, `approval-required`, `auto-accept-edits`, `auto`, or `full-access`.
@@ -1321,6 +1322,7 @@ For a role without `crossFamily`, candidate 2 runs only when T3 refuses candidat
 | `review` | edit | review | review | default | true | codex/gpt-6.2-sol xhigh, claudeAgent/claude-opus-5-5 high |
 | `oracle` | edit | review | review | default | true | codex/gpt-6.2-astra medium, claudeAgent/claude-fable-5-2 medium |
 | `qa` | edit | test | test | default | false | codex/gpt-6.2-sol medium, claudeAgent/claude-sonnet-5-5 medium |
+| `judge` | read-only | score | review | plan | true | codex/gpt-6.2-sol medium, claudeAgent/claude-opus-5-5 medium |
 | `writing` | edit | work | implementation | default | false | claudeAgent/claude-opus-5-5 medium, codex/gpt-6.2-astra medium |
 | `design` | edit | work | design | default | false | claudeAgent/claude-fable-5-2 medium, codex/gpt-6.2-astra high |
 | `ui` | edit | work | implementation | default | false | claudeAgent/claude-fable-5-2 medium, codex/gpt-6.2-astra high |
@@ -1328,6 +1330,8 @@ For a role without `crossFamily`, candidate 2 runs only when T3 refuses candidat
 `review` and `oracle` have `edit` access, so that the reviewer fixes each local finding itself and reports the rest (section 11).
 
 `qa` starts on Sol at medium effort and falls back to Sonnet at medium effort. It has `edit` access only so that it can run commands and write logs; its brief forbids edits in the repository (section 9.2).
+
+`judge` scores the blind-labeled files of an `omt-climb` round (section 14.9). Only that workflow starts it. It starts on Sol at medium effort, the least expensive rung, and a judge with `against: "codex"` reaches its Opus rung for a second tier. It is cross-family so that `--against` selects the other family.
 
 Every default role has `runtimeMode: "inherit"` and an explicit `crossFamily`. Without `--against`, the cross-family roles start on codex, which fits the default worker (`execute` on claudeAgent).
 
@@ -1340,6 +1344,7 @@ Role descriptions (shown to agents in `omt roles` and in skills):
 - `review`: Review a diff against its brief, fix local findings in the changed files, and report the rest by severity. Runs on the family that did not make the change.
 - `oracle`: Attack the finished change from the family other than the main implementer's, fix local findings, and report the rest before it counts as done.
 - `qa`: Run the given check commands and device flows, and return each exit code with its log and screenshots. Edits nothing.
+- `judge`: Score blind-labeled screenshots or outputs of an omt-climb round from 0 to 10 in each category, with the main flaw of each. Edits nothing.
 - `writing`: Write or edit documentation and other prose.
 - `design`: Design screens and flows in Paper, and write a design spec that UI units cite.
 - `ui`: Implement one UI unit from its design spec or task requirements, inside its scope.
@@ -1739,6 +1744,20 @@ DECISIONS NEEDED:
 - <decision for the owner, with options and a recommendation; or none>
 ```
 
+`score.md`:
+
+```text
+VERDICT: SCORED | INCONCLUSIVE
+SCORES:
+- <label> <category>: <0 to 10>
+FINDINGS:
+- <label> <category>: <the flaw that costs the most points>. Fix: <fix>.
+NOTES:
+- <what you could not open or judge, or none>
+```
+
+A `judge` runs only in the `omt-climb` workflow and returns this block as typed fields: `verdict`, `scores` (`label`, `category`, `score`), `findings` (`label`, `category`, `flaw`, `fix`), and `notes`. It scores every label in every category of the task.
+
 A `qa` result lists each command under `CHECKS` with its exit code and key output line, and each log, screenshot, and recording under `EVIDENCE`; `qa` writes no tests, so the contract has no test list. A `review` or `oracle` result lists the fixes that the reviewer made under `FIXES`, with their paths, or `none` when its access is read-only; `FINDINGS` holds only the findings that it reports. Worker `NOTES` are optional. A review or oracle finding needs a concrete failure scenario. When CRAP is requested, a CRAP finding instead names the changed function and its complexity, coverage, and CRAP values. This exception applies in every round.
 
 Severity meanings for review findings: P0 breaks the build, loses data, or opens a security hole. P1 is a wrong result in a normal path. P2 is a wrong result in an edge case, a named missing test, or a requested CRAP finding above 30. P3 is style or clarity.
@@ -2026,7 +2045,7 @@ Then doctor runs these checks and prints one line per check, such as `PASS  conf
 | `t3` | `t3SettingsPath()` exists | it does not exist | | |
 | `homes` | every T3 `claudeAgent` instance that sets `config.homePath` has the skills linked in `<homePath>/skills` | an instance with a `homePath` that lacks the skills; a settings file that cannot be read or is not valid JSON | | no instance sets a `homePath` |
 | `roles` | every role resolves (only with `--capabilities`) | some roles are unavailable | the `execute` role is unavailable | |
-| `workflows` | user scope only: every bundled workflow file is current in the T3 workflows folder and T3 Workflows is on (section 14.9) | a file is missing, outdated, locally modified, or not managed; run omt install | | the files are current and Workflows is off or cannot be checked; no T3 home; no bundled workflow file |
+| `workflows` | user scope only: every bundled workflow file is current in the T3 workflows folder and T3 Workflows is on (section 14.9) | a file is missing, outdated, locally modified, or not managed; run omt install | | the files are current and Workflows is off (`T3 Workflows is off, and omt-climb needs it; turn it on in T3 Settings → Labs → Workflows`) or cannot be checked (the message ends with `; omt-climb needs T3 Workflows`); no T3 home; no bundled workflow file |
 
 With `--project`, doctor checks the project scope (section 14.8). It runs `runtime`, `config`, `defaults`, and `harnesses` as above, and `skills`, `links`, and `hooks` against the project paths. It replaces `path` and `homes` with these checks, keeps `t3` and `roles`, adds `worktree` after `t3`, and adds `leftovers` after `worktree` only while `.omt3/guardrails.md` holds text. `worktree` checks the checkout of the current directory, which can be a linked worktree, while the other project checks use the main checkout:
 
@@ -2240,7 +2259,7 @@ User scope and project scope never read or write each other's files, except the 
 
 ### 14.9 T3 workflows
 
-`workflows/omt.ts` defines two T3 workflows for the T3 Code workflow engine. The bundle and the binary carry `workflows/` next to `skills/`.
+`workflows/omt.ts` defines three T3 workflows for the T3 Code workflow engine. The bundle and the binary carry `workflows/` next to `skills/`.
 
 Install. Only a user install (and `omt update` of user scope) plans the file, because T3 reads one workflows folder for the machine: `T3CODE_WORKFLOWS`, else `<T3 home>/workflows`, where the T3 home is `T3CODE_HOME` or `~/.t3`. Without `T3CODE_WORKFLOWS` and without the T3 home, the plan shows `skip (no T3 home at <path>)` and writes nothing. When `T3CODE_WORKFLOWS` names a file, the plan skips too. The plan section is `T3 workflows (<folder>):` with one line per bundled file:
 
@@ -2254,6 +2273,16 @@ Workflows. A changed file raises the `version` of each changed workflow; `test/w
 
 - `omt-ulw` takes `{ project, plan, round, base, head, review, family, context, scope, checks, flows, thread, omt }`. With `review` not `off`, the `review` or `oracle` role (unit `REVIEW` or `F2`, `--against <family> --strict`) reviews `git diff <base>..<head>` in a worktree from `head`, fixes and commits local findings, and returns its findings, fixes, and `head`. Unless the verdict is `BLOCK`, a `qa` agent runs `checks` and `flows` in a worktree from the current head. After a failed run, the reviewer's thread (or a new `execute` agent when review is off) fixes and commits, and QA runs the failed checks again, at most 2 times. It returns `{ outcome: verified | checks-failed | blocked, head, review, fixes, qa, qaRuns }`.
 - `omt-code-review` takes `{ project, checkout, slug, round, intent, groups, oracle, fixLoop, thread, omt }`. It runs one report-only agent per group in plan mode, at most 4 at a time, with `--against` when the group sets it. Each reads the change with `git -C <checkout>`. With `oracle` set, an `oracle` agent with `--against <oracle> --strict` confirms or refutes every finding. With `fixLoop` and a P0 to P2 finding, it asks the owner `fix` or `report only`, with a 2-day timeout. It returns `{ groups, oracle, fix: approved | declined | not asked }`.
+- `omt-climb` takes `{ project, checkout, slug, head, goal, rubric, categories, target, direction, maxRounds, plateau: { rounds, minGain }, judges: [{ name, tier, against, command }], references: [{ name, files }], beat, gates, capture, change, evidence, thread, omt }`. It needs T3 Workflows and has no in-thread fallback; the T3 setting is its only switch, and it ignores `t3Workflow`. Input that `climbInputErrors` rejects stops the run: names of judges, references, and categories must match `^[a-z0-9][a-z0-9-]{0,31}$` with no duplicate, a tier is 1 to 9, `beat` names references, and a model judge (empty `command`) needs a `capture` command and `direction: up`. Each round `n`:
+  1. `gates-r<n>` runs each gate with `sh -c` in the round's checkout and logs it under `<evidence>/climb-<slug>/logs/`. Round 1 runs in `checkout` at `head`; a failure there stops the run. A later round runs in the change agent's worktree; after a failure, that agent's thread fixes and commits (`fix-gates-r<n>-<k>`), and the gates run again, at most 2 times, then the run stops.
+  2. With a model judge, `capture-r<n>` runs `capture` with `OMT_CLIMB_OUT=<evidence>/climb-<slug>/r<n>` and lists the files that it wrote. Round 1's capture is the baseline. A failed or empty capture pauses the run.
+  3. `labels-r<n>` draws 16 random bytes in a step, because the body replays: the first 4 give the `key`, and all shuffle the subjects (`current`, `baseline` from round 2, and each reference) into labels `A`, `B`, ... (`blindLabels`). It copies each subject's files to `<evidence>/climb-<key>/<label>-<k>.<ext>`.
+  4. `nextAction` names the tier to score. The missing judges of that tier run in parallel, at most 4 at a time. A command judge (`score-r<n>-<name>`) runs its command in the round's checkout, and its value is the number on the last line of stdout. A model judge is the `judge` role with unit `J-<name>-<key>`, round 1, no context, and `--against <against> --strict` when `against` is set. It returns `Scores`; `readScores` maps its labels to subjects, and a subject's value is its lowest category. An `INCONCLUSIVE` or incomplete result runs once more (`.retry` step names), then stops the run. In round 1, a model judge's `current` score is also its `baseline` score.
+  5. `nextAction`: `score` with a tier while a due judge has no score, or while every due judge meets the target and a higher tier exists. A due judge fails when its calibrated value misses the target, or, for a model judge, when its raw `current` score is not better than its raw score of a `beat` reference. With no failure, `met`. Else `limit` when `n` is at least the round limit; else `plateau` when `n - plateau.rounds` is at least 1 and at least the round of the owner's last answer, and the gain of the worst calibrated value among the judges that scored both rounds is below `minGain`; else `change`. The calibrated value is the raw `current` value minus the judge's drift: its baseline value in the round minus its first baseline value.
+  6. `met` ends the run. `plateau` and `limit` ask the owner `stop`, `raise limit`, or `change approach` with a 2-day timeout (`ask-r<n>`). `stop` or no answer ends the run. Each other answer sets the limit to at least `n + 5` and restarts the plateau window at `n`; `change approach` sends the owner's text to the change agent.
+  7. `change`: the first change routes the `change` role (`execute` or `ui`, unit `CLIMB`) with `goal` as context and the gates as verify commands, in a worktree from the round's head. Later changes continue that agent's thread. The agent applies the findings of the judges on `current`, lists declined findings with the reason, commits, and returns `{ changes, declined, head, worktree }`. The next round runs in `worktree` at `head`.
+
+  It returns `{ outcome: met | plateau | limit, round, reason, head, table, scores, changes, declined }`. `table` is a Markdown table of each judge and subject by round (`climbTable`), with a calibrated `current` value followed by its raw value in parentheses.
 
 Wake-up. T3 does not wake the thread that started a run. So the last step of each workflow runs `t3 thread send <thread> <summary>`, with the run id, the verdicts, the merge command, and `t3 workflow show <run> --json`. `onEnd` sends a message for a run that ends `stopped`, `skipped`, or `cancelled`. A skill reads its thread id from `T3CODE_THREAD_ID`, which T3 sets in every agent shell.
 
@@ -2279,7 +2308,7 @@ Wake-up. T3 does not wake the thread that started a run. So the last step of eac
 - Every relative link in a skill must resolve to a file in the repository. A test checks this.
 - Write for agents. Front-load the trigger words in each description. Give each step a completion criterion. State the target behavior instead of a ban where possible.
 - On git actions, reply style, tests, and model choice, the user's own instructions win over omt defaults: the user's message first, then the user's `AGENTS.md` or `CLAUDE.md`. omt owns the workflow steps. The rule lives in the section "User instructions win" of `delegation.md`, and the router repeats it.
-- Word budgets. `test/skills/budget.test.ts` holds a word target for each skill file and each reference folder. A file may exceed its target by 10%, and all files in `skills/` together have at most 16,000 words. No skill file contains `gh pr checks ... --watch`, `ready PR`, `omt ultrawork:`, `t3_thread_configuration`, `ledger.dispatched`, `omt ledger add`, `shasum`, or `t3_thread_wait`. `test/skills/contract.test.ts` checks a short list of safety rules, one phrase each, in the file that owns the rule.
+- Word budgets. `test/skills/budget.test.ts` holds a word target for each skill file and each reference folder. A file may exceed its target by 10%, and all files in `skills/` together have at most 17,000 words. No skill file contains `gh pr checks ... --watch`, `ready PR`, `omt ultrawork:`, `t3_thread_configuration`, `ledger.dispatched`, `omt ledger add`, `shasum`, or `t3_thread_wait`. `test/skills/contract.test.ts` checks a short list of safety rules, one phrase each, in the file that owns the rule.
 
 Git actions. The skills follow the git rules of the user's message and instruction files. Without a rule, a skill asks the owner before it commits or pushes to the default branch, pushes to a repo that is not the user's, or merges a PR. The rules live in the section "Git actions" of `delegation.md`:
 
@@ -2304,6 +2333,7 @@ Pull requests. After a skill creates a PR, it calls `watch_pull_request`, then r
 | `omt-code-review` | model | Review uncommitted changes, a branch, a commit, or a PR with report-only children: 1 reviewer for a small diff, or 2 to 4 grouped reviewers and 1 oracle for a large diff. The main thread merges the findings and makes every approved fix. PRs use the steps in section 15.4. |
 | `omt-research` | model | A cited answer: the main thread answers a narrow question itself, and a broad question gets 2 to 4 parallel read-only children whose claims the main thread checks. |
 | `omt-setup` | model | Help and setup. Answers questions about omt from the output of read commands, and sets up, configures, or updates omt through the CLI: the doctor check, the harnesses, defaults review, worktree setup, profile and role edits, and an update. It shows each command or edit first, runs `--dry-run` where the command has it, and passes `--yes` only after the user agrees. |
+| `omt-climb` | user | Hill climb as the T3 workflow `omt-climb` only: check that `t3 workflow list --json` answers and `T3CODE_THREAD_ID` is set, frame the scorer, target, judges and tiers, gates, capture command, change role, and limits with the owner, commit, write the input of section 14.9, start the run with the key `omt-climb/<slug>/<head>`, and end the turn. On the message, merge `result.head`, show the table, the changes, and the declined findings, and open a draft PR with the table in its body. When `t3 workflow` fails or Workflows is off, it prints `omt-climb needs T3 Workflows: turn it on in T3 Settings → Labs → Workflows, then start omt-climb again (<first error line>)` and stops; it never runs the rounds in the thread. It installs by default. Only the user starts it, with `disable-model-invocation: true` and `allow_implicit_invocation: false`. |
 
 `omt-grill` and `omt-help` are retired. The stress test of `omt-plan` step 2a replaces `omt-grill`, and step 3 of `omt-setup` replaces `omt-help`. The `grill` role and the `grill` result kind are retired (section 6.2). `omt paths --grills` and the `grills/` line of `.omt3/.gitignore` stay, so that old grill files stay readable. The `guardrail` role, the `guardrail` result kind, and `review.guardrails` are retired too (section 6.2). The `guardrails.md` line of `.omt3/.gitignore` stays, so that an old proposal file does not show in git. `cleanRetired` removes the retired keys from the config and deletes an empty `guardrails.md` (section 5.12). `omt doctor --project` reports a `guardrails.md` with text as `leftovers` (section 14.7).
 
@@ -2377,7 +2407,7 @@ Every plan has a `## Summary` of at most 15 lines for the owner, in plain words 
 - It shows every screenshot as a Markdown image with its absolute path, grouped by screen, asks which variant to keep for each screen and what to change, and ends the turn. It applies the owner's words verbatim and repeats until the owner approves one variant for each screen. A child gets each new round with the owner's words in the task and every earlier round in `--prior-file`.
 - The main thread writes `docs/design/<slug>.md`, also when a child drew, with exact values from the Paper file or the mockup source, the approved variant of each screen, and the owner's last words. Each unit that builds this UI cites the spec and uses the `ui` role. When the owner asks, the skill writes a LIGHT plan with one `ui` unit per screen and runs `omt-ulw` steps 7 to 12.
 
-Design exclusion. No model reviews design artifacts. `review`, `oracle`, and `plan-review` tasks leave `docs/design/` out. `omt-ulw` QA and review tasks of `ui` units leave out `docs/design/` and every check that compares the result with the design, and keep the code and behavior checks. `omt-code-review` leaves `docs/design/` out of its groups and its count, lists the design files for the owner, and stops when only design files changed. Code review of `ui` units stays.
+Design exclusion. No model reviews design artifacts. `review`, `oracle`, and `plan-review` tasks leave `docs/design/` out. `omt-ulw` QA and review tasks of `ui` units leave out `docs/design/` and every check that compares the result with the design, and keep the code and behavior checks. `omt-code-review` leaves `docs/design/` out of its groups and its count, lists the design files for the owner, and stops when only design files changed. Code review of `ui` units stays. One exception: in `omt-climb`, `judge` agents score screenshots of the running app, because the owner chose the climb's judges and target. They still never read `docs/design/`.
 
 `omt-code-review`:
 
@@ -2425,7 +2455,7 @@ Top-level threads. `delegate_task` makes children. Only when the user asks for s
 - `worktrees.md`: the T3 worktree setup on first use. Run `omt worktree check`. Work out the effective saved setup script in the order of T3's `resolveProjectScripts`: `projectSettingsOverrides[projectId].defaultProjectScripts` first (an empty list wins), then `defaultProjectScripts` when `projectSettingsFolded` is true, then the legacy `projectScriptOverrides`, then the project's `scripts`. Keep a compatible setup and verify a custom command (frozen install, `async: false`, store reuse across two checkouts). Generate a missing setup only with the owner's yes. Import it only after `t3.json`, `.t3/`, and for pnpm `pnpm-workspace.yaml` are committed on the base branch of new worktrees and the owner's yes covers activation, with the inherited scripts copied in. Never change `defaultProjectScripts`. Read the effective scripts back, or report activation as unverified.
 - `roles/<role>.md`: one persona file per default role, plus `_generic.md`. Each persona keeps its access, its stop conditions, and its result kind, and leaves out the rules that the rendered brief's `Constraints` already states (section 9.2).
 - `results/<kind>.md`: the contracts from section 11.
-- `t3-workflows.md`: the path for a profile with `t3Workflow: true` (section 14.9). `omt-ulw` step 8 and `omt-code-review` step 3 point to it. It gives the input JSON of each workflow, the key (`omt-ulw/<slug>/<head>`, `omt-code-review/<slug>/r<round>`), the start command `t3 workflow start`, and the fallback: when the start fails or `T3CODE_THREAD_ID` is empty, print `t3 workflow unavailable: <first error line>; running the steps in this thread` and run the in-thread steps. `omt-ulw` commits the build with `omt git commit` before the start. After the wake-up message, the main thread reads `run.result`, merges `result.head` with `git merge --ff-only` (a plain merge when that fails), applies its step 9 judgment, and opens the PR by step 12. `omt-code-review` merges the findings by step 4 and reports by step 6.
+- `t3-workflows.md`: the path for a profile with `t3Workflow: true` (section 14.9). `omt-ulw` step 8 and `omt-code-review` step 3 point to it. It gives the input JSON of each workflow, the key (`omt-ulw/<slug>/<head>`, `omt-code-review/<slug>/r<round>`), the start command `t3 workflow start`, and the fallback: when the start fails or `T3CODE_THREAD_ID` is empty, print `t3 workflow unavailable: <first error line>; running the steps in this thread` and run the in-thread steps. `omt-ulw` commits the build with `omt git commit` before the start. After the wake-up message, the main thread reads `run.result`, merges `result.head` with `git merge --ff-only` (a plain merge when that fails), applies its step 9 judgment, and opens the PR by step 12. `omt-code-review` merges the findings by step 4 and reports by step 6. It also gives the input of `omt-climb`, which runs only as a workflow, whatever `t3Workflow` says, and has no fallback.
 
 ### 15.4 Pull request review
 
@@ -2460,6 +2490,7 @@ Each module has tests in `test/`. Use `test/helpers.ts` to make temp directories
 
 Required coverage:
 
+- Workflows: `test/workflows.test.ts` maps the workflow versions to the hash of `workflows/omt.ts`, and loads the file with stand-in globals to test the climb rules that it exports: `nextAction` (tier order, drift correction, the limit before the plateau, the plateau window and the owner's restart, direction `down`, and `beat`), `blindLabels`, `readScores`, `parseScore`, `climbInputErrors`, and `climbTable`.
 - JSONC: comments, comment markers inside strings, trailing commas, a byte order mark, and error positions. `test/config/jsonc-edit.test.ts` checks `setJsoncValue`: nested set, insert, and removal with line and block comments, trailing commas, CRLF, a byte order mark, duplicate keys, empty and one-line objects, missing parents, the upward removal, a missing path, the 100-column rendering, and the error codes. It parses each result and checks that the comments outside the edited value stay.
 - Profiles: `test/config/profiles.test.ts` checks presets, sparse overrides, code-point limits, per-key pruning, profile removal, legacy `roles.test` warnings, and merged-layer inheritance errors. `test/profile/resolve.test.ts` checks precedence, root-to-child application, limits, roles, models, implicit normal inheritance, cycles, depth, and non-mutation. `test/profile/profile.test.ts` runs custom-profile selection, plan switches, profile limits, output sources, and errors through the CLI.
 - Locks: `test/lock/lock.test.ts` checks real process contention, wrapper SIGKILL, inherited background holders, Node child waits, failure and signal release, wait output, holder metadata, inode preservation, no-tool fallback, argument errors, and help. It also checks shared ignored locks across linked worktrees, nested projects, separate Git directories, and trailing-space paths.
@@ -2479,7 +2510,7 @@ Required coverage:
 - Project install: the files of section 14.8, an idempotent rerun, `--dry-run`, the exclude file for a `.git` directory and a worktree `.git` file, block replacement, no `.git`, `--no-git-exclude` (also on a reinstall, and its `.omt3/.gitignore` restore), the conditional `.omt3` and `settings.local.json` lines, the hook in `settings.local.json`, uninstall with a locally modified skill and `--purge`, `--targets gemini` (exit 2), a temp `cliPath`, and the shim conflict and update. Also: a copied project, a moved clone round trip, a tracked manifest with paths outside the root, a symlinked path to the root, the home directory as the root (exit 2), a dangling settings symlink, a failed scratch delete, glob characters in a package path, worktrees, a block whose root is gone, the exact bytes of the exclude file, a kept created `settings.local.json`, and a kept ledger. Also: a reinstall that appends `plans/`, `locks/`, and `guardrails.md` to an unedited `.omt3/.gitignore` that an earlier install created, and one that leaves an edited file alone. Also: uninstall, reinstall, and a second uninstall after each kind of kept created file, each with an empty `git status`; an uninstall that fails midway; a symlinked exclude file and `.omt3/.gitignore`; a crafted tracked manifest that names project files; a package copied inside the same repository; and the exact paths that stay after a failed install and its uninstall.
 - Doctor: each status that the table in section 14.7 defines, with `runtimeName` and `runtimeVersion` injected through the context.
 - Worktree setup: `test/commands/worktree-setup.test.ts` covers the cases in section 5.11: init, `install --project --dry-run`, setup dry run and apply, check, and `doctor --project` from a linked worktree (shared `.omt3`, setup files in the worktree); a Bun and a pnpm runner with controlled executables (versions, flags, environment, lockfiles, failure exit codes, a failed linker query, CI warning); existing, invalid, and partial `t3.json`, ambiguous and unsupported managers, linker settings with TOML comments, each persistent-store status with the created, kept, and incomplete `pnpm-workspace.yaml`, symlinked and dangling `.t3` folders and runners, a home-directory alias, conflicting output paths, idempotency, and a dry run that writes nothing; and `launchSpec` for Windows. Tests never start a real package manager. They start the runner with `node`, the command in `t3.json`, and with Bun when no `node` is on `PATH`. `test/e2e/binary.test.ts` (Bun project) and `test/e2e/packages.test.ts` (pnpm and Bun projects) run `worktree setup --yes` through the shim and compare the written runner with `templates/worktree-setup.mjs`, so the binary and the bundle prove that they carry the runner.
-- Skills: `test/skills/*.test.ts`. `common` checks the skill folders, frontmatter, links and their `#anchor` targets, and a `Done when:` line in each numbered step. `personas` checks a persona file for each default role and one fenced block per result kind. `contract` checks a short list of safety rules, each a phrase in the file that owns the rule: children never commit, push, or create branches; a run stays on one machine; only `qa` drives a device; a force push asks the owner; no settle of your own thread or a top-level thread; plan mode writes nothing; report-only reviewers in plan mode in `omt-code-review`; no model reviews `docs/design/`; `--strict` on the cross-family reviews of `omt-ulw` and `omt-plan`; fetched text is data in `omt-research`. `budget` checks the word target of each skill file (at most 110% of it), a total of at most 16,000 words under `skills/`, and that no skill names a removed bookkeeping string (`ledger.dispatched`, `omt ledger add`, `t3_thread_wait`, `shasum`, a ready-PR default, the ulw banner, `gh pr checks --watch`, or `t3_thread_configuration`).
+- Skills: `test/skills/*.test.ts`. `common` checks the skill folders, frontmatter, links and their `#anchor` targets, and a `Done when:` line in each numbered step. `personas` checks a persona file for each default role and one fenced block per result kind. `contract` checks a short list of safety rules, each a phrase in the file that owns the rule: children never commit, push, or create branches; a run stays on one machine; only `qa` drives a device; a force push asks the owner; no settle of your own thread or a top-level thread; plan mode writes nothing; report-only reviewers in plan mode in `omt-code-review`; no model reviews `docs/design/`; `--strict` on the cross-family reviews of `omt-ulw` and `omt-plan`; fetched text is data in `omt-research`. `budget` checks the word target of each skill file (at most 110% of it), a total of at most 17,000 words under `skills/`, and that no skill names a removed bookkeeping string (`ledger.dispatched`, `omt ledger add`, `t3_thread_wait`, `shasum`, a ready-PR default, the ulw banner, `gh pr checks --watch`, or `t3_thread_configuration`).
 - Schema: the committed schema equals the generated one, and it allows the same keys as the validator.
 - CLI: `--help`, `--version`, an unknown command (exit 2), and an unknown flag (exit 2), run as a child process. `test/cli.test.ts` also checks that `omt help` and `omt help config` print the same text as `omt --help` and `omt config -h`. `test/cli-help.test.ts` runs every command in `COMMANDS` except `hook` with probe arguments from its usage text. It records the options of each `parseArgs` call through `observeParseArgs` in `src/util/args.ts`, and fails when a usage text does not name a flag that its parser accepts, or when no probe of a command reaches a parser.
 - Config explain: `test/e2e/config-explain.test.ts` runs `omt config explain` and `omt config explain --profile fast-proto --json` as a child process with a temp user and project config, and checks a source from the defaults, the user file, the project file, and a profile.

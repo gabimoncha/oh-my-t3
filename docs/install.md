@@ -5,7 +5,7 @@ You install omt in two parts. First, install the `omt` CLI from a package regist
 - The project install puts omt into one repository. It does not change `~/.agents/skills`, `~/.claude`, or your `PATH`. Start here.
 - The global install installs the skills for your user, so every project gets them.
 
-Both modes install the same 7 skills: `omt`, `omt-ulw`, `omt-plan`, `omt-design`, `omt-code-review`, `omt-research`, and `omt-setup`. `omt-setup` answers questions about omt and changes the setup for you. After either install, restart your agent sessions in T3 Code. A running session does not load new skills.
+Both modes install the same 8 skills: `omt`, `omt-ulw`, `omt-plan`, `omt-design`, `omt-code-review`, `omt-research`, `omt-setup`, and `omt-climb`. `omt-setup` answers questions about omt and changes the setup for you. `omt-climb` needs T3 Workflows. After either install, restart your agent sessions in T3 Code. A running session does not load new skills.
 
 If you are a coding agent, follow the [agent quick start](agents/quickstart.md) instead. It has the same project install as steps with checks.
 
@@ -293,7 +293,7 @@ Restart your agent sessions in T3 Code after the install. A running session does
 | `~/.config/oh-my-t3/install.json` | The manifest of what the install added. |
 | `~/.config/oh-my-t3/backups/` | Backups of anything that the install replaced or edited. |
 | `~/.claude/settings.json` | One `UserPromptSubmit` hook entry, only with `--hooks`. Other settings stay unchanged. |
-| `~/.t3/workflows/omt.ts` | The omt T3 workflows, only when the T3 home exists. `T3CODE_WORKFLOWS` or `T3CODE_HOME` moves it. T3 runs it only with T3 Workflows on and the `t3Workflow` profile switch ([Run the review and QA steps as T3 workflows](workflows.md#run-the-review-and-qa-steps-as-t3-workflows)). An install or update keeps the old file while a run of its workflows is unfinished. |
+| `~/.t3/workflows/omt.ts` | The omt T3 workflows, only when the T3 home exists. `T3CODE_WORKFLOWS` or `T3CODE_HOME` moves it. T3 runs it only with T3 Workflows on. `omt-ulw` and `omt-code-review` also need the `t3Workflow` profile switch ([Run the review and QA steps as T3 workflows](workflows.md#run-the-review-and-qa-steps-as-t3-workflows)); `omt-climb` always runs as a workflow ([Climb to a target score](workflows.md#climb-to-a-target-score)). An install or update keeps the old file while a run of its workflows is unfinished. |
 | `.omt3/` in a project | The project config, plans, ledger, locks, and evidence files. |
 
 Each installed skill directory holds a `.omt-managed.json` marker. The install never overwrites a path that it does not manage, unless you pass `--force`. With `--force`, it moves the old path to the backups directory first.
