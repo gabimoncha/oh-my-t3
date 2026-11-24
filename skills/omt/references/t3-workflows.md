@@ -113,4 +113,4 @@ Start it after `omt-climb` step 2. Key: `omt-climb/<slug>/<head>/<UTC time of th
 - One agent thread of the `change` role makes every change from the judges' findings and commits it in its own worktree. It fixes a failed gate at most twice per round; then the run stops.
 - At a plateau or the round limit, the run asks the owner: `stop`, `raise limit`, or `change approach`. Each answer but `stop` gives at least 5 more rounds and restarts the plateau window. The text of `change approach` goes to the change agent.
 
-`result` holds `outcome` (`met`, `plateau`, or `limit`), `round`, `reason`, `head`, the Markdown `table`, `scores`, `changes`, and `declined`.
+The wake message can come before T3 saves the result, so `omt-climb` step 4 reads `t3 workflow show <id> --json` again every few seconds, for at most 5 minutes, until the run is `completed` with a result or is `stopped`, `cancelled`, or `skipped`. `result` holds `outcome` (`met`, `plateau`, or `limit`), `round`, `reason`, `head`, the Markdown `table`, `scores`, `changes`, and `declined`.

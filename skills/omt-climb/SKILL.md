@@ -53,16 +53,7 @@ Done when: the run started and your turn ended.
 
 ### 4. Act on the message
 
-The run ends with a message to this thread, `omt-climb workflow run <id> ...`, with the outcome and the climb table. The message can come before T3 saves the result, so wait at most 5 minutes for a final status with its result:
-
-```sh
-for i in $(seq 60); do
-  t3 workflow show <id> --json | jq -e '(.run.status == "completed" and .run.result != null) or (.run.status | IN("stopped", "cancelled", "skipped"))' >/dev/null && break
-  sleep 5
-done
-```
-
-Then read `run.status` and `run.result` from `t3 workflow show <id> --json`.
+The run ends with a message to this thread, `omt-climb workflow run <id> ...`, with the outcome and the climb table. The message can come before T3 saves the result. Run `t3 workflow show <id> --json` and read `run.status` and `run.result` yourself. Run it again every few seconds, for at most 5 minutes, until `run.status` is `completed` with a `run.result`, or is `stopped`, `cancelled`, or `skipped`.
 
 - `met`, `plateau`, or `limit`: merge `result.head` with `git merge --ff-only <head>`, or `git merge <head>` when that fails. Show the owner the table, `result.changes`, and `result.declined`, then commit, push, and open a draft PR by [Git actions](../omt/references/delegation.md#git-actions), with the table in its body.
 - `stopped` or `cancelled`: tell the owner the reason. A run that stopped on invalid input names the field; fix the input and start again with a new key.
