@@ -16,7 +16,7 @@ export interface SkillRoots {
   gemini: string;
 }
 
-function envPath(env: Env, name: string): string | undefined {
+export function envPath(env: Env, name: string): string | undefined {
   const value = env[name];
   return value === undefined || value === "" ? undefined : value;
 }

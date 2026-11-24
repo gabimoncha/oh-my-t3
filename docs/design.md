@@ -19,8 +19,9 @@ T3 orchestrator v2 exposes app-owned orchestration to every provider session thr
 - `orchestrator_capabilities` lists the live provider and model catalog, including the option descriptors for each model.
 - `t3_thread_launch` starts a top-level thread in its own git worktree.
 - `schedule_task`, `watch_pull_request`, and native `/goal` keep work going across turns.
+- T3 workflows (a Labs feature) run TypeScript files from the T3 workflows folder as durable runs: steps, agents in their own threads or worktrees, questions to a person, and retries that survive a server restart.
 
-T3 does not give us roles, model routing, briefs, review loops, or done criteria. A `role` argument adds one line of text. Children share the parent's checkout. No limit stops a fan-out storm. These gaps are what oh-my-t3 fills.
+T3 does not give us roles, model routing, briefs, review loops, or done criteria. A `role` argument adds one line of text. A child runs in the parent's checkout unless the parent asks for a worktree. No limit stops a fan-out storm. These gaps are what oh-my-t3 fills.
 
 ## Decisions
 
@@ -44,7 +45,17 @@ Before the workflow change, the conductor of an `omt-ulw` run edited no product 
 
 The [workflow fold design](design/workflow-fold.md) follows one rule: keep a child only for black-box verification, for independent parallel work that needs a fresh context, or for a context that one loop cannot hold. So the main thread now explores, asks the owner its questions in batches, plans, and builds in one context. One review child on the other family reviews the whole diff, and one QA child runs every check and device flow. The reviewer fixes local findings itself, because a reviewer that only reports costs one more round for a fix that it could see. The main thread reads the reviewer's fix diff before QA starts, because a child's summary is a claim and the diff is the evidence. QA edits nothing, so its result says only what passed. T3 wakes the main thread when a child ends, so no heartbeat and no `omt-loop` are needed.
 
-The same rule shapes the other flows. `omt-plan`, `omt-research`, and `omt-design` do their work in the main thread and start a child only for a second opinion from the other family, a broad read, or a design that the main thread's model cannot draw. `omt-code-review` gives a small diff 1 reviewer and a large diff 2 to 4 grouped reviewers and 1 oracle, because a review of a few hundred lines fits in one context and more reviewers only repeat findings. `omt-swarm` keeps separate threads, because each track is independent work in its own worktree. Each track runs its own review and QA. Then one review checks all track diffs before the merge, and QA checks the merged code.
+The same rule shapes the other flows. `omt-plan`, `omt-research`, and `omt-design` do their work in the main thread and start a child only for a second opinion from the other family, a broad read, or a design that the main thread's model cannot draw. `omt-code-review` gives a small diff 1 reviewer and a large diff 2 to 4 grouped reviewers and 1 oracle, because a review of a few hundred lines fits in one context and more reviewers only repeat findings.
+
+`omt-swarm` built one plan as parallel tracks, each a top-level thread in its own worktree, and merged them. Each track ran its own review and QA, and the main thread waited for every track inside its turn. The owner removed it. `omt install` and `omt update` delete an installed copy as a skill that is no longer shipped.
+
+### Fixed steps can run as T3 workflows
+
+The review, fix, and QA steps of `omt-ulw` and the reviewers and oracle of `omt-code-review` follow fixed rules. In a thread, the main thread runs them one child at a time, and a lost context or a closed app stops them. T3 workflows run fixed steps durably, and the Workflows page shows each step. The owner chose to keep both paths: omt works without T3 Workflows, and the profile switch `t3Workflow` moves the fixed steps into a workflow when Workflows is on.
+
+The workflow keeps omt's rules. A step runs `omt brief --workflow --json`, so the role briefs, the routing, and the cross-family rule stay in the CLI, and `agent.try` walks the fallbacks. Agents return typed results instead of result blocks. The edit agents work in worktrees from the committed build, because a workflow agent cannot share the main thread's checkout: the reviewer commits its fixes on its worktree branch, QA tests that commit, and the main thread merges it with a fast-forward. Report-only reviewers stay in plan mode and read the main thread's checkout with `git -C`, so a review of uncommitted changes needs no commit.
+
+T3 does not wake the thread that started a run, so each run ends with a step that sends the result to that thread with `t3 thread send`, and `onEnd` sends a message when a run stops or is cancelled. A workflow cannot open a PR, so the main thread opens it after the message. When T3 Workflows is off, or `t3 workflow start` fails, the skill prints one line and runs the steps in the thread.
 
 ### A vague goal gets a stress test inside the plan
 
@@ -108,9 +119,9 @@ A live experiment showed that a Claude child in T3 `plan` interaction mode runs 
 
 Plan mode has one trap. T3 stores a proposed plan as its own item type, and `task_status.summary` reads only assistant messages. A child that answers with a proposed plan (Claude's ExitPlanMode, or Codex plan output) can hide its result block from the summary. Every plan-mode brief therefore tells the child to stay in plan mode and put the block in its final assistant message. When a summary still comes back empty, the main thread reads the child thread, which includes proposed plans.
 
-### Children share the checkout
+### Children share the checkout by default
 
-Children stay in one checkout so their changes are integrated throughout the run. A worktree per unit would need repeated setup, integration, and checks after merge. Each unit has an explicit file scope. A large unit that the main thread hands to an `execute` child runs in parallel only when its scope does not overlap other edits, up to the default `maxParallel` of 6. The reviewer and QA never run at the same time, because the reviewer edits files. Shared build state uses a lock. Independent tracks can use `omt-swarm` when the owner asks for separate worktree threads. `omt-swarm` stays in the package, but a default install leaves it out: `omt install --with omt-swarm` adds it.
+`delegate_task` can give a child its own worktree, but omt's children stay in the main thread's checkout so their changes are integrated throughout the run. The agents of the omt T3 workflows are the exception: each edit agent works in its own worktree from a commit, and the main thread merges its commits. A worktree per unit would need repeated setup, integration, and checks after merge. Each unit has an explicit file scope. A large unit that the main thread hands to an `execute` child runs in parallel only when its scope does not overlap other edits, up to the default `maxParallel` of 6. The reviewer and QA never run at the same time, because the reviewer edits files. Shared build state uses a lock.
 
 ### Worktrees install their own dependencies
 
@@ -205,7 +216,7 @@ The daily check finds a new release, but it does not find a CLI and skills of di
 ## What is out of scope
 
 - A T3 fork or a T3 plugin API. oh-my-t3 uses only the surfaces T3 already exposes.
-- A DAG scheduler, team mailboxes, memory, or computer use. T3 child threads and worktree threads cover the common cases. No scheduler process runs. Instead, `omt plan status` lists the ready units: the open units whose `Depends on` units are done. The main thread builds them in that order.
+- A scheduler of omt's own, team mailboxes, memory, or computer use. T3 child threads, worktree threads, and T3 workflows cover the common cases. omt runs no process of its own: `omt plan status` lists the ready units, the open units whose `Depends on` units are done, and the main thread builds them in that order. The durable runs come from T3 workflows (see [Fixed steps can run as T3 workflows](#fixed-steps-can-run-as-t3-workflows)).
 - Hooks for Codex, Cursor, and OpenCode. Codex hooks need per-hook trust. They are a later step.
 - Copied code or prompt text from OmO. Its license (Sustainable Use License 1.0) does not allow that. oh-my-t3 re-implements ideas in its own words. omp and T3 Code are MIT.
 

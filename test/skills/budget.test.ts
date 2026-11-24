@@ -15,20 +15,19 @@ const TARGETS: Record<string, number> = {
   "omt-code-review/pr-extras.md": 350,
   "omt-design/SKILL.md": 700,
   "omt-setup/SKILL.md": 1_000,
-  "omt-swarm/SKILL.md": 1_500,
   "omt/references/delegation.md": 1_600,
   "omt/references/roles.md": 500,
   "omt/references/brief.md": 300,
   "omt/references/results.md": 500,
   "omt/references/worktrees.md": 500,
   "omt/references/planning.md": 350,
+  "omt/references/t3-workflows.md": 800,
   "omt/references/roles/*.md": 2_600,
   "omt/references/results/*.md": 240,
 };
 const TOTAL = 16_000;
 
-// Strings that the trim removes from every skill outside omt-swarm, whose top-level track threads still
-// use omt ledger add and t3_thread_wait.
+// Strings that the trim removes from every skill.
 const BANNED: RegExp[] = [
   /gh pr checks[^\n]*--watch/,
   /ready PR/,
@@ -67,7 +66,7 @@ for (const [key, target] of Object.entries(TARGETS)) {
     const count = filesOf(key).reduce((sum, file) => sum + words(readFileSync(join(SKILLS_DIR, file), "utf8")), 0);
     assert.ok(count <= target * 1.1, `${key} has ${count} words; the target is ${target}`);
   });
-  test.skipIf(PENDING.has(key) || key.startsWith("omt-swarm/"))(`${key} holds none of the removed bookkeeping strings`, () => {
+  test.skipIf(PENDING.has(key))(`${key} holds none of the removed bookkeeping strings`, () => {
     for (const file of filesOf(key)) {
       const text = readFileSync(join(SKILLS_DIR, file), "utf8");
       for (const pattern of BANNED) assert.doesNotMatch(text, pattern, file);

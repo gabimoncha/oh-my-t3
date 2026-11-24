@@ -229,9 +229,7 @@ The user starts `$omt` by name. An agent does not pick it on its own. It lists t
 
 `$omt-setup` helps with omt itself. The agent can start it on its own when the user asks for help or for a change. It answers questions such as "what can omt do", "what do I do next", or "which skill do I use", from the output of read commands. It also sets up, configures, or updates omt: the harnesses, the defaults, models, roles, profiles, and the worktree setup. It shows each change first and asks before it writes.
 
-`$omt-swarm` is opt-in, and a default install leaves it out. It builds a plan from `omt-plan` as independent tracks, each in its own T3 worktree thread, and ends in one draft pull request. The user starts it by name. To add it, run the install command of step 4 with `--with omt-swarm`, after the user agrees.
-
-Check: the user knows the three first tasks, how to start `$omt`, that `$omt-setup` exists, and that `$omt-swarm` needs `--with omt-swarm`.
+Check: the user knows the three first tasks, how to start `$omt`, and that `$omt-setup` exists.
 
 ## 7. Show the user how to customize roles and profiles
 
@@ -301,7 +299,7 @@ In these steps, `omt` means the command of the install. With a project install, 
    omt doctor --project | grep -E '^PASS +skills '
    ```
 
-   Check: the command prints `PASS  skills     7 skills installed in <folder>`, or 8 with `omt-swarm`. If it prints nothing, run the doctor command without the pipe, and do the fix that its `skills` line prints.
+   Check: the command prints `PASS  skills     7 skills installed in <folder>`. If it prints nothing, run the doctor command without the pipe, and do the fix that its `skills` line prints.
 
 4. Review the defaults changes. `omt update` and `--skills-only` show the difference and ask before accepting it. `--yes` also accepts the current defaults, so get approval for that before you pass it.
 

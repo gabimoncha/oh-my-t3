@@ -135,6 +135,30 @@ test("brief --strict stops when the only target left is in the --against family"
   assert.equal((await project.run(["brief", "review", "--task", "x", "--strict", "--json"])).code, 2);
 });
 
+// The omt workflows walk the fallbacks with agent.try, so a same-family fallback there would review the author's own work.
+test("brief --strict leaves the --against family out of the fallbacks", async () => {
+  const project = makeProject();
+  project.projectConfig(JSON.stringify(CROSS_CHAIN));
+  const out = parse((await project.runOk(["brief", "review", "--task", "x", "--against", "claudeAgent", "--strict", "--json"])).ctx.out());
+  assert.equal(out.delegateTask.target.model, "gpt-6.2-astra");
+  assert.deepEqual(out.fallbacks.map((target) => target.model), ["gpt-6.2-sol"]);
+  const loose = parse((await project.runOk(["brief", "review", "--task", "x", "--against", "claudeAgent", "--json"])).ctx.out());
+  assert.deepEqual(loose.fallbacks.map((target) => target.model), ["gpt-6.2-sol", "claude-opus-5-5"]);
+});
+
+test("brief --workflow lets an edit role commit in its worktree and asks for structured output", async () => {
+  const project = makeProject();
+  const review = (await project.runOk(["brief", "review", "--task", "x", "--workflow"])).ctx.out();
+  assert.match(review, /Commit your changes there with `git commit`/);
+  assert.doesNotMatch(review, /Do not commit, push, or create branches/);
+  assert.match(review, /Submit your result as the structured output/);
+  const qa = (await project.runOk(["brief", "qa", "--task", "x", "--workflow"])).ctx.out();
+  assert.match(qa, /your own git worktree\. Do not commit, push, or create branches\./);
+  const plain = (await project.runOk(["brief", "review", "--task", "x"])).ctx.out();
+  assert.match(plain, /Do not commit, push, or create branches/);
+  assert.match(plain, /End your work with the block below/);
+});
+
 test("a candidate that names only a driver gets one retry as a provider instance before the next candidate", async () => {
   const project = makeProject();
   project.projectConfig(JSON.stringify({ version: 1, roles: { explore: { chain: [{ driver: "codex", model: "gpt-6.1-terra", effort: "low" }] } } }));

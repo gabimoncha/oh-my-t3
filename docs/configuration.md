@@ -34,9 +34,9 @@ A role, such as `execute` or `review`, maps to an ordered chain of provider, mod
 | `research` | Answer a question from docs, the web, and code | `omt-research` | GPT-6.2-Sol, medium | Claude Sonnet 5.5, medium |
 | `plan-review` | Check a plan for gaps | `omt-plan` | GPT-6.2-Astra, high | Claude Fable 5.2, high |
 | `execute` | Implement one planned unit that the main thread hands off as an independent track | `omt-ulw` | Claude Opus 5.5, medium | GPT-6.2-Sol, high |
-| `review` | Review a diff against its brief, fix local findings, and report the rest | `omt-ulw`, `omt-code-review`, `omt-swarm` | GPT-6.2-Sol, xhigh | Claude Opus 5.5, high |
+| `review` | Review a diff against its brief, fix local findings, and report the rest | `omt-ulw`, `omt-code-review` | GPT-6.2-Sol, xhigh | Claude Opus 5.5, high |
 | `oracle` | Attack the finished change before it counts as done, fix local findings, and report the rest | `omt-ulw`, `omt-code-review` | GPT-6.2-Astra, medium | Claude Fable 5.2, medium |
-| `qa` | Run the check commands and device flows, and return each exit code with its log and screenshots. Edits nothing. | `omt-ulw`, `omt-code-review`, `omt-swarm` | GPT-6.2-Sol, medium | Claude Sonnet 5.5, medium |
+| `qa` | Run the check commands and device flows, and return each exit code with its log and screenshots. Edits nothing. | `omt-ulw`, `omt-code-review` | GPT-6.2-Sol, medium | Claude Sonnet 5.5, medium |
 | `writing` | Write or edit documentation in one docs unit that the main thread hands off as an independent track | `omt-ulw` | Claude Opus 5.5, medium | GPT-6.2-Astra, medium |
 | `design` | Design screens and flows, and write a design spec | `omt-design` | Claude Fable 5.2, medium | GPT-6.2-Astra, high |
 | `ui` | Implement one UI unit from a design spec or task requirements | `omt-ulw` | Claude Fable 5.2, medium | GPT-6.2-Astra, high |
@@ -164,6 +164,7 @@ Add the profile under `profiles` in either config file. The starter configs hold
 | --- | --- |
 | `description` | Text of at most 300 characters. Required for a new profile. Without it, omt drops the profile and `omt config validate` reports the error. |
 | `extends` | The name of the parent profile. A profile without `extends` inherits `normal`. |
+| `t3Workflow` | `true` runs the review and QA steps of `omt-ulw` and the reviewers of `omt-code-review` as T3 workflows when T3 Workflows is on. Default `false`. A child profile inherits it. See [Run the review and QA steps as T3 workflows](workflows.md#run-the-review-and-qa-steps-as-t3-workflows). |
 | `workflow` | Switches of the plan, design, build, and review steps, per group and key. The `git` group is retired: a config that still sets it loads with a warning, and `omt update`, `omt doctor`, and `omt install` remove it. The [spec](spec.md#67-profiles-and-workflow) lists every key and its values. |
 | `limits` | Limits for runs with this profile. See [Set limits](#set-limits). |
 | `roles` | Role overrides, with the fields of [Add a custom role](#add-a-custom-role). |

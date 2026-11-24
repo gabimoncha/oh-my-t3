@@ -72,6 +72,7 @@ export interface ModelConfig {
 export interface ProfileConfig {
   description: string;
   extends?: string;
+  t3Workflow?: boolean; // run the fixed review and QA steps as T3 workflows
   workflow?: WorkflowLayer;
   limits?: Partial<Limits>;
   roles?: Record<string, Partial<RoleConfig> | null>;

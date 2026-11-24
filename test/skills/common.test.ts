@@ -5,7 +5,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { PACKAGE_ROOT } from "../helpers.ts";
 import { SKILLS_DIR, readSkill } from "./shared.ts";
 
-const USER_INVOKED = ["omt", "omt-swarm"];
+const USER_INVOKED = ["omt"];
 
 function parseFrontmatter(text: string): Record<string, string> {
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(text);
@@ -57,7 +57,6 @@ test("the bundled skills are all present", () => {
     "omt-plan",
     "omt-research",
     "omt-setup",
-    "omt-swarm",
     "omt-ulw",
   ]);
 });

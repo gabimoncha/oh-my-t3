@@ -60,7 +60,7 @@ async function buildBundle(): Promise<string> {
 async function buildBinary(target?: string): Promise<string> {
   const file = target === undefined ? join(outdir, "bin", "omt") : join(outdir, "bin", target, "omt");
   const targetArgs = target === undefined ? [] : [`--target=${target}`];
-  await bunBuild(["--compile", "--minify", "--asset", "./skills", "--define", 'OMT_BUILD="binary"', ...targetArgs, "src/cli.ts", "--outfile", file]);
+  await bunBuild(["--compile", "--minify", "--asset", "./skills", "--asset", "./workflows", "--define", 'OMT_BUILD="binary"', ...targetArgs, "src/cli.ts", "--outfile", file]);
   return file;
 }
 

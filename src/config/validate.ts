@@ -35,7 +35,7 @@ export const ROLE_KEYS: readonly string[] = [
 ];
 export const CANDIDATE_KEYS: readonly string[] = ["provider", "driver", "model", "effort", "fast", "options"];
 export const LIMIT_KEYS: readonly string[] = ["maxParallel", "maxDepth", "maxReviewRounds"];
-export const PROFILE_KEYS: readonly string[] = ["description", "extends", "workflow", "limits", "roles", "models"];
+export const PROFILE_KEYS: readonly string[] = ["description", "extends", "t3Workflow", "workflow", "limits", "roles", "models"];
 export const MODEL_KEYS: readonly string[] = ["fast"];
 export const PRESET_PROFILE_NAMES: readonly string[] = ["normal", "prototype"];
 export const RETIRED_PROFILE_FALLBACK = "normal";
@@ -416,6 +416,9 @@ function validateProfiles(value: unknown, out: Collector): ConfigLayer["profiles
         if (typeof field === "string" && ROLE_NAME_RE.test(field)) {
           profile.extends = out.retiredProfile(field, keyPath) ? RETIRED_PROFILE_FALLBACK : field;
         } else out.error(keyPath, `must be a string that matches ${ROLE_NAME_PATTERN}, got ${describe(field)}`);
+      } else if (key === "t3Workflow") {
+        if (typeof field === "boolean") profile.t3Workflow = field;
+        else out.error(keyPath, `must be true or false, got ${describe(field)}`);
       } else if (key === "workflow") {
         const workflow = validateWorkflow(field, keyPath, out);
         if (workflow !== undefined) profile.workflow = workflow;

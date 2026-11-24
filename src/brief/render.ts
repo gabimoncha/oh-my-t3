@@ -19,6 +19,7 @@ export interface BriefInput {
   interactionMode: InteractionMode;
   evidenceDir?: string; // absolute; set for edit roles
   cliCommand?: string;
+  workflow?: boolean; // the child is a T3 workflow agent in its own worktree, with typed returns
 }
 
 export const TITLE_MAX = 72;
@@ -62,6 +63,16 @@ function delegationLine(depth: number, maxDepth: number, configuredMaxDepth: num
   return `${start} Give each child depth ${depth + 1} in its brief.`;
 }
 
+function gitLine(input: BriefInput): string {
+  if (input.workflow !== true) {
+    return "Other agents may edit other files in this repository at the same time. Leave changes outside your scope alone. Do not commit, push, or create branches.";
+  }
+  if (input.access === "read-only" || input.role === "qa") {
+    return "Git: you work in your own git worktree. Do not commit, push, or create branches.";
+  }
+  return "Git: you work in your own git worktree, on its own branch. Commit your changes there with `git commit` and a short message. Do not push and do not create other branches.";
+}
+
 function nonEmpty(items: string[] | undefined): string[] {
   return (items ?? []).map((item) => item.trim()).filter((item) => item !== "");
 }
@@ -101,14 +112,14 @@ export function renderBrief(input: BriefInput, persona: string, contract: string
     ...(input.evidenceDir === undefined ? [] : [`Evidence: save command output and logs under ${input.evidenceDir}.`]),
     ...(input.interactionMode === "plan"
       ? [
-          "Mode: you run in plan mode. Stay in it. Do not call ExitPlanMode and do not write a proposed plan. Put the result block in your final assistant message.",
+          `Mode: you run in plan mode. Stay in it. Do not call ExitPlanMode and do not write a proposed plan.${input.workflow === true ? "" : " Put the result block in your final assistant message."}`,
         ]
       : []),
     ...childrenLine(input.depth, input.maxDepth),
     `CLI: Run omt as ${input.cliCommand ?? "omt"}.`,
     testsLine(input.role),
     "You do not see the parent conversation. This brief is your full context. If you need something that is missing, say so in your final message.",
-    "Other agents may edit other files in this repository at the same time. Leave changes outside your scope alone. Do not commit, push, or create branches.",
+    gitLine(input),
     "Processes: do not run `pkill`, `killall`, or another kill by name, because it can stop your own run. Stop only a process that you started, by its PID. Give each command that can run long a time limit, for example `timeout 900 <command>`. Close each device or browser session that you or your script opens on every exit path, for example `trap '<close command>' EXIT`.",
     "Shared files: never break and restore files in the shared checkout, for example to prove that a test can fail. The main thread makes that proof in a private copy.",
     "Shared builds: run a command that the task wraps in `omt lock run` exactly as written. Retry a failed build or test only when the file is outside your scope and outside the task's named code under test. The file is the one where the error occurs, such as a file with a compile or load error, also when a test in your scope loads it. Wait 60 seconds and run the command once more. When it fails there again, report the command, the outside-scope file, and the message as another unit's state. For a failure in your scope or the named code under test, follow your result block. For `test` results, return `VERDICT: NOT VERIFIED` for that failure. When `omt lock run` exits 75, report the command, the lock name, and its message. Leave the lock to the main thread. For both reports: in `work` results, keep the `STATUS` that your own work earns and put the report under `OPEN`. For `test` results, including `qa`, return `VERDICT: INCONCLUSIVE` and put the report under `FAILURES`. For other results, put the report under `NOTES`, or before the result block when it has no `NOTES`.",
@@ -127,7 +138,9 @@ export function renderBrief(input: BriefInput, persona: string, contract: string
   if (prior !== "") blocks.push("# Prior rounds", prior);
   blocks.push(
     "# Final message",
-    "End your work with the block below as your final message. Keep it under 60 lines and put nothing after it.",
+    input.workflow === true
+      ? "Submit your result as the structured output that T3 asks for, not as a text block. Its fields hold what the block below holds."
+      : "End your work with the block below as your final message. Keep it under 60 lines and put nothing after it.",
     contract.trim(),
   );
   return `${blocks.join("\n\n")}\n`;

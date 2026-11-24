@@ -91,12 +91,12 @@ if (existsSync(outdir) && !existsSync(join(outdir, MARKER)) && (await readdir(ou
   refuse(`Refusing outdir ${outdir}: it is not empty and has no ${MARKER} marker, so this script did not create it. Choose a new or empty directory.`);
 }
 
-// The binary embeds skills/ as it is on disk, so a file that git does not track would ship in it.
-const stray = git(["ls-files", "-z", "--others", "--", "skills"]);
+// The binary embeds skills/ and workflows/ as they are on disk, so a file that git does not track would ship in it.
+const stray = git(["ls-files", "-z", "--others", "--", "skills", "workflows"]);
 if (stray.length > 0) {
-  refuse(`Refusing to release: skills/ has files that git does not track. Remove them first:\n${stray.map((file) => `  ${file}`).join("\n")}`);
+  refuse(`Refusing to release: skills/ or workflows/ has files that git does not track. Remove them first:\n${stray.map((file) => `  ${file}`).join("\n")}`);
 }
-const skillFiles = git(["ls-files", "-z", "--", "skills"]);
+const skillFiles = git(["ls-files", "-z", "--", "skills", "workflows"]);
 const buildDir = join(outdir, "build");
 const githubDir = join(outdir, "github");
 const root = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")) as {
@@ -132,7 +132,7 @@ for (const name of PACKAGE_NAMES) {
     repository: root.repository,
     homepage: root.homepage,
     bin: { omt: "dist/cli.js", omt3: "dist/cli.js", "oh-my-t3code": "dist/cli.js", "oh-my-t3": "dist/cli.js" },
-    files: ["dist", "skills", "assets", "README.md", "LICENSE"],
+    files: ["dist", "skills", "workflows", "assets", "README.md", "LICENSE"],
     engines: { node: ">=22" },
   };
   await mkdir(join(dir, "dist"), { recursive: true });

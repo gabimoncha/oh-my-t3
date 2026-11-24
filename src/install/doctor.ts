@@ -32,7 +32,8 @@ import {
 } from "./project.ts";
 import { worktreeSummary } from "../worktree/check.ts";
 import { DEFAULT_HARNESSES, harnessEffects } from "./harness.ts";
-import { classifySkill, isManagedDir, listBundledSkills, OPT_IN_SKILLS, selectedSkills } from "./skills.ts";
+import { classifySkill, isManagedDir, listBundledSkills } from "./skills.ts";
+import { planWorkflows, t3Workflows } from "./workflows.ts";
 import type { BundledSkill } from "./skills.ts";
 
 export type CheckStatus = "PASS" | "WARN" | "FAIL" | "INFO";
@@ -129,8 +130,7 @@ async function checkSkills(ctx: CliContext, paths: ScopePaths, bundled: BundledS
     return check("skills", "FAIL", `the omt CLI has no bundled skills in ${join(ctx.packageRoot, "skills")}; reinstall omt`);
   }
   const groups: Record<string, string[]> = { missing: [], outdated: [], modified: [], unmanaged: [] };
-  const selected = selectedSkills(bundled, optInOf(loaded));
-  for (const skill of selected) {
+  for (const skill of bundled) {
     const result = await classifySkill(skill.dir, join(root, skill.name));
     if (result.action === "create") groups.missing?.push(skill.name);
     else if (result.action === "update") groups.outdated?.push(skill.name);
@@ -139,20 +139,13 @@ async function checkSkills(ctx: CliContext, paths: ScopePaths, bundled: BundledS
     }
   }
   if ("manifest" in loaded) {
-    const retired = await retiredSkills(root, loaded.manifest, bundled.map((skill) => skill.name));
-    groups["no longer shipped"] = retired.filter((name) => !OPT_IN_SKILLS.includes(name));
-    groups["opt-in, not selected"] = retired.filter((name) => OPT_IN_SKILLS.includes(name));
+    groups["no longer shipped"] = await retiredSkills(root, loaded.manifest, bundled.map((skill) => skill.name));
   }
   const problems = Object.entries(groups)
     .filter(([, names]) => names.length > 0)
     .map(([kind, names]) => `${kind}: ${names.join(", ")}`);
   if (problems.length > 0) return check("skills", "WARN", `${problems.join("; ")} in ${root}; run ${installHint(ctx, paths)}`);
-  return check("skills", "PASS", `${plural(selected.length, "skill")} installed in ${root}`);
-}
-
-// The opt-in skills that the scope's manifest selects; none when it cannot be read.
-function optInOf(loaded: ScopeManifest): string[] {
-  return "manifest" in loaded ? (loaded.manifest?.optIn ?? []) : [];
+  return check("skills", "PASS", `${plural(bundled.length, "skill")} installed in ${root}`);
 }
 
 async function checkLinks(ctx: CliContext, paths: ScopePaths, names: string[]): Promise<DoctorCheck> {
@@ -298,6 +291,26 @@ async function checkT3(ctx: CliContext): Promise<DoctorCheck> {
   return (await pathExists(path))
     ? check("t3", "PASS", path)
     : check("t3", "WARN", `${path} does not exist; is T3 Code installed? (set T3CODE_HOME for a custom location)`);
+}
+
+// The T3 workflow files of a user install, and whether T3 runs them.
+async function checkWorkflows(ctx: CliContext, loaded: ScopeManifest): Promise<DoctorCheck> {
+  const plan = await planWorkflows(ctx, "manifest" in loaded ? loaded.manifest?.workflows : undefined);
+  if (plan.skipped !== undefined) return check("workflows", "INFO", `not installed: ${plan.skipped}`);
+  if (plan.steps.length === 0) return check("workflows", "INFO", "the omt CLI has no bundled workflow files");
+  const groups: Record<string, string[]> = { missing: [], outdated: [], modified: [], unmanaged: [] };
+  for (const step of plan.steps) {
+    if (step.action === "create") groups.missing?.push(step.name);
+    else if (step.action === "update" || step.action === "keep") groups.outdated?.push(step.name);
+    else if (step.action === "conflict") (step.reason === "locally modified" ? groups.modified : groups.unmanaged)?.push(step.name);
+  }
+  const state = t3Workflows(ctx);
+  const problems = Object.entries(groups)
+    .filter(([, names]) => names.length > 0)
+    .map(([kind, names]) => `${kind}: ${names.join(", ")}`);
+  if (problems.length > 0) return check("workflows", "WARN", `${problems.join("; ")} in ${plan.dir}; run omt install. ${state.message}`);
+  const installed = `${plan.steps.map((step) => step.name).join(", ")} installed in ${plan.dir}`;
+  return check("workflows", state.state === "on" ? "PASS" : "INFO", `${installed}; ${state.message}`);
 }
 
 function expandHome(path: string, homedir: string): string {
@@ -459,7 +472,7 @@ export async function runDoctor(
   } catch (error) {
     loaded = { error };
   }
-  const names = selectedSkills(bundled, optInOf(loaded)).map((skill) => skill.name);
+  const names = bundled.map((skill) => skill.name);
   checks.push(await checkSkills(ctx, paths, bundled, loaded), await checkLinks(ctx, paths, names));
   checks.push(await checkHooks(ctx, paths, loaded));
   if (scope === "project") {
@@ -471,7 +484,7 @@ export async function runDoctor(
       ...await checkLeftovers(paths),
     );
   } else {
-    checks.push(await checkPath(ctx), await checkT3(ctx), await checkHomes(ctx, names));
+    checks.push(await checkPath(ctx), await checkT3(ctx), await checkHomes(ctx, names), await checkWorkflows(ctx, loaded));
   }
   if (caps !== undefined) {
     checks.push(checkRoles(resolveAll(loadedConfig.config, caps, undefined, loadedConfig.config.harnesses)));

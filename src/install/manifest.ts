@@ -61,12 +61,12 @@ export interface Manifest {
   installedAt: string;
   skillsRoot: string;
   skills: string[];
-  optIn?: string[]; // the opt-in skills that an install of this scope selected with --with
   links: ManifestLink[];
   config?: { path: string; created: boolean };
   hooks: ManifestHook[];
   backups: string[];
   project?: ManifestProject;
+  workflows?: ManifestFile[]; // user scope: the T3 workflow files that omt wrote
 }
 
 function strings(value: unknown): string[] {
@@ -137,13 +137,13 @@ export async function readManifest(path: string): Promise<Manifest | undefined> 
     ...(value.acceptedDefaults === undefined ? {} : { acceptedDefaults: parseDefaultsSnapshot(JSON.stringify(value.acceptedDefaults), path) }),
     skillsRoot: typeof value.skillsRoot === "string" ? value.skillsRoot : "",
     skills: strings(value.skills),
-    ...(Array.isArray(value.optIn) ? { optIn: strings(value.optIn) } : {}),
     links,
     ...(isRecord(config) && typeof config.path === "string"
       ? { config: { path: config.path, created: config.created === true } }
       : {}),
     hooks,
     backups: strings(value.backups),
+    ...(Array.isArray(value.workflows) ? { workflows: manifestFiles(value.workflows) } : {}),
     ...(project !== null && typeof project === "object"
       ? {
           project: {
@@ -207,6 +207,7 @@ export function mergeManifest(previous: Manifest | undefined, next: Manifest): M
       };
     }),
     backups: unique([...previous.backups, ...next.backups], (path) => path),
+    ...(next.workflows === undefined ? (previous.workflows === undefined ? {} : { workflows: previous.workflows }) : {}),
     ...(next.project === undefined
       ? previous.project === undefined
         ? {}

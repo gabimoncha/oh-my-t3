@@ -1,6 +1,6 @@
 # How the omt workflows run
 
-This page describes how omt builds a goal, plans, researches, designs, runs parallel tracks, and reviews a pull request. It also describes how the main thread runs a child task, when omt commits and opens a PR, how it adds tests, and how parallel workers share builds. To change these steps, see [Configure roles and profiles](configuration.md).
+This page describes how omt builds a goal, plans, researches, designs, and reviews a pull request, and how the review and QA steps run as T3 workflows. It also describes how the main thread runs a child task, when omt commits and opens a PR, how it adds tests, and how parallel workers share builds. To change these steps, see [Configure roles and profiles](configuration.md).
 
 ## Build a goal
 
@@ -43,19 +43,28 @@ In T3 plan mode, the main thread writes nothing: it leaves out `--save`, records
 - `omt-research` answers a narrow question in the main thread, with a `path:line` or a URL for each fact. A broad question gets 2 to 4 read-only tasks in parallel, and the main thread checks each claim before it answers.
 - `omt-design` draws the variants of each screen with the tool that `workflow.design.tool` names. `paper`, the default, draws in a new Paper file when Paper's tools load, and in HTML mockups otherwise. `html` draws HTML mockups only. When the first model of the `design` role is the main thread's model, the main thread draws the variants itself. Otherwise one routed `design` task draws them, with the configured fallbacks. Both use Anthropic's `frontend-design` skill when available. You pick one variant per screen and steer until you approve. Then the main thread writes `docs/design/<slug>.md`, and on request it builds the screens with the build steps 7 to 12.
 
-## Build parallel tracks
+## Run the review and QA steps as T3 workflows
 
-`omt-swarm` builds one plan as parallel tracks. It is opt-in: install it with `omt install --with omt-swarm` (or `omt install --project --with omt-swarm`). Start it by name, with a plan from `omt-plan`. It asks no questions and runs no plan review.
+You can run the fixed steps of a build or a review as [T3 workflows](https://github.com/pingdotgg/t3code/blob/main/docs/user/workflows.md) instead of child tasks. Both paths stay: without the switch, omt runs every step in the thread as above.
 
-1. The main thread splits the plan units into tracks whose files do not overlap. It does not build.
-2. Each track is a new top-level thread in its own worktree and branch. The track runs the build steps 7 to 12 for its units, with its own review and qa tasks, and commits with no push.
-3. The main thread waits for the tracks inside its turn.
-4. One review task from the other model family reviews every track diff before the merge, and fixes local findings on the track branches. The main thread reads those fixes and fixes the reported findings.
-5. The main thread merges the track branches. A conflict that needs deep knowledge of one track goes back to that track's thread.
-6. One qa task runs every check and device flow on the merged code, with at most 2 re-runs of the failed checks.
-7. The main thread opens one draft PR and reports.
+1. Turn on **Settings → Labs → Workflows** in T3.
+2. Run `omt install` or `omt update`. A user install copies `omt.ts` into the T3 workflows folder (`T3CODE_WORKFLOWS`, or `~/.t3/workflows`). `omt doctor` shows the file and whether Workflows is on.
+3. Turn on the profile switch in `.omt3/config.jsonc` (or the user config):
 
-`omt-swarm` needs a thread in `full-access` runtime mode and `default` interaction mode.
+```jsonc
+{ "profiles": { "normal": { "t3Workflow": true } } }
+```
+
+Every profile extends `normal`, so this line turns it on for `prototype` and your own profiles too.
+
+With the switch on:
+
+- `omt-ulw` commits the build, then starts the workflow `omt-ulw` for steps 8 to 11. The reviewer from the other family works in its own worktree from the build commit and commits its fixes there. QA runs every check on that commit. When a check fails, the reviewer fixes it, and QA runs the failed checks again, at most 2 times.
+- `omt-code-review` starts the workflow `omt-code-review` for its 1 to 4 reviewers, in parallel, and the oracle. The reviewers report only. With `review.fixLoop: offer`, the workflow asks you on the Workflows page whether the main thread fixes the findings.
+- The models come from omt's roles, with the same fallbacks and the same cross-family rule.
+- Each run ends by sending a message to the thread that started it. The thread then merges the fixes with a fast-forward, applies its own judgment to the findings, and opens the draft PR, because a workflow cannot open one.
+
+When Workflows is off, or `t3 workflow start` fails, the skill prints one line and runs the steps in the thread. Follow each run on the T3 Workflows page, or with `t3 workflow show <run>`.
 
 ## Review a pull request
 

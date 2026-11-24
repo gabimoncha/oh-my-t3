@@ -50,7 +50,9 @@ import {
   withoutExcludeBlocks,
 } from "./project.ts";
 import type { Runner } from "./project.ts";
-import { classifySkill, isManagedDir, listBundledSkills, OPT_IN_SKILLS, readMarker, selectedSkills } from "./skills.ts";
+import { classifySkill, isManagedDir, listBundledSkills, readMarker } from "./skills.ts";
+import { planWorkflowRemoval, planWorkflows } from "./workflows.ts";
+import type { WorkflowPlan, WorkflowStep } from "./workflows.ts";
 
 export type TargetName = "agents" | LinkRootName;
 export const TARGET_NAMES: readonly TargetName[] = ["agents", "claude", "gemini"];
@@ -67,7 +69,7 @@ export interface SkillStep {
   reason?: string;
   backup?: boolean; // uninstall --force: move a locally modified skill to the backups before removal
   existed?: boolean; // uninstall --project: kept, because it was in place before the install
-  retired?: boolean; // install: a managed skill that the bundle no longer ships, or an opt-in skill that the scope did not select
+  retired?: boolean; // install: a managed skill that the bundle no longer ships
 }
 
 export interface LinkStep {
@@ -207,8 +209,8 @@ export interface InstallPlan {
   harnesses?: HarnessStep;
   hook?: HookStep;
   previous?: Manifest;
-  optIn: string[]; // the opt-in skills that this scope selected, with --with now or in an earlier install
   project?: ProjectInstallSteps;
+  workflows?: WorkflowPlan; // user scope only
   scratch: string[]; // scratch directories that an interrupted run left next to the agents root
 }
 
@@ -241,6 +243,7 @@ export interface UninstallPlan {
   manifest: { path: string; action: PlanAction; reason?: string; rewrite?: Manifest }; // `rewrite`: the reduced manifest to write
   purge: boolean;
   project?: ProjectUninstallSteps;
+  workflows: WorkflowStep[];
   scratch: string[];
 }
 
@@ -273,7 +276,6 @@ export interface InstallOptions {
   gitExclude?: boolean; // project scope only; default true
   capabilities?: Capabilities | undefined; // for the harness detection
   sync?: boolean; // omt update: keep each conflict, create no config, detect no harness, ignore force
-  with?: string[]; // opt-in skills to install; the scope's recorded opt-in skills stay selected without it
 }
 
 async function isRegularFile(path: string): Promise<boolean> {
@@ -578,10 +580,8 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
   }
   const bundled = await listBundledSkills(ctx.packageRoot);
   const { manifest: previous, from } = await loadScopeManifest(paths);
-  const optIn = selectOptIn(previous, options.with ?? [], bundled.map((skill) => skill.name));
-  const selected = selectedSkills(bundled, optIn);
   const skills: SkillStep[] = [];
-  for (const skill of selected) {
+  for (const skill of bundled) {
     const path = join(paths.agentsRoot, skill.name);
     const result = await classifySkill(skill.dir, path);
     const step: SkillStep = { name: skill.name, source: skill.dir, path, ...result };
@@ -599,10 +599,10 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
   const linkPlan = await planLinks(
     paths.agentsRoot,
     linkRoots,
-    selected.map((skill) => skill.name),
+    bundled.map((skill) => skill.name),
   );
   const links: LinkStep[] = linkPlan.links.map(({ canonical: _canonical, ...link }) => link);
-  await planRetired(paths, previous, bundled, optIn, skills, links);
+  await planRetired(paths, previous, bundled, skills, links);
   const sync = options.sync === true;
   const config: ConfigStep = { path: paths.configPath, action: (await pathExists(paths.configPath)) ? "unchanged" : "create" };
   if (sync && config.action === "create") {
@@ -621,10 +621,10 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
     links,
     skippedRoots: linkPlan.skipped,
     config,
-    optIn,
     scratch: paths.root === undefined ? [] : await listScratch(paths.agentsRoot),
   };
   if (previous !== undefined) plan.previous = previous;
+  if (scope === "user") plan.workflows = await planWorkflows(ctx, previous?.workflows);
   if (sync) {
     const unmanaged = new Set(skills.filter((step) => step.action === "conflict" && step.reason !== "locally modified").map((step) => step.name));
     for (const link of links) {
@@ -653,7 +653,7 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
         step.reason !== "locally modified"
           ? "not managed by omt"
           : (step as SkillStep).retired === true
-            ? `locally modified; ${retiredReason(step.path)}; omt install --force backs it up and removes it`
+            ? `locally modified; ${RETIRED_REASON}; omt install --force backs it up and removes it`
             : "locally modified; omt install --force replaces it";
     }
   } else if (options.force) {
@@ -672,42 +672,21 @@ export function removesRetired(step: { retired?: boolean; action: PlanAction }):
   return step.retired === true && (step.action === "remove" || step.action === "replace");
 }
 
-// The opt-in skills that a scope selects: the names that its manifest records and the names of --with.
-// A name of --with must be an opt-in skill; any other name is a usage error.
-function selectOptIn(previous: Manifest | undefined, requested: readonly string[], bundled: readonly string[]): string[] {
-  for (const name of requested) {
-    if (OPT_IN_SKILLS.includes(name)) continue;
-    const known = bundled.includes(name);
-    throw usageError(
-      known ? `--with ${name}: ${name} is installed by default; --with takes only an opt-in skill` : `--with ${name}: unknown skill`,
-      `the opt-in skills are ${OPT_IN_SKILLS.join(", ")}`,
-    );
-  }
-  return OPT_IN_SKILLS.filter((name) => requested.includes(name) || previous?.optIn?.includes(name) === true);
-}
+const RETIRED_REASON = "no longer shipped";
 
-// The reason of a retired step: an opt-in skill that the scope did not select, or a skill that the bundle no longer ships.
-function retiredReason(path: string): string {
-  return OPT_IN_SKILLS.includes(basename(path)) ? "opt-in, not selected" : "no longer shipped";
-}
-
-// The names of the skills that an earlier install of this scope wrote and that the scope no longer
-// installs: the bundle no longer ships them, or they are opt-in skills that `optIn` does not select
-// (default: the manifest's own `optIn`). Ownership is tied to the recorded root. Missing folders still
-// count so install can remove their recorded dangling links. A folder in place before a project install
-// stays the user's.
+// The names of the skills that an earlier install of this scope wrote and that the bundle no longer
+// ships. Ownership is tied to the recorded root. Missing folders still count so install can remove
+// their recorded dangling links. A folder in place before a project install stays the user's.
 export async function retiredSkills(
   agentsRoot: string,
   manifest: Manifest | undefined,
   bundled: readonly string[],
-  optIn: readonly string[] = manifest?.optIn ?? [],
 ): Promise<string[]> {
   if (manifest === undefined || manifest.skillsRoot === "" || await resolveReal(manifest.skillsRoot) !== await resolveReal(agentsRoot)) return [];
-  const shipped = selectedSkills(bundled, optIn);
   const existing = manifest?.project?.existing?.skills ?? [];
   const names: string[] = [];
   for (const name of manifest?.skills ?? []) {
-    if (shipped.includes(name) || existing.includes(name) || name !== basename(name) || name === "." || name === "..") continue;
+    if (bundled.includes(name) || existing.includes(name) || name !== basename(name) || name === "." || name === "..") continue;
     const path = join(agentsRoot, name);
     if (await isManagedDir(path) || await lstatIfExists(path) === undefined) names.push(name);
   }
@@ -720,17 +699,16 @@ async function planRetired(
   paths: ScopePaths,
   manifest: Manifest | undefined,
   bundled: { name: string }[],
-  optIn: readonly string[],
   skills: SkillStep[],
   links: LinkStep[],
 ): Promise<void> {
-  const names = await retiredSkills(paths.agentsRoot, manifest, bundled.map((skill) => skill.name), optIn);
+  const names = await retiredSkills(paths.agentsRoot, manifest, bundled.map((skill) => skill.name));
   const existingLinks = manifest?.project?.existing?.links ?? [];
   const linkRoots = Object.entries(paths.linkRoots) as [LinkRootName, string][];
   for (const name of names) {
     const path = join(paths.agentsRoot, name);
     const missing = await lstatIfExists(path) === undefined;
-    const reason = retiredReason(path);
+    const reason = RETIRED_REASON;
     const step: SkillStep = { name, source: "", path, sourceHash: "", action: "remove", reason, retired: true };
     if (!missing && await isLocallyModified(path)) {
       step.action = "conflict";
@@ -758,7 +736,7 @@ async function planRetired(
 }
 
 export function replaceableSteps(plan: InstallPlan): { action: PlanAction; path: string; reason?: string }[] {
-  return [...plan.skills, ...plan.links, ...(plan.project === undefined ? [] : [plan.project.shim])];
+  return [...plan.skills, ...plan.links, ...(plan.project === undefined ? [] : [plan.project.shim]), ...(plan.workflows?.steps ?? [])];
 }
 
 export function installConflicts(plan: InstallPlan): number {
@@ -766,7 +744,7 @@ export function installConflicts(plan: InstallPlan): number {
 }
 
 export function installHasChanges(plan: InstallPlan): boolean {
-  const steps: { action: PlanAction }[] = [...plan.skills, ...plan.links, plan.config];
+  const steps: { action: PlanAction }[] = [...plan.skills, ...plan.links, plan.config, ...(plan.workflows?.steps ?? [])];
   if (plan.scratch.length > 0) return true;
   if (plan.hook !== undefined) steps.push(plan.hook);
   if (plan.project !== undefined) {
@@ -1070,8 +1048,13 @@ export async function buildUninstallPlan(
     config,
     manifest: { path: manifestFile, action: manifest !== undefined || (await pathExists(manifestFile)) ? "remove" : "unchanged" },
     purge: options.purge,
+    workflows: scope === "user" ? await planWorkflowRemoval(ctx, manifest?.workflows, options.force === true) : [],
     scratch: paths.root === undefined ? [] : await listScratch(paths.agentsRoot),
   };
+  // The manifest keeps the record of a kept workflow file, so a later uninstall still removes it.
+  if (plan.workflows.some((step) => step.action === "keep") && plan.manifest.action === "remove") {
+    plan.manifest = { ...plan.manifest, action: "keep", reason: "a T3 workflow file is kept" };
+  }
   if (paths.root !== undefined) {
     plan.project = await planProjectUninstall(paths.root, manifest, paths);
     const stays = await createdThatStays(plan, paths.root, manifest);
@@ -1101,6 +1084,7 @@ export function uninstallHasChanges(plan: UninstallPlan): boolean {
   return (
     plan.links.some((link) => link.action === "remove") ||
     plan.skills.some((skill) => skill.action === "remove") ||
+    plan.workflows.some((step) => step.action === "remove") ||
     plan.hooks.length > 0 ||
     plan.config.action === "remove" ||
     plan.manifest.action === "remove" ||
@@ -1153,6 +1137,11 @@ export function renderInstallPlan(plan: InstallPlan): string {
     plan.hook === undefined
       ? "  none     (add --hooks to install the Claude Code ultrawork hook)\n"
       : line(plan.hook.action, `Claude UserPromptSubmit in ${plan.hook.settingsPath}`);
+  if (plan.workflows !== undefined && (plan.workflows.steps.length > 0 || plan.workflows.skipped !== undefined)) {
+    text += `T3 workflows (${plan.workflows.dir}):\n`;
+    if (plan.workflows.skipped !== undefined) text += `  skip     (${plan.workflows.skipped})\n`;
+    for (const step of plan.workflows.steps) text += line(step.action, step.name, step.reason);
+  }
   if (plan.project !== undefined) {
     const project = plan.project;
     text += `Project (${project.root}):\n`;
@@ -1183,6 +1172,10 @@ export function renderUninstallPlan(plan: UninstallPlan): string {
   for (const hook of plan.hooks) {
     const reason = hook.restoreBackup === undefined ? undefined : `restores the backup ${hook.restoreBackup}`;
     text += line(hook.action, `Claude UserPromptSubmit in ${hook.settingsPath}`, reason);
+  }
+  if (plan.workflows.length > 0) {
+    text += "T3 workflows:\n";
+    for (const step of plan.workflows) text += line(step.action, step.path, step.reason);
   }
   text += "Config:\n";
   // "unchanged" here means the file does not exist.

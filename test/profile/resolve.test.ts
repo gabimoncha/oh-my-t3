@@ -4,6 +4,7 @@ import { test } from "bun:test";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.ts";
 import { loadConfig } from "../../src/config/load.ts";
 import { mergeLayer } from "../../src/config/merge.ts";
+import { validateLayer } from "../../src/config/validate.ts";
 import { userConfigPath } from "../../src/paths.ts";
 import { effectiveConfig, resolveProfile } from "../../src/profile/resolve.ts";
 import type { ConfigLayer, LoadedConfig, OmtConfig } from "../../src/types.ts";
@@ -84,6 +85,23 @@ test("custom profiles without extends inherit normal, and preset workflows are c
     reviewers: 1, families: "one", oracle: "off", fixLoop: "offer",
     ci: "off", verify: "off", tests: "off", crap: "off",
   });
+});
+
+// The skills read t3Workflow from profile show, so one switch on normal must reach prototype and custom profiles.
+test("t3Workflow is off by default, inherits through extends, and a child can turn it off", () => {
+  assert.equal(resolveProfile(configured({}), "prototype").t3Workflow, false);
+  const config = configured({
+    profiles: { normal: { t3Workflow: true }, quiet: { description: "Quiet.", extends: "prototype", t3Workflow: false } },
+  });
+  assert.equal(resolveProfile(config, "normal").t3Workflow, true);
+  assert.equal(resolveProfile(config, "prototype").t3Workflow, true);
+  assert.equal(resolveProfile(config, "quiet").t3Workflow, false);
+});
+
+test("a t3Workflow that is not a boolean is an error and is dropped", () => {
+  const { layer, issues } = validateLayer({ profiles: { normal: { t3Workflow: "on" } } }, "src");
+  assert.deepEqual(issues.map((issue) => [issue.path, issue.message]), [["profiles.normal.t3Workflow", 'must be true or false, got "on"']]);
+  assert.deepEqual(layer.profiles?.normal, {});
 });
 
 test("profile application reports incomplete new roles through effectiveConfig", () => {
