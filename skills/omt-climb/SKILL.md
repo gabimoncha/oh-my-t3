@@ -47,13 +47,22 @@ Done when: the tree is clean, and the input file holds `head` from `git rev-pars
 
 ### 3. Start the run
 
-Run `t3 workflow start omt-climb --input "$(cat <file>)" --key omt-climb/<slug>/<head>`. When it fails, apply the first rule and stop; when it names no workflow `omt-climb`, add that `omt update` installs it. Tell the owner the run id, that the Workflows page shows each round, and that a plateau or the round limit asks there. End your turn.
+Make the key once for this launch: `omt-climb/<slug>/<head>/<date -u +%Y%m%dT%H%M%SZ>`. Reuse it only to retry this start; a new or changed input gets a new key. Run `t3 workflow start omt-climb --input "$(cat <file>)" --key <key>`. When it fails, apply the first rule and stop; when it names no workflow `omt-climb`, add that `omt update` installs it. Tell the owner the run id, that the Workflows page shows each round, and that a plateau or the round limit asks there. End your turn.
 
 Done when: the run started and your turn ended.
 
 ### 4. Act on the message
 
-The run ends with a message to this thread, `omt-climb workflow run <id> ...`, with the outcome and the climb table. Read the result with `t3 workflow show <id> --json`.
+The run ends with a message to this thread, `omt-climb workflow run <id> ...`, with the outcome and the climb table. The message can come before T3 saves the result, so wait at most 5 minutes for a final status with its result:
+
+```sh
+for i in $(seq 60); do
+  t3 workflow show <id> --json | jq -e '(.run.status == "completed" and .run.result != null) or (.run.status | IN("stopped", "cancelled", "skipped"))' >/dev/null && break
+  sleep 5
+done
+```
+
+Then read `run.status` and `run.result` from `t3 workflow show <id> --json`.
 
 - `met`, `plateau`, or `limit`: merge `result.head` with `git merge --ff-only <head>`, or `git merge <head>` when that fails. Show the owner the table, `result.changes`, and `result.declined`, then commit, push, and open a draft PR by [Git actions](../omt/references/delegation.md#git-actions), with the table in its body.
 - `stopped` or `cancelled`: tell the owner the reason. A run that stopped on invalid input names the field; fix the input and start again with a new key.

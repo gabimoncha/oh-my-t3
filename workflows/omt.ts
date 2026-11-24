@@ -664,8 +664,10 @@ export function readScores(
   for (const [label, subject] of Object.entries(labels)) {
     const got: number[] = [];
     for (const category of categories) {
-      const entry = result.scores.find((s) => s.label.toUpperCase() === label && s.category.toLowerCase() === category.toLowerCase());
+      const matches = result.scores.filter((s) => s.label.toUpperCase() === label && s.category.toLowerCase() === category.toLowerCase());
+      const entry = matches[0];
       if (entry === undefined) errors.push(`no ${category} score for ${label}`);
+      else if (matches.length > 1) errors.push(`${label} ${category} is scored ${matches.length} times`);
       else if (!Number.isFinite(entry.score) || entry.score < 0 || entry.score > 10) errors.push(`${label} ${category}: ${entry.score} is not 0 to 10`);
       else got.push(entry.score);
     }
@@ -806,29 +808,52 @@ const ClimbResult = Schema.Struct({
 const attempt = <A>(run: () => A) =>
   Effect.try({ try: run, catch: (error) => (error instanceof Error ? error : new Error(String(error))) });
 
-// Runs a shell command, writes its output to the log, and never fails: a command that cannot start exits 127.
+// Runs a shell command and writes its output to the log. A command that cannot start exits 127. Only a failed
+// log write fails the effect, because a throw in the execFile callback would escape the promise.
 const shell = (command: string, cwd: string, log: string, env: Record<string, string> = {}) =>
-  Effect.promise(
-    () =>
-      new Promise<{ check: typeof Check.Type; stdout: string }>((resolve) =>
+  Effect.tryPromise({
+    try: () =>
+      new Promise<{ check: typeof Check.Type; stdout: string }>((resolve, reject) =>
         execFile("sh", ["-c", command], { cwd, env: { ...process.env, ...env }, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
-          writeFileSync(log, `$ ${command}\n${stdout}${stderr}${error === null ? "" : `\n${error.message}`}`);
+          try {
+            writeFileSync(log, `$ ${command}\n${stdout}${stderr}${error === null ? "" : `\n${error.message}`}`);
+          } catch (failure) {
+            reject(failure);
+            return;
+          }
           const exit = error === null ? 0 : typeof error.code === "number" ? error.code : 127;
           resolve({ check: { command, exit, log }, stdout });
         }),
       ),
+    catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+  });
+
+// A round measures the commit that its result names: HEAD is that commit, and no tracked file has an uncommitted change.
+const PINNED = 'test "$(git rev-parse HEAD)" = "$(git rev-parse --verify "$OMT_CLIMB_HEAD^{commit}")" && git diff --quiet HEAD';
+const pinned = (head: string, cwd: string, log: string) =>
+  shell(PINNED, cwd, log, { OMT_CLIMB_HEAD: head }).pipe(
+    Effect.map(({ check }) => ({ ...check, command: `HEAD is ${head}, and no tracked file has an uncommitted change` })),
   );
 
-const runGates = (gates: readonly string[], cwd: string, logs: string, name: string) =>
+const runGates = (gates: readonly string[], cwd: string, head: string, logs: string, name: string) =>
   Effect.gen(function* () {
     yield* attempt(() => mkdirSync(logs, { recursive: true }));
+    const pin = yield* pinned(head, cwd, join(logs, `${name}-pinned.log`));
+    if (pin.exit !== 0) return [pin];
     const checks: (typeof Check.Type)[] = [];
     for (const [index, gate] of gates.entries()) checks.push((yield* shell(gate, cwd, join(logs, `${name}-gate-${index + 1}.log`))).check);
     return checks;
   });
 
-const capture = (command: string, cwd: string, out: string, log: string) =>
+const failIfMoved = (head: string, cwd: string, log: string) =>
   Effect.gen(function* () {
+    const pin = yield* pinned(head, cwd, log);
+    if (pin.exit !== 0) return yield* Effect.fail(new Error(`${cwd} no longer holds ${head} unchanged; see ${log}`));
+  });
+
+const capture = (command: string, cwd: string, head: string, out: string, log: string) =>
+  Effect.gen(function* () {
+    yield* failIfMoved(head, cwd, log);
     yield* attempt(() => {
       rmSync(out, { recursive: true, force: true });
       mkdirSync(out, { recursive: true });
@@ -845,8 +870,9 @@ const capture = (command: string, cwd: string, out: string, log: string) =>
     return files;
   });
 
-const scoreCommand = (command: string, cwd: string, log: string) =>
+const scoreCommand = (command: string, cwd: string, head: string, log: string) =>
   Effect.gen(function* () {
+    yield* failIfMoved(head, cwd, log);
     const { check, stdout } = yield* shell(command, cwd, log);
     const value = parseScore(stdout);
     if (check.exit !== 0 || value === undefined) {
@@ -858,9 +884,9 @@ const scoreCommand = (command: string, cwd: string, log: string) =>
 // Copies the files of each subject to <evidence>/climb-<key>/<label>-<k>.<ext>, so that a path shows no subject and no round.
 const blind = (evidence: string, subjects: Readonly<Record<string, readonly string[]>>) =>
   attempt(() => {
-    const bytes = randomBytes(16);
-    const key = bytes.subarray(0, 4).toString("hex");
-    const labels = blindLabels([...bytes], Object.keys(subjects));
+    // The key is public, so it shares no bytes with the shuffle.
+    const key = randomBytes(4).toString("hex");
+    const labels = blindLabels([...randomBytes(16)], Object.keys(subjects));
     const folder = join(evidence, `climb-${key}`);
     mkdirSync(folder, { recursive: true });
     const files: Record<string, string[]> = {};
@@ -880,7 +906,7 @@ const judgeTask = (input: ClimbInput, categories: readonly string[], files: Read
     `Rubric:\n${input.rubric}`,
     `Categories: ${categories.join(", ")}. Give each label one score from 0 to 10 in each category.`,
     `Subjects:\n${Object.entries(files).map(([label, paths]) => `- ${label}: ${paths.join(", ")}`).join("\n")}`,
-    "For each label, name the flaw that costs the most points in each category below 9, with a concrete fix.",
+    "For each label, name the flaw that costs the most points in each category below 10, with a concrete fix.",
   ].join("\n\n");
 
 const changeTask = (input: ClimbInput, round: number, head: string, next: ClimbNext, table: string, findings: readonly string[], guidance: string) =>
@@ -951,7 +977,7 @@ workflow(
     if (errors.length > 0) return yield* stop(`invalid input: ${errors.join("; ")}`);
     const categories = input.categories.length > 0 ? input.categories : ["overall"];
     const models = input.judges.some((judge) => judge.command === "");
-    const dir = join(input.evidence, `climb-${input.slug}`);
+    const dir = join(input.evidence, `climb-${input.slug}-${run.id}`);
     const logs = join(dir, "logs");
     const scores: ClimbScore[] = [];
     const changes: string[] = [];
@@ -976,7 +1002,7 @@ workflow(
 
     for (let round = 1; ; round++) {
       // Gates. After a change, the change agent fixes a failed gate, at most twice per round.
-      let checks = yield* step(`gates-r${round}`, { returns: Schema.Array(Check) }, runGates(input.gates, at.dir, logs, `r${round}`));
+      let checks = yield* step(`gates-r${round}`, { returns: Schema.Array(Check) }, runGates(input.gates, at.dir, at.head, logs, `r${round}`));
       for (let fix = 1; checks.some((check) => check.exit !== 0); fix++) {
         const failed = checks.filter((check) => check.exit !== 0);
         const text = failed.map((check) => `\`${check.command}\` exit ${check.exit} (${check.log})`).join(", ");
@@ -985,7 +1011,7 @@ workflow(
         if (fixed.outcome === "failed") return yield* stop(`the gate fix of round ${round} failed: ${fixed.reason}`);
         at = { head: fixed.value.head, dir: fixed.value.worktree };
         changes.push(...fixed.value.changes);
-        checks = yield* step(`gates-r${round}-${fix + 1}`, { returns: Schema.Array(Check) }, runGates(input.gates, at.dir, logs, `r${round}-${fix + 1}`));
+        checks = yield* step(`gates-r${round}-${fix + 1}`, { returns: Schema.Array(Check) }, runGates(input.gates, at.dir, at.head, logs, `r${round}-${fix + 1}`));
       }
 
       // Capture and blind labels. Round 1 scores the start commit, so its capture is the baseline.
@@ -994,7 +1020,7 @@ workflow(
         const files = yield* step(
           `capture-r${round}`,
           { returns: Schema.Array(Schema.String) },
-          capture(input.capture, at.dir, join(dir, `r${round}`), join(logs, `r${round}-capture.log`)),
+          capture(input.capture, at.dir, at.head, join(dir, `r${round}`), join(logs, `r${round}-capture.log`)),
         );
         if (round === 1) baseline = files;
         const subjects: Record<string, readonly string[]> = { [CURRENT]: files };
@@ -1007,8 +1033,9 @@ workflow(
       const scoreJudge = (judge: typeof ClimbJudgeInput.Type) =>
         Effect.gen(function* () {
           if (judge.command !== "") {
-            const value = yield* step(`score-r${round}-${judge.name}`, { returns: Schema.Number }, scoreCommand(judge.command, at.dir, join(logs, `r${round}-judge-${judge.name}.log`)));
-            return { scores: [{ round, judge: judge.name, subject: CURRENT, value }], findings: [] as string[] };
+            const log = join(logs, `r${round}-judge-${judge.name}.log`);
+            const value = yield* step(`score-r${round}-${judge.name}`, { returns: Schema.Number }, scoreCommand(judge.command, at.dir, at.head, log));
+            return { scores: [{ round, judge: judge.name, subject: CURRENT, value }], findings: [`${judge.name}: \`${judge.command}\` printed ${value}; its output is in ${log}`] };
           }
           let problem = "";
           // A judge name has no ".", so the retry's step names cannot match another judge's.

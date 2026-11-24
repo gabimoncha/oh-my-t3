@@ -9,7 +9,7 @@ import { PACKAGE_ROOT } from "./helpers.ts";
 // Each entry maps the workflow versions that workflows/omt.ts defines to the hash of the file that shipped them.
 const SHIPPED: Record<string, string> = {
   "omt-ulw@1 omt-code-review@1": "932ed2be4e93d5f4052c2bc5b5dc4901ea20dfe673607d35bd79c2a102c32fea",
-  "omt-ulw@1 omt-code-review@1 omt-climb@1": "628da20d57f320c74c0949e435528703949ce2840ae851a4e2e0eab7d10dc2bf",
+  "omt-ulw@1 omt-code-review@1 omt-climb@1": "ff5fbbf0c14c6e0c695cafa12ce27fb798ed5f9ed5bb7f283d4ed4e9b1e1e759",
 };
 
 test("workflows/omt.ts raises a workflow version whenever its text changes", () => {
@@ -117,6 +117,14 @@ test("readScores maps labels to subjects with the lowest category, and names eac
   });
   const bad = rules.readScores(labels, ["contrast", "layout"], { scores: [...scores.slice(0, 3), { label: "C", category: "layout", score: 11 }] });
   assert.deepEqual(bad.errors, ["unknown label C", "no layout score for B"]);
+});
+
+test("readScores rejects a label and category scored twice, so the first score cannot win", () => {
+  const scores = [
+    { label: "A", category: "layout", score: 9 },
+    { label: "a", category: "Layout", score: 2 },
+  ];
+  assert.deepEqual(rules.readScores({ A: "current" }, ["layout"], { scores }), { values: [], errors: ["A layout is scored 2 times"] });
 });
 
 test("parseScore reads the number on the last line that a scorer prints", () => {

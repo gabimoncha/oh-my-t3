@@ -79,7 +79,7 @@ When the message comes, merge `result.groups` and `result.oracle` by step 4, and
 
 ## omt-climb input
 
-Start it after `omt-climb` step 2. Key: `omt-climb/<slug>/<head>`.
+Start it after `omt-climb` step 2. Key: `omt-climb/<slug>/<head>/<UTC time of the launch>`, new for each launch.
 
 ```json
 {
@@ -108,7 +108,7 @@ Start it after `omt-climb` step 2. Key: `omt-climb/<slug>/<head>`.
 
 - A judge with a `command` runs it in each round's checkout and reads the number on its last line. A judge with an empty `command` is the `judge` role, with `--against <against>` when `against` is set.
 - Names of judges, references, and categories match `^[a-z0-9][a-z0-9-]{0,31}$`. Empty `categories` gives one category, `overall`.
-- Round 1 runs the gates and the capture in `checkout` at `head`, and its capture is the baseline. Later rounds run them in the change agent's worktree.
+- Round 1 runs the gates and the capture in `checkout` at `head`, and its capture is the baseline. Each round first checks that its checkout is at its commit with no uncommitted change to a tracked file. Later rounds run them in the change agent's worktree.
 - Each round copies the files of `current`, `baseline`, and each reference to `<evidence>/climb-<key>/<label>-<k>.<ext>` under a random key and shuffled letter labels. The baseline score corrects each judge's drift.
 - One agent thread of the `change` role makes every change from the judges' findings and commits it in its own worktree. It fixes a failed gate at most twice per round; then the run stops.
 - At a plateau or the round limit, the run asks the owner: `stop`, `raise limit`, or `change approach`. Each answer but `stop` gives at least 5 more rounds and restarts the plateau window. The text of `change approach` goes to the change agent.
