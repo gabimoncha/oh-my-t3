@@ -75,7 +75,7 @@ test("the default chains and crossFamily flags match the plan exactly", () => {
 
 
 test("the default limits match the plan", () => {
-  assert.deepEqual(DEFAULT_CONFIG.limits, { maxParallel: 6, maxDepth: 1, maxReviewRounds: 4 });
+  assert.deepEqual(DEFAULT_CONFIG.limits, { maxDepth: 1, maxReviewRounds: 4 });
   assert.equal(DEFAULT_CONFIG.version, 1);
 });
 

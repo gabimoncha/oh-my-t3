@@ -27,22 +27,22 @@ async function setup() {
 test("doctor shows the diff and preserves accepted defaults and overrides after refusal, and still removes a retired key", async () => {
   const { ctx, path, before } = await setup();
   const config = projectConfigPath(ctx.cwd);
-  writeFile(config, '{\n  // Keep this override.\n  "defaults": "2026-12",\n  "limits": { "maxParallel": 2 }\n}\n');
+  writeFile(config, '{\n  // Keep this override.\n  "defaults": "2026-12",\n  "limits": { "maxReviewRounds": 2 }\n}\n');
   const prompts: string[] = [];
   await doctor({ ...ctx, argv: ["--project"], isTTY: true, prompt: async (question) => { prompts.push(question); return "no"; } });
   assert.deepEqual(prompts, ["Use the current defaults? [y/N] "]);
   assert.match(ctx.out(), /roles\.execute\.chain:.*low.*->.*medium/);
   assert.equal(readFileSync(path, "utf8"), before);
-  assert.equal(readFileSync(config, "utf8"), '{\n  // Keep this override.\n  "limits": { "maxParallel": 2 }\n}\n');
+  assert.equal(readFileSync(config, "utf8"), '{\n  // Keep this override.\n  "limits": { "maxReviewRounds": 2 }\n}\n');
   const loaded = await loadConfig(ctx);
   assert.equal(loaded.config.roles.execute?.chain[0]?.effort, "low");
-  assert.equal(loaded.config.limits.maxParallel, 2);
+  assert.equal(loaded.config.limits.maxReviewRounds, 2);
 });
 
 test("doctor accepts current defaults and removes only the retired pin", async () => {
   const { ctx, path } = await setup();
   const config = projectConfigPath(ctx.cwd);
-  writeFile(config, '{\n  // Keep this override.\n  "defaults": "2026-12",\n  "limits": { "maxParallel": 2 }\n}\n');
+  writeFile(config, '{\n  // Keep this override.\n  "defaults": "2026-12",\n  "limits": { "maxReviewRounds": 2 }\n}\n');
   await doctor({ ...ctx, argv: ["--project", "--yes", "--json"] });
   const report = JSON.parse(ctx.out());
   assert.equal(report.defaults.applied, true);
@@ -50,7 +50,7 @@ test("doctor accepts current defaults and removes only the retired pin", async (
   assert.doesNotMatch(readFileSync(config, "utf8"), /"defaults"/);
   const loaded = await loadConfig(ctx);
   assert.equal(loaded.config.roles.execute?.chain[0]?.effort, DEFAULT_CONFIG.roles.execute?.chain[0]?.effort);
-  assert.equal(loaded.config.limits.maxParallel, 2);
+  assert.equal(loaded.config.limits.maxReviewRounds, 2);
   assert.deepEqual(JSON.parse(readFileSync(path, "utf8")).acceptedDefaults.config, DEFAULT_CONFIG);
 });
 
@@ -64,7 +64,7 @@ test("doctor removes every retired key without a prompt and keeps comments, over
     '    "guardrail": { "chain": [{ "driver": "codex", "model": "m" }] },',
     '    "grill": null',
     "  },",
-    '  "limits": { "maxParallel": 2, "maxTasksPerRun": 5 },',
+    '  "limits": { "maxReviewRounds": 2, "maxTasksPerRun": 5 },',
     '  "profiles": {',
     '    "normal": { "workflow": { "review": { "guardrails": "propose" } } },',
     '    "prototype": { "workflow": { "review": {',
@@ -94,7 +94,7 @@ test("doctor removes every retired key without a prompt and keeps comments, over
   assert.doesNotMatch(after, /guardrail|grill|maxTasksPerRun|"normal"|"git"/);
   const loaded = await loadConfig(ctx);
   assert.deepEqual(loaded.issues, []);
-  assert.equal(loaded.config.limits.maxParallel, 2);
+  assert.equal(loaded.config.limits.maxReviewRounds, 2);
   assert.deepEqual((await cleanRetired(ctx, "project", { dryRun: true })).keys, []);
 });
 

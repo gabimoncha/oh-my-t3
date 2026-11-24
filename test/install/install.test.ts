@@ -16,8 +16,9 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { USER_STARTER_CONFIG } from "../../src/config/starter.ts";
 import { MANAGED_MARKER, hashDir } from "../../src/util/fs.ts";
-import { assertAllUnchanged, makeFixture, readJson, snapshot, STAMP, writeSkill } from "./fixture.ts";
+import { assertAllUnchanged, makeFixture, readJson, recordOldHook, snapshot, STAMP, withOldHook, writeSkill } from "./fixture.ts";
 import { writeFile } from "../helpers.ts";
+import { doctor } from "../run.ts";
 import type { Fixture } from "./fixture.ts";
 
 function assertNoSkillRootBackups(f: Fixture): void {
@@ -80,9 +81,9 @@ test("install creates managed skills, relative links, the starter config, and th
 
 test("a second install shows only unchanged and writes nothing but the manifest timestamp", async () => {
   const f = makeFixture();
-  await f.runOk(["install", "--yes", "--hooks"]);
+  await f.runOk(["install", "--yes"]);
   const before = snapshot(f.home);
-  const { ctx } = await f.runOk(["install", "--yes", "--hooks"], {
+  const { ctx } = await f.runOk(["install", "--yes"], {
     now: () => new Date("2026-02-03T04:05:06.000Z"),
   });
   assertAllUnchanged(ctx.out());
@@ -171,7 +172,7 @@ test("a conflicting link is reported and --force backs it up under the root name
 test("--dry-run prints the plan and writes nothing", async () => {
   const f = makeFixture();
   const before = snapshot(f.home);
-  const { ctx } = await f.runOk(["install", "--dry-run", "--hooks"]);
+  const { ctx } = await f.runOk(["install", "--dry-run"]);
   assert.match(ctx.out(), /create {3}alpha/);
   assert.match(ctx.out(), /Dry run/);
   assert.deepEqual(snapshot(f.home), before);
@@ -248,114 +249,78 @@ test("unknown flags and positionals are usage errors", async () => {
   assert.equal((await f.run(["uninstall", "--nope"])).code, 2);
 });
 
-test("--hooks adds the entry and keeps every other setting", async () => {
+test("update removes the retired hook from settings.json, restores the install-time backup byte for byte, and doctor passes", async () => {
+  const f = makeFixture();
+  await f.runOk(["install", "--yes"]);
+  const original = { model: "opus", hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo pre" }] }] } };
+  const originalText = `${JSON.stringify(original, null, 4)}\n`;
+  const backup = join(f.backups, "20251201000000", "claude-settings.json");
+  writeFile(backup, originalText);
+  writeFile(f.settings, `${JSON.stringify(withOldHook(original), null, 2)}\n`);
+  recordOldHook(f, f.settings, { backup });
+  assert.match((await doctor(f)).get("hooks").message, /^the retired omt prompt hook is still in .*settings\.json; run omt update to remove it$/);
+
+  const { ctx } = await f.runOk(["update", "--skills-only", "--yes"]);
+  assert.match(ctx.out(), /^ {2}remove {3}Claude UserPromptSubmit in .*settings\.json {2}\(retired\)$/m);
+  assert.equal(readFileSync(f.settings, "utf8"), originalText);
+  assert.ok(!existsSync(backup));
+  assert.deepEqual(readJson(f.manifest).hooks, []);
+  assert.ok(!(await doctor(f)).report.checks.some((check) => check.id === "hooks"));
+});
+
+test("install removes the retired hook, keeps every other setting, the style, and the mode, and backs the file up", async () => {
   const f = makeFixture();
   const original = {
-    model: "opus",
     permissions: { allow: ["Bash(ls)"] },
-    hooks: {
-      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo pre" }] }],
-      UserPromptSubmit: [{ hooks: [{ type: "command", command: "echo mine" }] }],
-    },
+    hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: "echo mine" }] }] },
   };
-  const originalText = `${JSON.stringify(original, null, 4)}\n`;
-  writeFile(f.settings, originalText);
-  const { ctx } = await f.runOk(["install", "--yes", "--hooks"]);
-  assert.match(ctx.out(), /create {3}Claude UserPromptSubmit/);
-  const command = `"${process.execPath}" "${ctx.cliPath}" hook user-prompt-submit # oh-my-t3code`;
-  const text = readFileSync(f.settings, "utf8");
-  assert.ok(text.endsWith("}\n"));
-  assert.deepEqual(JSON.parse(text), {
-    ...original,
-    hooks: {
-      ...original.hooks,
-      UserPromptSubmit: [
-        { hooks: [{ type: "command", command: "echo mine" }] },
-        { hooks: [{ type: "command", command, timeout: 10 }] },
-      ],
-    },
-  });
-  assert.equal(text, `${JSON.stringify(JSON.parse(text), null, 4)}\n`, "the edit keeps the file's 4-space indentation");
+  const before = `${JSON.stringify(withOldHook(original), null, 4)}\n`;
+  writeFile(f.settings, before);
+  chmodSync(f.settings, 0o600);
+  await f.runOk(["install", "--yes"]);
+  assert.equal(readFileSync(f.settings, "utf8"), `${JSON.stringify(original, null, 4)}\n`);
+  assert.equal(statSync(f.settings).mode & 0o777, 0o600);
   const backup = join(f.backups, STAMP, "claude-settings.json");
-  assert.equal(readFileSync(backup, "utf8"), originalText);
-  const manifest = readJson(f.manifest);
-  assert.deepEqual(manifest.hooks, [{ kind: "claude-user-prompt-submit", settingsPath: f.settings, command, backup }]);
-  assert.deepEqual(manifest.backups, [backup]);
+  assert.equal(readFileSync(backup, "utf8"), before);
+  assert.equal(statSync(backup).mode & 0o777, 0o600);
+  assert.deepEqual(readJson(f.manifest).hooks, []);
 });
 
-test("--hooks creates settings.json when it is missing, without a backup", async () => {
+test("install deletes a settings.json that only the retired hook created, without a backup", async () => {
   const f = makeFixture();
-  await f.runOk(["install", "--yes", "--hooks"]);
-  const settings = readJson(f.settings) as { hooks: { UserPromptSubmit: unknown[] } };
-  assert.equal(settings.hooks.UserPromptSubmit.length, 1);
+  await f.runOk(["install", "--yes"]);
+  writeFile(f.settings, `${JSON.stringify(withOldHook({}), null, 2)}\n`);
+  recordOldHook(f, f.settings, { created: true });
+  await f.runOk(["install", "--yes"]);
+  assert.ok(!existsSync(f.settings));
   assert.ok(!existsSync(f.backups));
 });
 
-test("--hooks updates the command of an existing managed entry", async () => {
-  const f = makeFixture();
-  const old = '"/old/node" "/old/cli.js" hook user-prompt-submit # oh-my-t3code';
-  writeFile(
-    f.settings,
-    JSON.stringify({
-      theme: "dark",
-      hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: old, timeout: 10 }] }] },
-    }),
-  );
-  const { ctx } = await f.runOk(["install", "--yes", "--hooks"]);
-  assert.match(ctx.out(), /update {3}Claude UserPromptSubmit/);
-  const settings = readJson(f.settings) as { theme: string; hooks: { UserPromptSubmit: { hooks: { command: string }[] }[] } };
-  assert.equal(settings.theme, "dark");
-  assert.equal(settings.hooks.UserPromptSubmit.length, 1);
-  assert.equal(
-    settings.hooks.UserPromptSubmit[0]?.hooks[0]?.command,
-    `"${process.execPath}" "${ctx.cliPath}" hook user-prompt-submit # oh-my-t3code`,
-  );
-});
-
-test("an unchanged hook writes nothing to settings.json and makes no backup", async () => {
-  const f = makeFixture();
-  await f.runOk(["install", "--yes", "--hooks"]);
-  const before = snapshot(dirname(f.settings));
-  const { ctx } = await f.runOk(["install", "--yes", "--hooks"], { now: () => new Date("2026-03-01T00:00:00Z") });
-  assert.match(ctx.out(), /unchanged Claude UserPromptSubmit/);
-  assert.deepEqual(snapshot(dirname(f.settings)), before);
-  assert.ok(!existsSync(f.backups));
-});
-
-test("a symlinked settings.json stays a symlink and its real file is updated", async () => {
+test("a symlinked settings.json stays a symlink when the retired hook goes", async () => {
   const f = makeFixture();
   const real = join(f.root, "dotfiles", "claude-settings.json");
   mkdirSync(dirname(real), { recursive: true });
-  writeFileSync(real, '{ "theme": "light" }\n');
+  writeFileSync(real, `${JSON.stringify(withOldHook({ theme: "light" }))}\n`);
   mkdirSync(dirname(f.settings), { recursive: true });
   symlinkSync(relative(dirname(f.settings), real), f.settings);
-  await f.runOk(["install", "--yes", "--hooks"]);
-  assert.ok(lstatSync(f.settings).isSymbolicLink());
-  assert.equal(realpathSync(f.settings), realpathSync(real));
-  const settings = readJson(real) as { theme: string; hooks: unknown };
-  assert.equal(settings.theme, "light");
-  assert.ok(settings.hooks !== undefined);
-
-  await f.runOk(["uninstall", "--yes"]);
+  await f.runOk(["install", "--yes"]);
   assert.ok(lstatSync(f.settings).isSymbolicLink());
   assert.deepEqual(readJson(real), { theme: "light" });
 });
 
-test("settings.json that is not valid JSON is an error and nothing changes", async () => {
+test("a settings.json that is not valid JSON does not stop install and stays as it is", async () => {
   const f = makeFixture();
   writeFile(f.settings, "{ not json");
-  const before = snapshot(f.home);
-  const { code, ctx } = await f.run(["install", "--yes", "--hooks"]);
-  assert.equal(code, 1);
-  assert.match(ctx.err(), /not valid JSON/);
-  assert.deepEqual(snapshot(f.home), before);
+  await f.runOk(["install", "--yes"]);
+  assert.equal(readFileSync(f.settings, "utf8"), "{ not json");
+  assert.equal((await f.run(["install", "--yes", "--hooks"])).code, 2, "--hooks is gone");
 });
 
-test("--hooks is refused for a temp or npx cliPath", async () => {
+test("a user install is refused for a temp or npx cliPath", async () => {
   const f = makeFixture();
   const before = snapshot(f.home);
   for (const cliPath of [join(tmpdir(), "omt-x", "cli.js"), "/home/u/.npm/_npx/abc/node_modules/oh-my-t3code/dist/cli.js"]) {
-    const { code, ctx } = await f.run(["install", "--yes", "--hooks"], { cliPath });
+    const { code, ctx } = await f.run(["install", "--yes"], { cliPath });
     assert.equal(code, 1);
     assert.match(ctx.err(), /refusing the user install: the omt CLI runs from (a temporary path|a one-shot npx cache)/);
     assert.match(
@@ -364,15 +329,6 @@ test("--hooks is refused for a temp or npx cliPath", async () => {
     );
   }
   assert.deepEqual(snapshot(f.home), before);
-});
-
-test("--hooks keeps the mode of a 0600 settings.json and writes the backup as 0600", async () => {
-  const f = makeFixture();
-  writeFile(f.settings, '{ "env": { "API_KEY": "secret" } }\n');
-  chmodSync(f.settings, 0o600);
-  await f.runOk(["install", "--yes", "--hooks"]);
-  assert.equal(statSync(f.settings).mode & 0o777, 0o600);
-  assert.equal(statSync(join(f.backups, STAMP, "claude-settings.json")).mode & 0o777, 0o600);
 });
 
 // Root ignores directory permissions.

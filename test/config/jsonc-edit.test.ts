@@ -31,13 +31,13 @@ test("nested set keeps line and block comments and treats arrays as leaves", () 
      over lines */
   "profiles": {
     "prototype": { // profile
-      "limits": { "maxParallel": /* before */ 2 /* after */ },
+      "limits": { "maxReviewRounds": /* before */ 2 /* after */ },
     },
   },
 }
 `;
-  check(input, ["profiles", "prototype", "limits", "maxParallel"], 3,
-    { profiles: { prototype: { limits: { maxParallel: 3 } } } }, input.replace("2 /* after */", "3 /* after */"));
+  check(input, ["profiles", "prototype", "limits", "maxReviewRounds"], 3,
+    { profiles: { prototype: { limits: { maxReviewRounds: 3 } } } }, input.replace("2 /* after */", "3 /* after */"));
   for (const leaf of ["null", "false", '"old"', '["old", /* inside */ "value"]']) {
     check(`{ "roles": { "execute": ${leaf} } }`, ["roles", "execute", "fast"], true,
       { roles: { execute: { fast: true } } }, '{ "roles": { "execute": {"fast":true} } }',
@@ -111,8 +111,8 @@ test("removal keeps comments and removes the required comma and whole lines", ()
 });
 
 test("upward removal stops at members, comments, and root keys", () => {
-  const note = '{\n  "profiles": {\n    "prototype": { // note\n      "limits": { "maxParallel": 3 } }\n  }\n}\n';
-  check(note, ["profiles", "prototype", "limits", "maxParallel"], undefined, { profiles: { prototype: {} } },
+  const note = '{\n  "profiles": {\n    "prototype": { // note\n      "limits": { "maxReviewRounds": 3 } }\n  }\n}\n';
+  check(note, ["profiles", "prototype", "limits", "maxReviewRounds"], undefined, { profiles: { prototype: {} } },
     '{\n  "profiles": {\n    "prototype": { // note\n       }\n  }\n}\n');
   check('{\n  "p": {\n    "x": {\n      "limits": {"k": 3}\n    },\n    "keep": true\n  }\n}', ["p", "x", "limits", "k"], undefined,
     { p: { keep: true } }, '{\n  "p": {\n    "keep": true\n  }\n}');

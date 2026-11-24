@@ -7,7 +7,6 @@ import {
   evidenceDir,
   findProjectRoot,
   isWithin,
-  ledgerPath,
   manifestPath,
   omtDir,
   plansDir,
@@ -22,10 +21,10 @@ import {
 } from "../paths.ts";
 import { loadConfig } from "../config/load.ts";
 import type { Capabilities, CliContext, HarnessReport } from "../types.ts";
-import { usageError } from "../util/errors.ts";
+import { OmtError, usageError } from "../util/errors.ts";
 import { errorCode, hashDir, isSymlink, lstatIfExists, pathExists, readFileIfExists, realOrSelf } from "../util/fs.ts";
 import { plural } from "../util/output.ts";
-import { hookCommand, planHookInstall, planHookRemoval, shimHookCommand } from "./claudeHook.ts";
+import { planHookRemoval } from "./claudeHook.ts";
 import type { HookChange } from "./claudeHook.ts";
 import { projectWriteTarget, resolveReal } from "./fsops.ts";
 import { allDetected, DEFAULT_HARNESSES, detectHarnesses, formatHarnessLine, formatHarnessValue, harnessEffects } from "./harness.ts";
@@ -40,7 +39,6 @@ import {
   excludePattern,
   findGitExclude,
   isManagedShim,
-  runtimeOf,
   SCRATCH_NAME,
   scratchPattern,
   shimContent,
@@ -207,7 +205,7 @@ export interface InstallPlan {
   skippedRoots: SkippedRoot[];
   config: ConfigStep;
   harnesses?: HarnessStep;
-  hook?: HookStep;
+  hooks: HookStep[]; // removes the retired Claude prompt hook
   previous?: Manifest;
   project?: ProjectInstallSteps;
   workflows?: WorkflowPlan; // user scope only
@@ -270,7 +268,6 @@ export async function parseTargets(value: string | undefined, homedir: string, s
 
 export interface InstallOptions {
   targets: TargetName[];
-  hooks: boolean;
   force: boolean;
   scope?: InstallScope;
   gitExclude?: boolean; // project scope only; default true
@@ -462,10 +459,8 @@ async function planProjectInstall(
   const previous = plan.previous?.project;
   const previousDirs = new Set(previous?.dirs ?? []);
   const omtDirCreated = previous?.omtDirCreated === true || !(await pathExists(omtDir(root)));
-  // A dangling symlink at the settings path is the user's, so only a path with nothing there counts.
-  const settingsCreated =
-    previous?.settingsCreated === true ||
-    (plan.hook !== undefined && plan.hook.before === undefined && !(await pathExists(plan.hook.settingsPath)));
+  // The retired hook was the only reason an install created the settings file, so the record stays as it was.
+  const settingsCreated = previous?.settingsCreated === true;
   const configCreated =
     plan.config.action === "create" || (plan.previous?.config?.path === plan.config.path && plan.previous.config.created);
   const plans = plansDir(root);
@@ -571,13 +566,6 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
   const scope = options.scope ?? "user";
   const paths = await scopePaths(ctx, scope);
   const runner = assertInstallSource(ctx.cliPath, ctx.env, scope);
-  let command: string | undefined;
-  if (options.hooks) {
-    command =
-      paths.root === undefined
-        ? hookCommand(ctx.build === "binary" ? undefined : runtimeOf(ctx), ctx.cliPath)
-        : shimHookCommand(projectShimPath(paths.root));
-  }
   const bundled = await listBundledSkills(ctx.packageRoot);
   const { manifest: previous, from } = await loadScopeManifest(paths);
   const skills: SkillStep[] = [];
@@ -621,6 +609,7 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
     links,
     skippedRoots: linkPlan.skipped,
     config,
+    hooks: await planHookRemovals(scope, paths, previous, true),
     scratch: paths.root === undefined ? [] : await listScratch(paths.agentsRoot),
   };
   if (previous !== undefined) plan.previous = previous;
@@ -634,10 +623,6 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
     }
   }
   if (!sync) plan.harnesses = await planHarnesses(ctx, plan.config, options.capabilities);
-  if (command !== undefined) {
-    if (paths.root !== undefined) await projectWriteTarget(paths.root, paths.settingsPath);
-    plan.hook = await planHookInstall(paths.settingsPath, command);
-  }
   if (paths.root !== undefined) {
     plan.project = await planProjectInstall(ctx, plan, paths.root, options.gitExclude !== false, from, runner, sync);
     if (plan.project.gitignore.action === "create" || plan.project.gitignore.action === "update") {
@@ -665,6 +650,42 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
   const removed = new Set(skills.filter(removesRetired).map((step) => step.name));
   plan.links = links.filter((link) => link.retired !== true || removed.has(link.name));
   return plan;
+}
+
+// A remove step for each settings file that still holds the retired Claude prompt hook: the scope's
+// settings file and each one that the manifest records. A file that the install created and that holds
+// only {} after the removal goes; one whose install-time backup matches what is left gets the backup's bytes.
+// With `skipInvalid`, a settings file that is not a valid settings object is left alone, so an install or
+// update never fails on a file that omt only cleans.
+async function planHookRemovals(
+  scope: InstallScope,
+  paths: ScopePaths,
+  manifest: Manifest | undefined,
+  skipInvalid = false,
+): Promise<HookStep[]> {
+  const settingsPaths = new Map<string, string>([[await resolveReal(paths.settingsPath), paths.settingsPath]]);
+  for (const hook of manifest?.hooks ?? []) {
+    const key = await resolveReal(hook.settingsPath);
+    if (!settingsPaths.has(key)) settingsPaths.set(key, hook.settingsPath);
+  }
+  const hooks: HookStep[] = [];
+  for (const settingsPath of settingsPaths.values()) {
+    const record = manifest?.hooks.find((hook) => hook.settingsPath === settingsPath);
+    let change: HookStep | undefined;
+    try {
+      change = await planHookRemoval(settingsPath, record?.backup);
+    } catch (error) {
+      if (skipInvalid && error instanceof OmtError && error.code === "claude_settings") continue;
+      throw error;
+    }
+    if (change === undefined) continue;
+    const created =
+      record?.created === true ||
+      (scope === "project" && settingsPath === paths.settingsPath && manifest?.project?.settingsCreated === true);
+    if (created && change.empty === true) change.removeFile = true;
+    hooks.push(change);
+  }
+  return hooks;
 }
 
 // True for a retired skill or link that the apply removes (`replace` backs the skill up first).
@@ -746,7 +767,7 @@ export function installConflicts(plan: InstallPlan): number {
 export function installHasChanges(plan: InstallPlan): boolean {
   const steps: { action: PlanAction }[] = [...plan.skills, ...plan.links, plan.config, ...(plan.workflows?.steps ?? [])];
   if (plan.scratch.length > 0) return true;
-  if (plan.hook !== undefined) steps.push(plan.hook);
+  steps.push(...plan.hooks);
   if (plan.project !== undefined) {
     steps.push(plan.project.plans, plan.project.gitignore, plan.project.shim);
     if (plan.project.exclude !== undefined) steps.push(plan.project.exclude);
@@ -811,8 +832,9 @@ async function planProjectUninstall(root: string, manifest: Manifest | undefined
   const shimPath = manifest?.project?.shim ?? projectShimPath(root);
   if ((await isRegularFile(shimPath)) && isManagedShim(await readFileIfExists(shimPath))) steps.shim = { path: shimPath, action: "remove" };
   const gitignorePath = join(omt, ".gitignore");
-  // The ledger and the evidence stay, so a created .omt3/.gitignore stays to keep them out of git.
-  const dataStays = (await pathExists(ledgerPath(root))) || (await pathExists(evidenceDir(root)));
+  // The evidence stays, and so does a ledger of an earlier release that no update removed, so a created
+  // .omt3/.gitignore stays to keep them out of git.
+  const dataStays = (await pathExists(join(omt, "ledger.jsonl"))) || (await pathExists(evidenceDir(root)));
   for (const file of manifest?.project?.files ?? []) {
     if (file.path === paths.configPath) continue;
     if (file.path === join(backupsDir, ".gitignore")) {
@@ -1006,22 +1028,7 @@ export async function buildUninstallPlan(
     links.push(link);
   }
 
-  const settingsPaths = new Map<string, string>([[await resolveReal(paths.settingsPath), paths.settingsPath]]);
-  for (const hook of manifest?.hooks ?? []) {
-    const key = await resolveReal(hook.settingsPath);
-    if (!settingsPaths.has(key)) settingsPaths.set(key, hook.settingsPath);
-  }
-  const hooks: HookStep[] = [];
-  for (const settingsPath of settingsPaths.values()) {
-    const record = manifest?.hooks.find((hook) => hook.settingsPath === settingsPath);
-    const change: HookStep | undefined = await planHookRemoval(settingsPath, record?.backup);
-    if (change === undefined) continue;
-    const created =
-      record?.created === true ||
-      (scope === "project" && settingsPath === paths.settingsPath && manifest?.project?.settingsCreated === true);
-    if (created && change.empty === true) change.removeFile = true;
-    hooks.push(change);
-  }
+  const hooks = await planHookRemovals(scope, paths, manifest);
 
   const configPath = paths.configPath;
   const configExists = await pathExists(configPath);
@@ -1132,11 +1139,10 @@ export function renderInstallPlan(plan: InstallPlan): string {
   text += "Config:\n";
   text += line(plan.config.action, plan.config.path, plan.config.reason);
   if (plan.harnesses !== undefined) text += renderHarnesses(plan.harnesses, plan.config);
-  text += "Hooks:\n";
-  text +=
-    plan.hook === undefined
-      ? "  none     (add --hooks to install the Claude Code ultrawork hook)\n"
-      : line(plan.hook.action, `Claude UserPromptSubmit in ${plan.hook.settingsPath}`);
+  if (plan.hooks.length > 0) {
+    text += "Hooks:\n";
+    for (const hook of plan.hooks) text += line(hook.action, `Claude UserPromptSubmit in ${hook.settingsPath}`, "retired");
+  }
   if (plan.workflows !== undefined && (plan.workflows.steps.length > 0 || plan.workflows.skipped !== undefined)) {
     text += `T3 workflows (${plan.workflows.dir}):\n`;
     if (plan.workflows.skipped !== undefined) text += `  skip     (${plan.workflows.skipped})\n`;

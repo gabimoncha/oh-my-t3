@@ -303,7 +303,6 @@
     }
   },
   "limits": {
-    "maxParallel": 6,
     "maxDepth": 1,
     "maxReviewRounds": 4
   }

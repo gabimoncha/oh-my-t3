@@ -33,9 +33,40 @@ import {
 import { detectJsonStyle } from "../../src/install/claudeHook.ts";
 import { MANAGED_MARKER } from "../../src/util/fs.ts";
 import { childEnv, CLI_PATH, gitRepo, OMT_GITIGNORE, writeFile } from "../helpers.ts";
-import { assertAllUnchanged, contentTree, makeFixture, readJson, snapshot, STAMP } from "./fixture.ts";
+import { assertAllUnchanged, contentTree, makeFixture, readJson, recordOldHook, snapshot, STAMP, withOldHook } from "./fixture.ts";
 import type { Fixture } from "./fixture.ts";
 import { doctor } from "../run.ts";
+
+const OLD_STAMP = "20251201000000";
+
+// settings.local.json as an install of an earlier release with --hooks left it: `settings` plus the omt entry.
+function hooked(settings: Record<string, unknown>, indent: string | number = 2, newline = "\n"): string {
+  return `${JSON.stringify(withOldHook(settings), null, indent)}${newline}`;
+}
+
+// Plants in a project that the current install set up what an install of an earlier release with --hooks
+// left: `text` in settings.local.json, the manifest record of the omt entry, and, with `backup`, the
+// install-time backup with those bytes. `created` marks a settings file that the old install created.
+function plantOldHook(project: string, text: string, options: { backup?: string; created?: boolean } = {}): string {
+  const local = join(project, ".claude", "settings.local.json");
+  const manifestPath = join(project, ".omt3", "install.json");
+  writeFile(local, text);
+  if (options.backup !== undefined) {
+    const backup = join(project, ".omt3", "backups", OLD_STAMP, "claude-settings.json");
+    writeFile(backup, options.backup);
+    recordOldHook(manifestPath, local, { backup });
+  } else {
+    recordOldHook(manifestPath, local, options.created === true ? { created: true } : {});
+  }
+  if (options.created === true) {
+    const manifest = readJson(manifestPath);
+    (manifest.project as Record<string, unknown>).settingsCreated = true;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  }
+  return local;
+}
+
+const REMOVE_LINE = (path: string) => new RegExp(`^ {2}remove {3}Claude UserPromptSubmit in ${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} {2}\\(retired\\)$`, "m");
 
 const GIT_EXCLUDE_DEFAULT = "# git ls-files --others --exclude-from=.git/info/exclude\n# *~\n";
 
@@ -130,12 +161,15 @@ test("install --project writes copies, relative links, config, shim, .gitignore,
   assert.match(again.ctx.out(), /Everything is up to date\./);
 });
 
-test("install --project --dry-run writes nothing", async () => {
+test("install --project --dry-run plans the retired hook removal and writes nothing", async () => {
   const f = projectFixture();
+  const local = join(f.project, ".claude", "settings.local.json");
+  writeFile(local, hooked({ theme: "dark" }));
   const before = snapshot(f.root);
-  const { ctx } = await f.runOk(["install", "--project", "--hooks", "--dry-run"]);
+  const { ctx } = await f.runOk(["install", "--project", "--dry-run"]);
   assert.match(ctx.out(), /create {3}.*\.omt3[/\\]bin[/\\]omt/);
   assert.match(ctx.out(), /create {3}managed block in /);
+  assert.match(ctx.out(), REMOVE_LINE(local));
   assert.deepEqual(snapshot(f.root), before);
 });
 
@@ -209,12 +243,12 @@ test("--no-git-exclude writes no block; it needs --project", async () => {
   assert.equal((await f.run(["install", "--no-git-exclude", "--yes"])).code, 2);
 });
 
-test("created .omt3 files and /.claude/settings.local.json are excluded only when the install created them", async () => {
+test("created .omt3 files are excluded only when the install created them, and a settings.local.json that an old install created stays excluded", async () => {
   const f = projectFixture();
   mkdirSync(join(f.project, ".omt3"));
   mkdirSync(join(f.project, ".claude"));
   writeFileSync(join(f.project, ".claude", "settings.local.json"), '{ "theme": "dark" }\n');
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
+  await f.runOk(["install", "--project", "--yes"]);
   assert.equal(
     readFileSync(f.exclude, "utf8"),
     `${GIT_EXCLUDE_DEFAULT}${block(f.project, ...SKILL_ENTRIES, ...CREATED_OMT)}\n`,
@@ -224,46 +258,49 @@ test("created .omt3 files and /.claude/settings.local.json are excluded only whe
   assert.equal(project.settingsCreated, false);
   assert.deepEqual(
     project.dirs,
-    [join(".omt3", "plans"), join(".omt3", "bin"), join(".omt3", "backups"), ".agents", join(".agents", "skills"), join(".claude", "skills")].map((dir) => join(f.project, dir)),
+    [join(".omt3", "plans"), join(".omt3", "bin"), ".agents", join(".agents", "skills"), join(".claude", "skills")].map((dir) => join(f.project, dir)),
   );
 
   const g = projectFixture();
-  await g.runOk(["install", "--project", "--hooks", "--yes"]);
+  await g.runOk(["install", "--project", "--yes"]);
+  const local = plantOldHook(g.project, hooked({ permissions: { allow: ["Bash(ls)"] } }), { created: true });
+  await g.runOk(["install", "--project", "--yes"]);
+  assert.deepEqual(readJson(local), { permissions: { allow: ["Bash(ls)"] } }, "the created file keeps the user's keys");
+  assert.equal((readJson(join(g.project, ".omt3", "install.json")).project as Record<string, unknown>).settingsCreated, true);
   assert.equal(
     readFileSync(g.exclude, "utf8"),
     `${GIT_EXCLUDE_DEFAULT}${block(g.project, ...SKILL_ENTRIES, ...CREATED_OMT, "/.claude/settings.local.json")}\n`,
   );
-  // A second run still knows that it created both paths.
-  const again = await g.run(["install", "--project", "--hooks", "--yes"]);
+  // A second run still knows that the old install created the settings file.
+  const again = await g.run(["install", "--project", "--yes"]);
   assertAllUnchanged(again.ctx.out(), { ignoreNone: true });
 });
 
-test("--hooks --project edits only settings.local.json, and uninstall removes only the omt entry", async () => {
+test("install --project removes only the omt entry from settings.local.json and leaves the user settings.json alone", async () => {
   const f = projectFixture();
   const local = join(f.project, ".claude", "settings.local.json");
-  mkdirSync(join(f.project, ".claude"));
   const mine = { type: "command", command: "echo mine" };
-  writeFileSync(local, JSON.stringify({ theme: "dark", hooks: { UserPromptSubmit: [{ hooks: [mine] }] } }, null, 2));
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
-  assert.ok(!existsSync(f.settings), "the user settings.json stays absent");
+  const user = hooked({ theme: "light" });
+  writeFile(f.settings, user);
+  const text = hooked({ theme: "dark", hooks: { UserPromptSubmit: [{ hooks: [mine] }] } });
+  writeFile(local, text);
+  const { ctx } = await f.runOk(["install", "--project", "--yes"]);
+  assert.match(ctx.out(), REMOVE_LINE(local));
+  assert.doesNotMatch(ctx.out(), new RegExp(f.settings));
+  assert.equal(readFileSync(f.settings, "utf8"), user, "the user settings.json is not the project's to clean");
   assert.ok(!existsSync(join(f.project, ".claude", "settings.json")));
-  const settings = readJson(local) as { theme: string; hooks: { UserPromptSubmit: { hooks: { command: string }[] }[] } };
-  assert.equal(settings.hooks.UserPromptSubmit.length, 2);
-  assert.match(settings.hooks.UserPromptSubmit[1]?.hooks[0]?.command ?? "", /hook user-prompt-submit # oh-my-t3code$/);
-
-  await f.runOk(["uninstall", "--project", "--yes"]);
   assert.deepEqual(readJson(local), { theme: "dark", hooks: { UserPromptSubmit: [{ hooks: [mine] }] } });
-  assert.ok(!existsSync(join(f.project, ".omt3", "backups")), "the install-time backup was restored and removed");
+  assert.equal(readFileSync(join(f.project, ".omt3", "backups", STAMP, "claude-settings.json"), "utf8"), text);
+  assert.deepEqual(readJson(join(f.project, ".omt3", "install.json")).hooks, []);
 });
 
-test("uninstall --project removes what the install added and keeps plans and the ledger", async () => {
+test("uninstall --project removes what the install added, and a settings file that an old install created, and keeps plans and the ledger", async () => {
   const f = projectFixture();
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
+  await f.runOk(["install", "--project", "--yes"]);
   writeFileSync(join(f.project, ".omt3", "ledger.jsonl"), "{}\n");
   writeFileSync(join(f.project, ".omt3", "plans", "demo.md"), "# demo\n");
 
   const { ctx } = await f.runOk(["uninstall", "--project", "--yes"]);
-  assert.deepEqual(ctx.out().match(/backup/g), null, "a created settings file holding only the omt entry is deleted without a backup");
   assert.match(ctx.out(), /keep {5}.*\.gitignore {2}\(keeps the ledger and evidence that stay out of git\)/);
   assert.match(ctx.out(), /keep {5}.*install\.json {2}\(records the created files that stay\)/);
   assert.equal(readFileSync(f.exclude, "utf8"), `${GIT_EXCLUDE_DEFAULT}${block(f.project, "/.omt3/.gitignore", "/.omt3/install.json")}\n`);
@@ -273,8 +310,10 @@ test("uninstall --project removes what the install added and keeps plans and the
   assert.deepEqual(readJson(join(f.home, ".config", "oh-my-t3", "projects.json")), { version: 1, projects: [] });
 
   const g = projectFixture();
-  await g.runOk(["install", "--project", "--hooks", "--yes"]);
-  await g.runOk(["uninstall", "--project", "--yes"]);
+  await g.runOk(["install", "--project", "--yes"]);
+  plantOldHook(g.project, hooked({}), { created: true });
+  const removed = await g.runOk(["uninstall", "--project", "--yes"]);
+  assert.deepEqual(removed.ctx.out().match(/backup/g), null, "a created settings file holding only the omt entry is deleted without a backup");
   assert.deepEqual(readdirSync(g.project), [".git"]);
 });
 
@@ -442,18 +481,25 @@ test("doctor --project checks the shim and the exclude block, and skips path and
   const empty = await doctor(f, ["--project"]);
   assert.deepEqual(
     empty.report.checks.map((c) => c.id),
-    ["runtime", "config", "defaults", "harnesses", "skills", "links", "hooks", "shim", "exclude", "t3", "worktree"],
+    ["runtime", "config", "defaults", "harnesses", "skills", "links", "shim", "exclude", "t3", "worktree"],
   );
   assert.equal(empty.get("shim").status, "WARN");
   assert.equal(empty.get("exclude").status, "WARN");
 
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
+  await f.runOk(["install", "--project", "--yes"]);
   const ok = await doctor(f, ["--project"]);
   assert.equal(ok.get("skills").status, "PASS");
   assert.equal(ok.get("links").status, "PASS");
-  assert.equal(ok.get("hooks").status, "PASS");
+  assert.ok(!ok.report.checks.some((c) => c.id === "hooks"), "no hooks check without a retired hook");
   assert.equal(ok.get("shim").status, "PASS");
   assert.equal(ok.get("exclude").status, "PASS");
+
+  const local = join(f.project, ".claude", "settings.local.json");
+  writeFileSync(local, hooked({}));
+  const left = await doctor(f, ["--project"]);
+  assert.equal(left.get("hooks").status, "WARN");
+  assert.equal(left.get("hooks").message, `the retired omt prompt hook is still in ${local}; run omt update to remove it`);
+  rmSync(local);
 
   const shim = join(f.project, ".omt3", "bin", "omt");
   writeFileSync(shim, readFileSync(shim, "utf8").replace(CLI_PATH, join(f.root, "gone", "cli.ts")));
@@ -496,62 +542,73 @@ function gitFixture(files: Record<string, string> = {}) {
 
 const SETTINGS = { permissions: { allow: ["Bash(ls)"] }, theme: "dark" };
 
-test("a settings.local.json in its own style is edited in that style and restored byte for byte", async () => {
-  const styles: Record<string, string> = {
-    "4 spaces, newline": `${JSON.stringify(SETTINGS, null, 4)}\n`,
-    "4 spaces, no newline": JSON.stringify(SETTINGS, null, 4),
-    "tab, newline": `${JSON.stringify(SETTINGS, null, "\t")}\n`,
-    "tab, no newline": JSON.stringify(SETTINGS, null, "\t"),
-    "compact, newline": `${JSON.stringify(SETTINGS)}\n`,
-    "compact, no newline": JSON.stringify(SETTINGS),
+test("a retired hook removal keeps the settings.local.json style and restores the install-time backup byte for byte", async () => {
+  const styles: Record<string, [indent: string | number, newline: string]> = {
+    "4 spaces, newline": [4, "\n"],
+    "4 spaces, no newline": [4, ""],
+    "tab, newline": ["\t", "\n"],
+    "tab, no newline": ["\t", ""],
+    "compact, newline": ["", "\n"],
+    "compact, no newline": ["", ""],
   };
-  for (const [name, text] of Object.entries(styles)) {
+  for (const [name, [indent, newline]] of Object.entries(styles)) {
+    const text = `${JSON.stringify(SETTINGS, null, indent)}${newline}`;
+    // Without a backup record, the removal rewrites the file in its own style and backs the old file up.
     const f = gitFixture({ ".claude/settings.local.json": text });
-    const local = join(f.project, ".claude", "settings.local.json");
-    const before = f.status();
-    await f.runOk(["install", "--project", "--hooks", "--yes"]);
-    assert.equal(f.git(["status", "--porcelain"]), " M .claude/settings.local.json\n", name);
-    const edited = readFileSync(local, "utf8");
-    const indent = name.startsWith("4") ? 4 : name.startsWith("tab") ? "\t" : undefined;
-    const newline = name.endsWith(", newline") ? "\n" : "";
-    assert.equal(edited, `${JSON.stringify(JSON.parse(edited), null, indent)}${newline}`, `${name}: the edit keeps the style`);
+    await f.runOk(["install", "--project", "--yes"]);
+    const old = hooked(SETTINGS, indent, newline);
+    const local = plantOldHook(f.project, old);
+    await f.runOk(["install", "--project", "--yes"]);
+    assert.equal(readFileSync(local, "utf8"), text, `${name}: the removal keeps the style`);
+    assert.equal(readFileSync(join(f.project, ".omt3", "backups", STAMP, "claude-settings.json"), "utf8"), old, name);
     assert.equal(readFileSync(join(f.project, ".omt3", "backups", ".gitignore"), "utf8"), "*\n", name);
-
-    await f.runOk(["uninstall", "--project", "--yes"]);
-    assert.equal(readFileSync(local, "utf8"), text, `${name}: restored byte for byte`);
     assert.equal(f.git(["status", "--porcelain"]), "", name);
-    assert.equal(f.status(), before, name);
-    assert.ok(!existsSync(join(f.project, ".omt3")), `${name}: the backup and .omt3 are gone`);
+
+    // With the install-time backup, the removal writes its bytes back and deletes it.
+    const g = gitFixture({ ".claude/settings.local.json": text });
+    const before = g.status();
+    await g.runOk(["install", "--project", "--yes"]);
+    plantOldHook(g.project, old, { backup: text });
+    await g.runOk(["install", "--project", "--yes"]);
+    assert.equal(readFileSync(join(g.project, ".claude", "settings.local.json"), "utf8"), text, `${name}: restored byte for byte`);
+    assert.ok(!existsSync(join(g.project, ".omt3", "backups")), `${name}: the restored backup is gone`);
+    assert.equal(g.git(["status", "--porcelain"]), "", name);
+    await g.runOk(["uninstall", "--project", "--yes"]);
+    assert.equal(g.status(), before, name);
+    assert.ok(!existsSync(join(g.project, ".omt3")), `${name}: .omt3 is gone`);
   }
 });
 
-test("backups/.gitignore hides a backup that the uninstall keeps", async () => {
+test("backups/.gitignore hides the backup of a retired hook removal, which the uninstall keeps", async () => {
   const f = gitFixture({ ".claude/settings.local.json": `${JSON.stringify(SETTINGS, null, 2)}\n` });
-  const local = join(f.project, ".claude", "settings.local.json");
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
+  await f.runOk(["install", "--project", "--yes"]);
+  // The user edited the file after the old install, so its install-time backup no longer matches.
+  const edited = hooked({ ...SETTINGS, model: "opus" });
+  const local = plantOldHook(f.project, edited, { backup: `${JSON.stringify(SETTINGS, null, 2)}\n` });
+  await f.runOk(["install", "--project", "--yes"]);
+  assert.deepEqual(readJson(local), { ...SETTINGS, model: "opus" });
+  assert.equal(readFileSync(join(f.project, ".omt3", "backups", STAMP, "claude-settings.json"), "utf8"), edited);
   const ignore = join(f.project, ".omt3", "backups", ".gitignore");
   assert.equal(readFileSync(ignore, "utf8"), "*\n");
   const manifest = readJson(join(f.project, ".omt3", "install.json"));
-  const files = manifestFiles(manifest);
-  assert.ok(files.includes(ignore));
-  assert.equal((manifest.hooks as { backup?: string }[])[0]?.backup, join(f.project, ".omt3", "backups", STAMP, "claude-settings.json"));
+  assert.ok(manifestFiles(manifest).includes(ignore));
+  assert.deepEqual(manifest.hooks, []);
 
-  // The user edits the file while omt is installed, so the uninstall cannot restore the backup.
-  writeFileSync(local, JSON.stringify({ ...readJson(local), model: "opus" }, null, 2) + "\n");
   await f.runOk(["uninstall", "--project", "--yes"], { now: () => new Date("2026-01-02T03:04:06.000Z") });
   assert.deepEqual(readJson(local), { ...SETTINGS, model: "opus" });
-  assert.ok(existsSync(join(f.project, ".omt3", "backups", "20260102030406", "claude-settings.json")));
+  assert.ok(existsSync(join(f.project, ".omt3", "backups", STAMP, "claude-settings.json")));
   assert.equal(readFileSync(ignore, "utf8"), "*\n");
   assert.equal(f.git(["status", "--porcelain"]), " M .claude/settings.local.json\n", "git shows no backup");
 });
 
-test.skipIf(process.getuid?.() === 0)("an exclude file that cannot be written stops the install before any other write", async () => {
+test.skipIf(process.getuid?.() === 0)("an exclude file that cannot be written stops the install before any other write, the hook removal too", async () => {
   const f = projectFixture();
+  writeFile(join(f.project, ".claude", "settings.local.json"), hooked({ theme: "dark" }));
   const info = dirname(f.exclude);
   chmodSync(f.exclude, 0o444);
   chmodSync(info, 0o555);
   const before = snapshot(f.root);
-  const { code, ctx } = await f.run(["install", "--project", "--hooks", "--yes"]);
+  const { code, ctx } = await f.run(["install", "--project", "--yes"]);
   chmodSync(info, 0o755);
   chmodSync(f.exclude, 0o644);
   assert.equal(code, 1);
@@ -666,25 +723,6 @@ test("the shim falls back to bun on PATH when the recorded runtime is missing", 
   assert.equal(report.get("shim").status, "WARN");
 });
 
-test("the project hook command calls the shim", async () => {
-  const f = projectFixture();
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
-  const shim = join(f.project, ".omt3", "bin", "omt");
-  const settings = readJson(join(f.project, ".claude", "settings.local.json")) as {
-    hooks: { UserPromptSubmit: { hooks: { command: string }[] }[] };
-  };
-  const command = settings.hooks.UserPromptSubmit[0]?.hooks[0]?.command ?? "";
-  assert.equal(command, `"${shim}" hook user-prompt-submit # oh-my-t3code`);
-  const out = execFileSync("/bin/sh", ["-c", command], {
-    cwd: f.project,
-    env: childEnv(f.root),
-    input: JSON.stringify({ prompt: "start ulw fix the bug", hook_event_name: "UserPromptSubmit" }),
-    encoding: "utf8",
-  });
-  assert.match(out, /omt-ulw/);
-  assert.equal((await doctor(f, ["--project"])).get("hooks").status, "PASS");
-});
-
 test("doctor --project names the running CLI in its install hint", async () => {
   const f = projectFixture();
   await f.runOk(["install", "--project", "--yes"]);
@@ -697,11 +735,15 @@ test("doctor --project names the running CLI in its install hint", async () => {
 
 const INLINE_SETTINGS = '{\n  "permissions": { "allow": ["Bash(ls)"] }\n}\n';
 
-test("uninstall in a copied project changes only the copy, and an install there records only the copy's paths", async () => {
+// settings.local.json with INLINE_SETTINGS and the omt entry, in the layout that the old install wrote.
+const INLINE_HOOKED = hooked(JSON.parse(INLINE_SETTINGS) as Record<string, unknown>);
+
+test("uninstall in a copied project changes only the copy, hook restore included, and an install there records only the copy's paths", async () => {
   const f = gitFixture({ ".claude/settings.local.json": INLINE_SETTINGS });
   const treeBefore = contentTree(f.project);
   const statusBefore = f.status();
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
+  await f.runOk(["install", "--project", "--yes"]);
+  plantOldHook(f.project, INLINE_HOOKED, { backup: INLINE_SETTINGS });
   const copy = join(f.root, "copy");
   cpSync(f.project, copy, { recursive: true, verbatimSymlinks: true });
   const original = contentTree(f.project);
@@ -715,18 +757,22 @@ test("uninstall in a copied project changes only the copy, and an install there 
 
   const second = join(f.root, "second");
   cpSync(f.project, second, { recursive: true, verbatimSymlinks: true });
-  await f.runOk(["install", "--project", "--hooks", "--yes"], { cwd: second });
+  await f.runOk(["install", "--project", "--yes"], { cwd: second });
+  assert.deepEqual(contentTree(f.project), original, "the install in the copy leaves the original alone");
+  assert.equal(readFileSync(join(second, ".claude", "settings.local.json"), "utf8"), INLINE_SETTINGS, "the copy's backup is restored");
   const manifest = readFileSync(join(second, ".omt3", "install.json"), "utf8");
   assert.ok(!manifest.includes(`${f.project}/`), "the manifest of the copy names no path of the original");
   const exclude = readFileSync(join(second, ".git", "info", "exclude"), "utf8");
   assert.ok(!exclude.includes("/../"), exclude);
   assert.ok(!exclude.includes(excludeBegin(f.project)), "the copied block of the original is replaced");
-  assert.equal(f.shown(second), " M .claude/settings.local.json\n", "git shows only the tracked settings file");
+  assert.equal(f.shown(second), "", "git shows nothing in the copy");
 });
 
-test("a tracked project manifest with paths outside the root never touches the user install", async () => {
+test("a tracked project manifest with paths outside the root never touches the user install or its retired hook", async () => {
   const f = projectFixture();
-  await f.runOk(["install", "--hooks", "--yes"]);
+  await f.runOk(["install", "--yes"]);
+  writeFile(f.settings, hooked({}));
+  recordOldHook(f, f.settings, { created: true });
   const user = snapshot(f.home);
   mkdirSync(join(f.project, ".omt3"));
   const manifest = {
@@ -754,20 +800,24 @@ test("a moved clone: doctor, reinstall, and uninstall give back the tree and the
   const treeBefore = contentTree(f.project);
   const statusBefore = f.status();
   const excludeBefore = readFileSync(f.exclude, "utf8");
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
+  await f.runOk(["install", "--project", "--yes"]);
+  plantOldHook(f.project, INLINE_HOOKED, { backup: INLINE_SETTINGS });
   const moved = join(f.root, "moved");
   renameSync(f.project, moved);
+  const local = join(moved, ".claude", "settings.local.json");
 
   const report = await doctor(f, ["--project"], { cwd: moved });
-  assert.equal(report.get("hooks").status, "FAIL");
-  assert.match(report.report.checks.find((c) => c.id === "hooks")?.message ?? "", /install --project --hooks/);
+  assert.equal(report.get("hooks").status, "WARN");
+  assert.equal(report.get("hooks").message, `the retired omt prompt hook is still in ${local}; run omt update to remove it`);
 
-  const reinstalled = await f.runOk(["install", "--project", "--hooks", "--yes"], { cwd: moved });
-  assert.doesNotMatch(reinstalled.ctx.out(), /^backup/m, "the update needs no new backup");
+  const reinstalled = await f.runOk(["install", "--project", "--yes"], { cwd: moved });
+  assert.match(reinstalled.ctx.out(), REMOVE_LINE(local));
+  assert.doesNotMatch(reinstalled.ctx.out(), /^backup/m, "the moved install-time backup is restored, so the removal needs no new backup");
+  assert.equal(readFileSync(local, "utf8"), INLINE_SETTINGS);
   const exclude = readFileSync(join(moved, ".git", "info", "exclude"), "utf8");
   assert.ok(!exclude.includes(excludeBegin(f.project)), "the block of the old root is replaced");
   assert.ok(exclude.includes(excludeBegin(moved)));
-  assert.equal(f.shown(moved), " M .claude/settings.local.json\n");
+  assert.equal(f.shown(moved), "");
 
   await f.runOk(["uninstall", "--project", "--yes"], { cwd: moved });
   assert.equal(readFileSync(join(moved, ".claude", "settings.local.json"), "utf8"), INLINE_SETTINGS);
@@ -776,11 +826,12 @@ test("a moved clone: doctor, reinstall, and uninstall give back the tree and the
   assert.deepEqual(contentTree(moved), treeBefore);
 });
 
-test("uninstall of a moved clone without a reinstall removes the old root's block and every created path", async () => {
+test("uninstall of a moved clone without a reinstall removes the old root's block and every created path, an old created settings file too", async () => {
   const f = gitFixture();
   const treeBefore = contentTree(f.project);
   const excludeBefore = readFileSync(f.exclude, "utf8");
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
+  await f.runOk(["install", "--project", "--yes"]);
+  plantOldHook(f.project, hooked({}), { created: true });
   const moved = join(f.root, "moved");
   renameSync(f.project, moved);
   await f.runOk(["uninstall", "--project", "--yes"], { cwd: moved });
@@ -807,28 +858,32 @@ test("--project refuses a root that is the home directory or shares the user-sco
   assert.deepEqual(snapshot(f.home), user, "the user install stays");
 });
 
-test("a dangling settings symlink stays a symlink, and uninstall removes only the target the install created", async () => {
+test("a settings symlink stays a symlink when the retired hook goes, and only the target that the old install created is deleted", async () => {
   const f = projectFixture();
   const local = join(f.project, ".claude", "settings.local.json");
   const target = join(f.project, "dot", "settings.local.json");
   mkdirSync(join(f.project, ".claude"));
   symlinkSync(target, local);
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
-  assert.ok(lstatSync(local).isSymbolicLink());
-  assert.match(readFileSync(target, "utf8"), /# oh-my-t3code/);
-  assert.doesNotMatch(readFileSync(f.exclude, "utf8"), /settings\.local\.json/, "the link is the user's");
-  await f.runOk(["uninstall", "--project", "--yes"]);
+  await f.runOk(["install", "--project", "--yes"]);
+  assert.ok(lstatSync(local).isSymbolicLink(), "a dangling link holds no hook, so the install leaves it alone");
+  assert.ok(!existsSync(target));
+  // The old install created the link's target.
+  writeFile(target, hooked({}));
+  recordOldHook(join(f.project, ".omt3", "install.json"), local, { created: true });
+  await f.runOk(["install", "--project", "--yes"]);
   assert.ok(lstatSync(local).isSymbolicLink(), "the user's link stays");
   assert.equal(readlinkSync(local), target);
-  assert.ok(!existsSync(target), "the target that the install created goes");
+  assert.ok(!existsSync(target), "the target that the old install created goes");
+  assert.doesNotMatch(readFileSync(f.exclude, "utf8"), /settings\.local\.json/, "the link is the user's");
 
   const g = projectFixture();
   const userTarget = join(g.root, "dot", "settings.json");
   mkdirSync(dirname(g.settings), { recursive: true });
   symlinkSync(userTarget, g.settings);
-  await g.runOk(["install", "--hooks", "--yes"]);
-  assert.match(readFileSync(userTarget, "utf8"), /# oh-my-t3code/);
-  await g.runOk(["uninstall", "--yes"]);
+  await g.runOk(["install", "--yes"]);
+  writeFile(userTarget, hooked({}));
+  recordOldHook(g, g.settings, { created: true });
+  await g.runOk(["install", "--yes"]);
   assert.ok(lstatSync(g.settings).isSymbolicLink());
   assert.ok(!existsSync(userTarget));
 });
@@ -913,14 +968,14 @@ test("--no-git-exclude: uninstall removes the lines it appended to a tracked .om
 
 test("--no-git-exclude on a reinstall removes the earlier block, and doctor reports the choice as INFO", async () => {
   const f = projectFixture();
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
-  const again = await f.runOk(["install", "--project", "--hooks", "--no-git-exclude", "--yes"]);
+  await f.runOk(["install", "--project", "--yes"]);
+  const again = await f.runOk(["install", "--project", "--no-git-exclude", "--yes"]);
   assert.match(again.ctx.out(), /remove {3}managed block in .*\(--no-git-exclude\)/);
   assert.equal(readFileSync(f.exclude, "utf8"), GIT_EXCLUDE_DEFAULT);
   const report = await doctor(f, ["--project"]);
   assert.equal(report.get("exclude").status, "INFO");
   assert.match(report.report.checks.find((c) => c.id === "exclude")?.message ?? "", /--no-git-exclude/);
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
+  await f.runOk(["install", "--project", "--yes"]);
   assert.equal((await doctor(f, ["--project"])).get("exclude").status, "PASS");
 });
 
@@ -950,25 +1005,24 @@ test("install and uninstall through a symlinked path of the same project run onc
   symlinkSync(f.project, alias);
   const treeBefore = contentTree(f.project);
   const excludeBefore = readFileSync(f.exclude, "utf8");
-  await f.runOk(["install", "--project", "--hooks", "--yes"], { cwd: alias });
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
+  await f.runOk(["install", "--project", "--yes"], { cwd: alias });
+  await f.runOk(["install", "--project", "--yes"]);
   assert.equal(excludeBlockCount(readFileSync(f.exclude, "utf8")), 1);
   await f.runOk(["uninstall", "--project", "--yes"], { cwd: alias });
   assert.equal(readFileSync(f.exclude, "utf8"), excludeBefore);
   assert.deepEqual(contentTree(f.project), treeBefore);
 
-  await f.runOk(["install", "--project", "--hooks", "--yes"], { cwd: alias });
+  await f.runOk(["install", "--project", "--yes"], { cwd: alias });
   await f.runOk(["uninstall", "--project", "--yes"]);
   assert.equal(readFileSync(f.exclude, "utf8"), excludeBefore);
   assert.deepEqual(contentTree(f.project), treeBefore);
 });
 
-test("a created settings.local.json that keeps other keys stays hidden from git after uninstall", async () => {
+test("a settings.local.json that an old install created and that keeps other keys stays hidden from git after uninstall", async () => {
   const f = gitFixture();
   const statusBefore = f.status();
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
-  const local = join(f.project, ".claude", "settings.local.json");
-  writeFileSync(local, JSON.stringify({ ...readJson(local), permissions: { allow: ["Bash(ls)"] } }, null, 2));
+  await f.runOk(["install", "--project", "--yes"]);
+  const local = plantOldHook(f.project, hooked({ permissions: { allow: ["Bash(ls)"] } }), { created: true });
   await f.runOk(["uninstall", "--project", "--yes"]);
   assert.deepEqual(readJson(local), { permissions: { allow: ["Bash(ls)"] } });
   assert.equal(f.shown(), "");
@@ -985,37 +1039,53 @@ test("the ledger and evidence stay out of git after uninstall", async () => {
   assert.equal(f.shown(), "");
 });
 
-test.skipIf(process.getuid?.() === 0)("a hook install into a new settings file writes no backups .gitignore; a failed run leaves nothing that git shows", async () => {
+test.skipIf(process.getuid?.() === 0)("a hook removal that deletes a created settings file writes no backups .gitignore; a failed removal leaves nothing that git shows", async () => {
   const f = projectFixture();
-  await f.runOk(["install", "--project", "--hooks", "--yes"]);
+  await f.runOk(["install", "--project", "--yes"]);
+  const created = plantOldHook(f.project, hooked({}), { created: true });
+  await f.runOk(["install", "--project", "--yes"]);
+  assert.ok(!existsSync(created));
   assert.ok(!existsSync(join(f.project, ".omt3", "backups")));
 
-  const g = gitFixture({ ".claude/skills/.keep": "", ".claude/settings.local.json": INLINE_SETTINGS });
+  // settings.local.json is ignored by the repository, as Claude Code sets it up.
+  const g = gitFixture({ ".gitignore": ".claude/settings.local.json\n", ".claude/skills/.keep": "" });
+  const local = join(g.project, ".claude", "settings.local.json");
+  writeFileSync(local, hooked(JSON.parse(INLINE_SETTINGS) as Record<string, unknown>));
   const treeBefore = contentTree(g.project);
   const excludeBefore = readFileSync(g.exclude, "utf8");
   chmodSync(join(g.project, ".claude"), 0o555);
-  const failed = await g.run(["install", "--project", "--hooks", "--yes"]);
+  const failed = await g.run(["install", "--project", "--yes"]);
   chmodSync(join(g.project, ".claude"), 0o755);
   assert.equal(failed.code, 1);
   const manifest = readJson(join(g.project, ".omt3", "install.json"));
   const files = manifestFiles(manifest);
   assert.ok(files.includes(join(g.project, ".omt3", "backups", ".gitignore")), "the provisional manifest records the backups .gitignore");
   assert.equal(g.shown(), "", "git shows nothing after the failed run");
-  await g.runOk(["uninstall", "--project", "--yes"]);
+  await g.runOk(["uninstall", "--project", "--yes"], { now: () => new Date("2026-01-02T03:04:06.000Z") });
   const after = contentTree(g.project);
   const added = Object.keys(after).filter((path) => !(path in treeBefore));
-  // The backup of the settings write that failed stays, hidden by the backups .gitignore.
-  assert.deepEqual(added, [".omt3", ".omt3/backups", ".omt3/backups/.gitignore", `.omt3/backups/${STAMP}`, `.omt3/backups/${STAMP}/claude-settings.json`]);
+  // The backup of the failed removal stays, and so does the backup of the removal that the uninstall made,
+  // both hidden by the backups .gitignore.
+  assert.deepEqual(added, [
+    ".omt3",
+    ".omt3/backups",
+    ".omt3/backups/.gitignore",
+    `.omt3/backups/${STAMP}`,
+    `.omt3/backups/${STAMP}/claude-settings.json`,
+    ".omt3/backups/20260102030406",
+    ".omt3/backups/20260102030406/claude-settings.json",
+  ]);
   assert.equal(readFileSync(g.exclude, "utf8"), excludeBefore, "no block hides a leftover");
   assert.equal(g.shown(), "");
-  for (const path of Object.keys(treeBefore)) assert.equal(after[path], treeBefore[path], path);
+  assert.deepEqual(readJson(local), JSON.parse(INLINE_SETTINGS));
+  for (const path of Object.keys(treeBefore)) if (path !== ".claude/settings.local.json") assert.equal(after[path], treeBefore[path], path);
 });
 
 // Each case edits the install the way normal use does, so the uninstall keeps a file that it created.
 const KEPT_CASES: Record<string, (project: string) => void> = {
+  // An old install created settings.local.json for its hook, and Claude Code wrote permissions into it.
   "Claude Code permissions": (project) => {
-    const local = join(project, ".claude", "settings.local.json");
-    writeFileSync(local, JSON.stringify({ ...readJson(local), permissions: { allow: ["Bash(ls)"] } }, null, 2));
+    plantOldHook(project, hooked({ permissions: { allow: ["Bash(ls)"] } }), { created: true });
   },
   "the ledger": (project) => writeFileSync(join(project, ".omt3", "ledger.jsonl"), "{}\n"),
   "an edited config": (project) => writeFileSync(join(project, ".omt3", "config.jsonc"), `${PROJECT_STARTER_CONFIG}// mine\n`),
@@ -1024,7 +1094,7 @@ const KEPT_CASES: Record<string, (project: string) => void> = {
 test("after an uninstall keeps created files, a reinstall and further uninstalls show nothing in git", async () => {
   for (const [name, edit] of Object.entries(KEPT_CASES)) {
     const f = gitFixture();
-    await f.runOk(["install", "--project", "--hooks", "--yes"], undefined, name);
+    await f.runOk(["install", "--project", "--yes"], undefined, name);
     edit(f.project);
     const clean = (step: string) => assert.equal(f.shown(), "", `${name}: ${step}`);
     await f.runOk(["uninstall", "--project", "--yes"], undefined, name);
@@ -1032,7 +1102,7 @@ test("after an uninstall keeps created files, a reinstall and further uninstalls
     const second = await f.runOk(["uninstall", "--project", "--yes"]);
     assert.match(second.ctx.out(), /Nothing to remove/, name);
     clean("second uninstall");
-    await f.runOk(["install", "--project", "--hooks", "--yes"]);
+    await f.runOk(["install", "--project", "--yes"]);
     clean("reinstall");
     await f.runOk(["uninstall", "--project", "--yes"], undefined, name);
     clean("uninstall after the reinstall");
@@ -1202,10 +1272,9 @@ test("a clone of a committed setup: a second uninstall after a reduced manifest 
   f.git(["commit", "-q", "-m", "omt setup"]);
   const bob = join(f.root, "bob");
   f.git(["clone", "-q", f.project, bob], f.root);
-  await f.runOk(["install", "--project", "--hooks", "--yes"], { cwd: bob });
-  const local = join(bob, ".claude", "settings.local.json");
-  const settings = readJson(local);
-  writeFileSync(local, `${JSON.stringify({ ...settings, permissions: { allow: ["Bash(ls)"] } }, null, 2)}\n`);
+  await f.runOk(["install", "--project", "--yes"], { cwd: bob });
+  // An old install created settings.local.json for its hook, and Claude Code wrote permissions into it.
+  plantOldHook(bob, hooked({ permissions: { allow: ["Bash(ls)"] } }), { created: true });
 
   const first = await f.runOk(["uninstall", "--project", "--yes"], { cwd: bob });
   assert.match(first.ctx.out(), /records the created files that stay/);
@@ -1232,25 +1301,19 @@ test("uninstall --project keeps a project link that points at the user install",
   assert.ok(!existsSync(join(f.project, ".claude", "skills", "alpha")));
 });
 
-test("a project hook update backs up a settings file that is not in the layout omt writes", async () => {
+test("a retired hook removal backs up a settings.local.json that is not in the layout omt writes", async () => {
   const f = projectFixture();
   const local = join(f.project, ".claude", "settings.local.json");
   mkdirSync(dirname(local));
   const other = '"/other/clone/.omt3/bin/omt" hook user-prompt-submit # oh-my-t3code';
   const text = `{\n  "permissions": { "allow": ["Bash(ls)", "Bash(cat)"] },\n  "hooks": { "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": ${JSON.stringify(other)} }] }] }\n}\n`;
   writeFileSync(local, text);
-  const installed = await f.runOk(["install", "--project", "--hooks", "--yes"]);
-  assert.match(installed.ctx.out(), /update {3}Claude UserPromptSubmit/);
+  const installed = await f.runOk(["install", "--project", "--yes"]);
+  assert.match(installed.ctx.out(), REMOVE_LINE(local));
+  assert.deepEqual(readJson(local), { permissions: { allow: ["Bash(ls)", "Bash(cat)"] } });
   assert.equal(readFileSync(join(f.project, ".omt3", "backups", STAMP, "claude-settings.json"), "utf8"), text, "the original bytes stay recoverable");
   assert.equal(readFileSync(join(f.project, ".omt3", "backups", ".gitignore"), "utf8"), "*\n");
-  const manifest = readJson(join(f.project, ".omt3", "install.json"));
-  assert.equal((manifest.hooks as { backup?: string }[])[0]?.backup, undefined, "an update backup is not the install-time backup");
-
-  // A file in the layout that omt writes changes only in the command, so it gets no new backup.
-  writeFileSync(local, readFileSync(local, "utf8").replace(join(f.project, ".omt3"), "/moved/.omt3"));
-  const moved = await f.runOk(["install", "--project", "--hooks", "--yes"], { now: () => new Date("2026-01-02T03:04:10.000Z") });
-  assert.match(moved.ctx.out(), /update {3}Claude UserPromptSubmit/);
-  assert.ok(!existsSync(join(f.project, ".omt3", "backups", "20260102030410")));
+  assert.deepEqual(readJson(join(f.project, ".omt3", "install.json")).hooks, []);
 });
 
 test("a dangling .omt3/.gitignore symlink is the user's: the install writes nothing outside the project", async () => {
@@ -1403,21 +1466,21 @@ test("a kept edited config that the user reverts goes with the next uninstall", 
   assert.deepEqual(contentTree(f.project), treeBefore);
 });
 
-test("project hooks refuse dangling links to absent user settings", async () => {
+test("a project hook removal never writes the user settings through a linked settings.local.json or .claude", async () => {
   for (const parent of [false, true]) {
     const f = projectFixture();
     const local = join(f.project, ".claude", "settings.local.json");
+    writeFile(f.settings, hooked({ theme: "light" }));
     if (parent) symlinkSync(join(f.home, ".claude"), join(f.project, ".claude"));
     else {
       mkdirSync(dirname(local));
       symlinkSync(f.settings, local);
     }
     const before = snapshot(f.home);
-    const result = await f.run(["install", "--project", "--hooks", "--yes"]);
+    const result = await f.run(["install", "--project", "--yes"]);
     assert.ok(result.code !== 0);
     assert.match(result.ctx.err(), /outside the project|shares paths with the user install/);
     assert.deepEqual(snapshot(f.home), before);
-    assert.ok(!existsSync(f.settings));
   }
 });
 

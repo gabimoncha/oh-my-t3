@@ -1,11 +1,11 @@
 import { rm } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { findProjectRoot, manifestPath, omtDir, projectManifestPath, projectConfigPath, userConfigPath } from "../paths.ts";
 import type { CliContext, ConfigLayer, DefaultsChange, OmtConfig } from "../types.ts";
 import { projectWriteTarget, writeTargetFor } from "../install/fsops.ts";
 import { confirmApply } from "../install/confirm.ts";
 import { OmtError } from "../util/errors.ts";
-import { readFileIfExists, writeFileAtomic } from "../util/fs.ts";
+import { lstatIfExists, readFileIfExists, writeFileAtomic } from "../util/fs.ts";
 import { isRecord } from "../util/json.ts";
 import { DEFAULT_CONFIG, diffDefaults, formatValue } from "./defaults.ts";
 import { parseJsonc, setJsoncValue } from "./jsonc.ts";
@@ -46,7 +46,7 @@ export function defaultsSnapshotPath(ctx: Context, scope: Scope): string {
 // built-in defaults.jsonc must both be complete.
 export function isCompleteDefaults(layer: ConfigLayer): boolean {
   if (layer.version !== 1 || layer.profile === undefined || layer.profiles === undefined || layer.roles === undefined ||
-    layer.models === undefined || layer.limits === undefined || layer.limits.maxParallel === undefined ||
+    layer.models === undefined || layer.limits === undefined ||
     layer.limits.maxDepth === undefined || layer.limits.maxReviewRounds === undefined ||
     layer.profiles.normal?.workflow === undefined || !Object.hasOwn(layer.profiles, layer.profile) ||
     layer.profiles[layer.profile] == null) return false;
@@ -146,12 +146,20 @@ export async function planDefaults(ctx: Context, scope: Scope, target: OmtConfig
 export interface RetiredCleanup {
   configPath: string;
   keys: string[]; // dotted paths of the retired keys in the scope's config
-  files: string[]; // files of retired features
+  files: string[]; // files and folders of retired features
 }
 
+// The project state of retired features, by name in .omt3, with the note that the cleanup prints.
+// omt ledger wrote ledger.jsonl, and omt lock and the ledger wrote their lock files in locks/.
+const RETIRED_STATE: Readonly<Record<string, string>> = {
+  "guardrails.md": "the empty $; the guardrails step is retired",
+  "ledger.jsonl": "$; the ledger is retired",
+  locks: "$; omt lock is retired",
+};
+
 // Removes what an earlier release left and this release ignores: each retired key of the scope's config, and in a
-// project an empty .omt3/guardrails.md. Neither has an effect, so the cleanup asks nothing. A guardrails.md with text
-// stays, because it holds proposals that the user may still want.
+// project an empty .omt3/guardrails.md, .omt3/ledger.jsonl, and .omt3/locks/. None has an effect, so the cleanup asks
+// nothing. A guardrails.md with text stays, because it holds proposals that the user may still want.
 export async function cleanRetired(ctx: Context, scope: Scope, options: { dryRun: boolean }): Promise<RetiredCleanup> {
   const root = findProjectRoot(ctx.cwd);
   const configPath = scope === "project" ? projectConfigPath(root) : userConfigPath(ctx.env, ctx.homedir);
@@ -162,13 +170,17 @@ export async function cleanRetired(ctx: Context, scope: Scope, options: { dryRun
   if (scope === "project") {
     const guardrails = join(omtDir(root), "guardrails.md");
     if ((await readFileIfExists(guardrails))?.trim() === "") files.push(guardrails);
+    for (const name of ["ledger.jsonl", "locks"]) {
+      const path = join(omtDir(root), name);
+      if (await lstatIfExists(path) !== undefined) files.push(path);
+    }
   }
   if (options.dryRun) return { configPath, keys, files };
   if (before !== undefined && keys.length > 0) {
     const after = keys.reduce((text, key) => setJsoncValue(text, key.split("."), undefined), before);
     await writeFileAtomic(scope === "project" ? await projectWriteTarget(root, configPath) : await writeTargetFor(configPath), after);
   }
-  for (const file of files) await rm(await projectWriteTarget(root, file), { force: true });
+  for (const file of files) await rm(await projectWriteTarget(root, file), { recursive: true, force: true });
   return { configPath, keys, files };
 }
 
@@ -176,7 +188,7 @@ export function formatRetiredCleanup(cleanup: RetiredCleanup, dryRun: boolean): 
   const verb = dryRun ? "would remove" : "removed";
   let text = "";
   if (cleanup.keys.length > 0) text += `${verb} the retired keys from ${cleanup.configPath}: ${cleanup.keys.join(", ")}\n`;
-  for (const file of cleanup.files) text += `${verb} the empty ${file}; the guardrails step is retired\n`;
+  for (const file of cleanup.files) text += `${verb} ${(RETIRED_STATE[basename(file)] ?? "$").replace("$", file)}\n`;
   return text;
 }
 

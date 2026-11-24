@@ -4,15 +4,14 @@ import { renderBrief, briefTitle, TITLE_MAX } from "../brief/render.ts";
 import type { BriefInput } from "../brief/render.ts";
 import { findRoleTemplate, loadResultContract } from "../brief/templates.ts";
 import { limitArg } from "../config/validate.ts";
-import { appendLedger, closedBy, openStarts, readLedger, requestId, withLedgerLock } from "../ledger/ledger.ts";
-import { parsePlan } from "../plan/parse.ts";
-import { evidenceDir, findProjectRoot, ledgerPath, planPath, projectShimPath } from "../paths.ts";
+import { evidenceDir, findProjectRoot, projectShimPath } from "../paths.ts";
 import { candidateFamily, workerFamily } from "../routing/family.ts";
 import { findRole, harnessOptions, resolveRole, toRouteOutput } from "../routing/resolve.ts";
-import type { BriefJsonOutput, CliContext, CommandRun, LedgerEntry, ResolvedTarget, RoleResolution, Candidate } from "../types.ts";
+import type { BriefJsonOutput, CliContext, CommandRun, ResolvedTarget, RoleResolution, Candidate } from "../types.ts";
 import { parseArgs, positiveInt } from "../util/args.ts";
 import { OmtError, usageError } from "../util/errors.ts";
-import { pathExists, readFileIfExists, writeFileAtomic } from "../util/fs.ts";
+import { pathExists, writeFileAtomic } from "../util/fs.ts";
+import { requestId } from "../util/ids.ts";
 import { formatJson } from "../util/output.ts";
 import { againstOptions, checkAgainst, loadEffectiveConfigReporting, readCapabilities, readInput } from "./shared.ts";
 
@@ -41,17 +40,13 @@ Options:
   --title <text>           thread title for --json output
   --capabilities <file>    with --json: resolve the target against T3
   --against <value>        the provider or driver of the worker whose change the task
-                           reviews, used with --json; auto reads it from the ledger and needs --plan
+                           reviews, used with --json
   --json                   print a ready delegate_task payload
-  --save                   save the full brief; use a short task with --json.
-                           With --json, --plan, and --unit, it also checks the
-                           parallel limit (exit 75 at the limit) and records the
-                           start in the ledger; finish it with omt ledger done
-  --fallback               with --json: use the next target that this unit, role,
-                           and round have not tried; with --save the ledger
-                           holds the tried targets and the attempt
-  --tried <key>            with --fallback and without --save: a target key that
-                           was tried already; repeatable
+  --save                   save the full brief; use a short task with --json
+  --fallback               with --json and --attempt: use the next target that is
+                           not in --tried
+  --tried <key>            with --fallback: the targetKey of a target that was
+                           tried already; repeatable
   --strict                 with --against: exit 1 when the chosen target is in
                            the family of the --against worker, and leave that
                            family out of the fallbacks
@@ -114,11 +109,6 @@ function pick(name: string, list: TargetChoice[], tried: Set<string>): TargetCho
   return chosen;
 }
 
-async function planMaxParallel(root: string, plan: string): Promise<number | undefined> {
-  const markdown = await readFileIfExists(planPath(root, plan));
-  return markdown === undefined ? undefined : parsePlan(markdown).maxParallel;
-}
-
 export const run: CommandRun = async (ctx) => {
   const { values, positionals } = parseArgs(ctx.argv, {
     task: { type: "string" },
@@ -158,19 +148,10 @@ export const run: CommandRun = async (ctx) => {
   const json = values.json === true;
   checkAgainst(values);
   const fallback = values.fallback === true;
-  const recording = json && values.save === true && values.plan !== undefined && values.unit !== undefined;
   if ((fallback || values.strict === true) && !json) throw usageError("--fallback and --strict need --json");
   if (values.tried !== undefined && !fallback) throw usageError("--tried needs --fallback");
   if (values.strict === true && values.against === undefined) throw usageError("--strict needs --against");
-  if (fallback && recording && values.attempt !== undefined) {
-    throw usageError("--fallback with --save picks the attempt from the ledger; leave out --attempt");
-  }
-  if (fallback && recording && values.tried !== undefined) {
-    throw usageError("--fallback with --save reads the tried targets from the ledger; leave out --tried");
-  }
-  if (fallback && !recording && values.attempt === undefined) {
-    throw usageError("--fallback without --save, --plan, and --unit needs --attempt <n>");
-  }
+  if (fallback && values.attempt === undefined) throw usageError("--fallback needs --attempt <n>", "pass the attempt number and each target key that was tried with --tried");
 
   const round = positiveInt("round", values.round) ?? 1;
   const depth = positiveInt("depth", values.depth) ?? 1;
@@ -237,7 +218,7 @@ export const run: CommandRun = async (ctx) => {
   }
 
   const caps = await readCapabilities(ctx, values.capabilities);
-  const against = await againstOptions(ctx, config, role, values);
+  const against = againstOptions(config, values.against);
   const resolution = resolveRole(name, role, caps, {
     ...harnessOptions(config.harnesses, config.roles),
     ...against,
@@ -263,9 +244,9 @@ export const run: CommandRun = async (ctx) => {
     }
   };
 
-  const emit = async (chosen: TargetChoice, chosenAttempt: number, record: boolean) => {
+  const emit = async (chosen: TargetChoice) => {
     const clientRequestId = values.plan !== undefined && values.unit !== undefined
-      ? requestId(values.plan, values.unit, name, round, chosenAttempt) : undefined;
+      ? requestId(values.plan, values.unit, name, round, attempt) : undefined;
     const output: BriefJsonOutput = {
       delegateTask: {
         task: brief,
@@ -285,97 +266,11 @@ export const run: CommandRun = async (ctx) => {
       await writeFileAtomic(savedPath, brief);
       output.delegateTask.task = `Act as the ${name} sub-agent for this task. Your full brief is in the file ${savedPath}. Read it in full first, then follow it exactly. End with the result block that the brief defines.`;
     }
-    if (record && clientRequestId !== undefined) {
-      output.ledger = { done: `${cliCommand} ledger done ${shellWord(clientRequestId)} --verdict <VERDICT>` };
-    }
     return output;
   };
 
-  if (!recording) {
-    const tried = new Set(values.tried ?? []);
-    const chosen = fallback ? pick(name, list, tried) : (list[0] as TargetChoice);
-    checkStrict(chosen);
-    ctx.stdout(formatJson(await emit(chosen, attempt, false)));
-    return 0;
-  }
-
-  const plan = values.plan as string;
-  const unit = values.unit as string;
-  const ledger = ledgerPath(projectRoot);
-  const output = await withLedgerLock(ledger, async () => {
-    const { entries } = await readLedger(ledger);
-    const open = openStarts(entries, plan);
-    if (!fallback) {
-      const id = requestId(plan, unit, name, round, attempt);
-      const resent = open.find((entry) => entry.clientRequestId === id);
-      if (resent !== undefined) {
-        const chosen = list.find((choice) => choice.key === resent.targetKey) ?? (list[0] as TargetChoice);
-        return emit(chosen, attempt, true);
-      }
-      // T3 returns the earlier task for a reused clientRequestId, so a closed id cannot start new work.
-      if (entries.some((entry) => entry.status === "dispatched" && entry.clientRequestId === id)) {
-        throw new OmtError("request_closed", `${id} already ran and is closed`, {
-          hint: "pass --attempt <n+1> to run the same round again, or the next --round for a new round",
-        });
-      }
-    }
-    const same = (entry: LedgerEntry) =>
-      entry.status === "dispatched" && entry.plan === plan && entry.unit === unit && entry.role === name && (entry.round ?? 1) === round;
-    let chosenAttempt = attempt;
-    let chosen = list[0] as TargetChoice;
-    const superseded: LedgerEntry[] = [];
-    if (fallback) {
-      const earlier = entries.filter(same);
-      if (earlier.length === 0) {
-        throw new OmtError("no_attempt", `--fallback found no earlier ${name} attempt of ${plan} ${unit} r${round}`, {
-          hint: "run the brief without --fallback first",
-        });
-      }
-      chosenAttempt = Math.max(...earlier.map((entry) => entry.attempt ?? 1)) + 1;
-      chosen = pick(name, list, new Set(earlier.flatMap((entry) => (entry.targetKey === undefined ? [] : [entry.targetKey]))));
-      for (const entry of open.filter(same)) {
-        superseded.push({
-          ts: ctx.now().toISOString(),
-          role: name,
-          status: "failed",
-          plan,
-          unit,
-          round,
-          attempt: entry.attempt ?? 1,
-          ...(entry.clientRequestId === undefined ? {} : { clientRequestId: entry.clientRequestId }),
-          ...(entry.taskId === undefined ? {} : { taskId: entry.taskId }),
-          note: `superseded by attempt ${chosenAttempt}`,
-        });
-      }
-    }
-    checkStrict(chosen);
-    const closed = closedBy([...entries, ...superseded]);
-    const active = entries.filter((entry) => entry.plan === plan && entry.status === "dispatched" && !closed(entry)).length;
-    const headerLimit = await planMaxParallel(projectRoot, plan);
-    const maxParallel = Math.min(config.limits.maxParallel, headerLimit ?? config.limits.maxParallel);
-    if (active >= maxParallel) {
-      throw new OmtError("dispatch_limit", `limit: ${active} of ${maxParallel} children are active; run this command again after one ends`, {
-        exitCode: 75,
-      });
-    }
-    for (const entry of superseded) await appendLedger(ledger, entry);
-    const result = await emit(chosen, chosenAttempt, true);
-    const start: LedgerEntry = {
-      ts: ctx.now().toISOString(),
-      role: name,
-      status: "dispatched",
-      plan,
-      unit,
-      round,
-      attempt: chosenAttempt,
-      clientRequestId: result.delegateTask.clientRequestId as string,
-      provider: chosen.target.providerInstanceId ?? chosen.target.driverKind as string,
-      model: chosen.target.model,
-      targetKey: chosen.key,
-    };
-    await appendLedger(ledger, start);
-    return result;
-  });
-  ctx.stdout(formatJson(output));
+  const chosen = fallback ? pick(name, list, new Set(values.tried ?? [])) : (list[0] as TargetChoice);
+  checkStrict(chosen);
+  ctx.stdout(formatJson(await emit(chosen)));
   return 0;
 };

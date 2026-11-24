@@ -32,7 +32,7 @@ test("a full valid layer is kept as given, and $schema is ignored", () => {
         chain: [{ provider: "claude_2", model: "m", options: { thinking: true, effort: "max" } }],
       },
     },
-    limits: { maxParallel: 32, maxDepth: 0, maxReviewRounds: 10 },
+    limits: { maxDepth: 0, maxReviewRounds: 10 },
   };
   const { layer, issues } = validateLayer(value, "src");
   assert.deepEqual(issues, []);
@@ -177,36 +177,37 @@ test("every effort on the ladder is accepted", () => {
 
 test("an invalid limit is dropped with an error, and valid limits are kept", () => {
   const { layer, issues } = validateLayer(
-    { limits: { maxParallel: 0, maxDepth: 1.5, maxReviewRounds: 2, other: 1 } },
+    { limits: { maxReviewRounds: 0, maxDepth: 1.5, other: 1 } },
     "src",
   );
-  assert.deepEqual(layer.limits, { maxReviewRounds: 2 });
+  assert.deepEqual(layer.limits, {});
   assert.deepEqual(
     issues.map((issue) => issue.path),
-    ["limits.maxParallel", "limits.maxDepth", "limits.other"],
+    ["limits.maxReviewRounds", "limits.maxDepth", "limits.other"],
   );
   assert.ok(issues.every((issue) => issue.severity === "error" && issue.source === "src"));
   assert.deepEqual(paths({ limits: { maxDepth: 4 } }), ["limits.maxDepth"]);
-  assert.deepEqual(paths({ limits: { maxParallel: "4" } }), ["limits.maxParallel"]);
+  assert.deepEqual(paths({ limits: { maxReviewRounds: "4" } }), ["limits.maxReviewRounds"]);
 });
 
 test("retired build keys, limits, and roles are dropped with one warning each, whatever their value", () => {
   const warning = (path: string) => ({ source: "src", path, message: `${path} is no longer used; remove it`, severity: "warning" });
   for (const value of [1, "x", null, { fast: true }, 501]) {
     const { layer, issues } = validateLayer({
-      limits: { maxTasksPerRun: value, maxParallel: 2 },
+      limits: { maxTasksPerRun: value, maxParallel: value, maxDepth: 2 },
       roles: { verify: value, quick: value, deep: value },
       profiles: {
         normal: { workflow: { build: { verify: value, checkpoint: value, stallMinutes: value, qa: "off" } }, limits: { maxTasksPerRun: value }, roles: { deep: value } },
       },
     }, "src");
     assert.deepEqual(layer, {
-      limits: { maxParallel: 2 },
+      limits: { maxDepth: 2 },
       roles: {},
       profiles: { normal: { workflow: { build: { qa: "off" } }, limits: {}, roles: {} } },
     });
     assert.deepEqual(issues, [
       "limits.maxTasksPerRun",
+      "limits.maxParallel",
       "roles.verify",
       "roles.quick",
       "roles.deep",

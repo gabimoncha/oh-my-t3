@@ -39,16 +39,11 @@ test("skew hint: none for the same release, no manifest, an unreadable manifest,
   assert.equal(await versionSkewHint({ ...setup(manifest("0.1.0")), build: "source" }), undefined);
 });
 
-test("skew hint: agent commands print it to stderr; doctor and the hook do not", async () => {
+test("skew hint: agent commands print it to stderr; doctor does not", async () => {
   const roles = setup(manifest("0.1.0"));
   assert.equal(await main(["roles"], roles), 0);
   assert.match(roles.err(), /hint: the user skills come from omt 0\.1\.0, and this omt is 0\.2\.0/);
   assert.doesNotMatch(roles.out(), /hint:/);
-
-  const hook = fakeContext({ root: tempDir(), build: "bundle", version: "0.2.0", stdin: '{"prompt":"hi"}' });
-  writeFile(manifestPath(hook.env, hook.homedir), manifest("0.1.0"));
-  assert.equal(await main(["hook", "user-prompt-submit"], hook), 0);
-  assert.equal(hook.err(), "");
 
   const doctor = setup(manifest("0.1.0"));
   await main(["doctor", "--json"], doctor);

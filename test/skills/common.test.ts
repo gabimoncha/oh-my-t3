@@ -55,7 +55,6 @@ test("the bundled skills are all present", () => {
     "omt-code-review",
     "omt-design",
     "omt-plan",
-    "omt-research",
     "omt-setup",
     "omt-ulw",
   ]);
@@ -135,7 +134,9 @@ test("each numbered step of a workflow skill ends with a Done when line", () => 
 
 test("each mode-check step calls t3_thread_configure, and no skill reads modes from orchestrator_capabilities (common)", () => {
   const modeSteps: Record<string, string> = {
-    "omt-research": "### 0. ",
+    "omt-plan": "### 0. ",
+    "omt-design": "### 0. ",
+    "omt-code-review": "### 0. ",
   };
   for (const [name, heading] of Object.entries(modeSteps)) {
     const text = readFileSync(join(SKILLS_DIR, name, "SKILL.md"), "utf8");
@@ -173,7 +174,7 @@ test("the mode check calls t3_thread_configure with no arguments, so it cannot s
   assert.deepEqual(offenders, []);
 });
 
-test("the router and delegation.md say that the user's instructions win over omt defaults", () => {
+test("delegation.md says that the user's instructions win over omt defaults", () => {
   const rule = [
     /On git actions, reply style, tests, and model choice, the user's own instructions win over omt defaults\./,
     /Their message comes first, then their `AGENTS\.md` or `CLAUDE\.md`\./,
@@ -182,9 +183,14 @@ test("the router and delegation.md say that the user's instructions win over omt
   const delegation = readFileSync(join(SKILLS_DIR, "omt", "references", "delegation.md"), "utf8");
   const section = delegation.slice(delegation.indexOf("\n## User instructions win\n"), delegation.indexOf("\n## The CLI\n"));
   for (const line of rule) assert.match(section, line, "delegation.md");
-  const router = readFileSync(join(SKILLS_DIR, "omt", "SKILL.md"), "utf8");
-  for (const line of rule) assert.match(router, line, "omt/SKILL.md");
-  assert.match(router, /\(references\/delegation\.md#user-instructions-win\)/);
+});
+
+// The router skill is retired; the omt folder holds only shared references and must not show up as a workflow.
+test("the omt skill is a hidden stub with no workflow list", () => {
+  const stub = readFileSync(join(SKILLS_DIR, "omt", "SKILL.md"), "utf8");
+  assert.match(stub, /^disable-model-invocation: true$/m);
+  assert.match(stub, /^user-invocable: false$/m);
+  assert.doesNotMatch(stub, /## Workflows|omt-research/);
 });
 
 test("no skill text says that review runs on the same family as execute", () => {
@@ -200,7 +206,7 @@ test("skills name the shared evidence directory, not a bare .omt3/evidence/ path
     .filter((path) => readFileSync(path, "utf8").includes(".omt3/evidence"))
     .map((path) => relative(PACKAGE_ROOT, path));
   assert.deepEqual(offenders, []);
-  for (const name of ["omt-research"]) {
+  for (const name of ["omt-code-review"]) {
     assert.match(readSkill(name), /`omt paths --evidence`/, name);
   }
 });

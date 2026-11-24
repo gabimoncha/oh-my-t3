@@ -7,7 +7,8 @@ export const RETIRED_BUILD_KEYS: readonly string[] = ["verify", "checkpoint", "s
 export const RETIRED_REVIEW_KEYS: readonly string[] = ["guardrails"];
 // workflow.git held the git policy of the retired check, pr, and stack subcommands of omt git.
 export const RETIRED_WORKFLOW_GROUPS: readonly string[] = ["git"];
-export const RETIRED_LIMIT_KEYS: readonly string[] = ["maxTasksPerRun"];
+// The ledger's parallel-limit check read maxParallel; T3 now tracks child tasks.
+export const RETIRED_LIMIT_KEYS: readonly string[] = ["maxTasksPerRun", "maxParallel"];
 export const RETIRED_ROLES: readonly string[] = ["verify", "quick", "deep", "plan", "grill", "guardrail"];
 // A selection of a retired profile resolves to normal, which now runs the PR review steps.
 export const RETIRED_PROFILES: readonly string[] = ["pr-review"];

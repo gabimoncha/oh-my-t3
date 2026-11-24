@@ -7,18 +7,16 @@ import { againstOptions, checkAgainst, loadEffectiveConfigReporting, readCapabil
 
 export const summary = "Print delegate_task arguments for one role.";
 
-export const usage = `Usage: omt route <role> [--capabilities <file>] [--against <provider|driver|auto>] [--plan <slug>] [--profile <name>] [--unit <id>]
+export const usage = `Usage: omt route <role> [--capabilities <file>] [--against <provider|driver>] [--plan <slug>] [--profile <name>]
 
 Resolve one role and print JSON that maps onto delegate_task arguments.
 Exits 1 when the role is unknown or unavailable.
 
 Options:
   --capabilities <file>  orchestrator_capabilities output (- for stdin)
-  --against <value>      the provider or driver of the worker whose change the task reviews;
-                         auto reads the worker from .omt3/ledger.jsonl and needs --plan
-  --plan <slug>          use the plan's selected profile; plan for --against auto
+  --against <value>      the provider or driver of the worker whose change the task reviews
+  --plan <slug>          use the plan's selected profile
   --profile <name>       override the selected profile
-  --unit <id>            unit for --against auto
   -h, --help             print this help
 `;
 
@@ -28,7 +26,6 @@ export const run: CommandRun = async (ctx) => {
     against: { type: "string" },
     plan: { type: "string" },
     profile: { type: "string" },
-    unit: { type: "string" },
   }, { maxPositionals: 1 });
   const [name] = positionals;
   if (name === undefined) throw usageError("route needs a <role>");
@@ -38,7 +35,7 @@ export const run: CommandRun = async (ctx) => {
   const caps = await readCapabilities(ctx, values.capabilities);
   const resolution = resolveRole(name, role, caps, {
     ...harnessOptions(config.harnesses, config.roles),
-    ...await againstOptions(ctx, config, role, values),
+    ...againstOptions(config, values.against),
     models: config.models,
   });
   const output = toRouteOutput(resolution);

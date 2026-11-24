@@ -1,4 +1,3 @@
-import { parseLimit } from "../config/validate.ts";
 
 export type PlanItemKind = "U" | "D" | "F";
 export type PlanItemState = "open" | "done" | "blocked";
@@ -22,7 +21,6 @@ export interface PlanStatus {
   title: string;
   slug?: string;
   profile?: string;
-  maxParallel?: number;
   items: PlanItem[];
   counts: Record<PlanItemKind, PlanCounts>;
   next?: PlanItem;
@@ -200,8 +198,6 @@ export function parsePlan(markdown: string): PlanStatus {
   const header = findPlanHeader(markdown)?.text ?? "";
   const slug = headerValue(header, "slug");
   const profile = headerValue(header, "profile");
-  const maxParallelText = headerValue(header, "max-parallel");
-  const maxParallel = maxParallelText === undefined ? undefined : parseLimit(maxParallelText, "maxParallel");
   const next = items.find((item) => item.kind === "U" && item.state === "open");
   const status: PlanStatus = {
     title,
@@ -212,7 +208,6 @@ export function parsePlan(markdown: string): PlanStatus {
   };
   if (slug !== undefined) status.slug = slug;
   if (profile !== undefined) status.profile = profile;
-  if (maxParallel !== undefined) status.maxParallel = maxParallel;
   if (next !== undefined) status.next = next;
   return status;
 }
@@ -245,7 +240,7 @@ function findCycle(ids: string[], deps: Map<string, string[]>): string[] | undef
 // Problems in the "Depends on" fields of the U items outside code fences: unknown units,
 // self-dependencies, and the first dependency cycle.
 // Header keys of older releases that no longer have an effect.
-const RETIRED_HEADER_KEYS = ["max-tasks"];
+const RETIRED_HEADER_KEYS = ["max-tasks", "max-parallel"];
 
 export function headerWarnings(markdown: string): string[] {
   const header = findPlanHeader(markdown)?.text ?? "";

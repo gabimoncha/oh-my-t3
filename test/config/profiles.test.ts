@@ -64,7 +64,7 @@ test("profile fields merge per name, workflow group, limit, role, and model", ()
       demo: {
         description: "Demo.", extends: "prototype",
         workflow: { build: { qa: "off", oracle: "always" }, plan: { testLayers: ["unit", "integration"] } },
-        limits: { maxParallel: 10, maxDepth: 2 },
+        limits: { maxReviewRounds: 10, maxDepth: 2 },
         roles: { execute: { fast: true, description: "Build." }, oracle: null },
         models: { "gpt-6.2-sol": { fast: false } },
       },
@@ -75,7 +75,7 @@ test("profile fields merge per name, workflow group, limit, role, and model", ()
     profiles: {
       demo: {
         workflow: { build: { oracle: "off" }, plan: { testLayers: ["e2e"] } },
-        limits: { maxParallel: 3 },
+        limits: { maxReviewRounds: 3 },
         roles: { execute: { fast: false }, qa: { fast: true } },
         models: { "gpt-6.2-sol": {}, other: { fast: true } },
       },
@@ -87,14 +87,14 @@ test("profile fields merge per name, workflow group, limit, role, and model", ()
   assert.deepEqual(second.config.profiles.demo, {
     description: "Demo.", extends: "prototype",
     workflow: { build: { qa: "off", oracle: "off" }, plan: { testLayers: ["e2e"] } },
-    limits: { maxParallel: 3, maxDepth: 2 },
+    limits: { maxReviewRounds: 3, maxDepth: 2 },
     roles: { execute: { fast: false, description: "Build." }, oracle: null, qa: { fast: true } },
     models: { "gpt-6.2-sol": { fast: false }, other: { fast: true } },
   });
   assert.equal(second.config.profiles.normal?.workflow?.design?.variants, 5);
   assert.equal(second.config.profiles.normal?.workflow?.build?.review, "every-round");
   assert.deepEqual(DEFAULT_CONFIG, before);
-  assert.equal(first.config.profiles.demo?.limits?.maxParallel, 10);
+  assert.equal(first.config.profiles.demo?.limits?.maxReviewRounds, 10);
 });
 
 test("new profiles need a description and existing profiles do not", () => {
@@ -378,7 +378,8 @@ test("config show prints the planned defaults and the roles.test warning", async
   const options = { homedir: ctx.homedir, cwd: ctx.cwd, env: ctx.env };
   const defaults = await runOk(["config", "show", "--defaults"], options);
   const printed = JSON.parse(defaults.ctx.out()) as OmtConfig;
-  assert.equal(printed.limits.maxParallel, 6);
+  assert.equal(printed.limits.maxReviewRounds, 4);
+  assert.equal(Object.hasOwn(printed.limits, "maxParallel"), false);
   assert.ok(printed.roles.qa);
   assert.equal(Object.hasOwn(printed.roles, "guardrail"), false);
   assert.equal(Object.hasOwn(printed.roles, "verify"), false);

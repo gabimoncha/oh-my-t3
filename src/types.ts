@@ -31,7 +31,6 @@ export interface RoleConfig {
 }
 
 export interface Limits {
-  maxParallel: number;
   maxDepth: number;
   maxReviewRounds: number;
 }
@@ -240,45 +239,7 @@ export interface BriefJsonOutput {
     clientRequestId?: string; // present when --plan and --unit are given
   };
   fallbacks: ResolvedTarget[]; // not a delegate_task field; the targets after this one, in order
-  targetKey: string; // pass it to --tried in plan mode; with --save the ledger records it
-  ledger?: { done: string }; // present when --save recorded the start
-
-}
-
-export type LedgerStatus =
-  | "dispatched"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "interrupted"
-  | "verified"
-  | "rejected";
-
-export interface LedgerEntry {
-  ts: string; // ISO timestamp from ctx.now()
-  role: string;
-  status: LedgerStatus;
-  plan?: string;
-  unit?: string;
-  round?: number;
-  attempt?: number;
-  taskId?: string;
-  clientRequestId?: string;
-  provider?: string;
-  model?: string;
-  verdict?: string; // first word or words of the result block, for example "DONE", "APPROVE", "NOT VERIFIED"
-  note?: string;
-  targetKey?: string; // the target of a dispatch, such as codex/gpt-6.2-astra; omt brief --fallback skips tried keys
-}
-
-export interface LedgerStats {
-  plan?: string;
-  dispatched: number; // entries with status "dispatched"
-  active: number; // dispatched entries that no terminal entry closes (see ledger closes())
-  terminal: number; // entries with a terminal status: every status except "dispatched"
-  limits: { maxParallel: number };
-  planMaxParallel?: number; // the plan header max-parallel; set only when the plan has one
-  canDispatch: boolean; // active < maxParallel
+  targetKey: string; // the caller passes it to --tried for the next fallback
 }
 
 export type T3DriverStatus = "enabled" | "disabled" | "unknown";

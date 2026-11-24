@@ -17,18 +17,19 @@ import { plural } from "../util/output.ts";
 import { worktreeSummary } from "../worktree/check.ts";
 import { readCapabilities } from "./shared.ts";
 
-export const summary = "Install the omt skills, links, starter config, and optional Claude hook.";
+export const summary = "Install the omt skills, links, and starter config.";
 
-export const usage = `Usage: omt install [--project [--no-git-exclude]] [--targets <list>] [--hooks] [--capabilities <file>] [--yes] [--dry-run] [--force]
+export const usage = `Usage: omt install [--project [--no-git-exclude]] [--targets <list>] [--capabilities <file>] [--yes] [--dry-run] [--force]
 
 Install the bundled skills into ~/.agents/skills and link them into the
 selected agent skill roots. Shows the plan first, then asks to apply it.
 With --project, install into the current project instead: skills in
-.agents/skills, links in .claude/skills, the CLI shim .omt3/bin/omt, and the
-hook in .claude/settings.local.json, all hidden from git. When omt runs
-from npx, pnpm dlx, or bunx, a user install is refused. Use --project, and
-the shim calls that runner. --project also prints the T3 worktree setup
-state of the current checkout (omt worktree check).
+.agents/skills, links in .claude/skills, and the CLI shim .omt3/bin/omt,
+all hidden from git. When omt runs from npx, pnpm dlx, or bunx, a user
+install is refused. Use --project, and the shim calls that runner.
+--project also prints the T3 worktree setup state of the current checkout
+(omt worktree check). It removes what retired features left, as omt update
+does.
 
 Options:
   --project         install into the project root, not the home directory
@@ -38,7 +39,6 @@ Options:
                     (default: agents,claude, plus gemini when ~/.gemini exists;
                     agents is always included; gemini is not available
                     with --project)
-  --hooks           also add the Claude Code UserPromptSubmit ultrawork hook
   --capabilities <file>
                     orchestrator_capabilities output (- for stdin) for the
                     harness detection; without it, omt reads the T3
@@ -61,7 +61,6 @@ async function updateCheck(ctx: CliContext, project: boolean, seams: UpdateCheck
 export async function run(ctx: CliContext, seams: UpdateCheckSeams = {}): Promise<number> {
   const { values } = parseArgs(ctx.argv, {
     targets: { type: "string" },
-    hooks: { type: "boolean" },
     yes: { type: "boolean" },
     "dry-run": { type: "boolean" },
     force: { type: "boolean" },
@@ -74,7 +73,6 @@ export async function run(ctx: CliContext, seams: UpdateCheckSeams = {}): Promis
   const targets = await parseTargets(values.targets, ctx.homedir, scope);
   const plan = await buildInstallPlan(ctx, {
     targets,
-    hooks: values.hooks === true,
     force: values.force === true,
     scope,
     gitExclude: values["no-git-exclude"] !== true,

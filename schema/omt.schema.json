@@ -81,12 +81,6 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "maxParallel": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 32,
-          "description": "Most child tasks that run at the same time."
-        },
         "maxDepth": {
           "type": "integer",
           "minimum": 0,
@@ -100,6 +94,10 @@
           "description": "Most review rounds for one change."
         },
         "maxTasksPerRun": {
+          "deprecated": true,
+          "description": "No longer used. omt ignores this key."
+        },
+        "maxParallel": {
           "deprecated": true,
           "description": "No longer used. omt ignores this key."
         }

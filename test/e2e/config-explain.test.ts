@@ -19,11 +19,11 @@ test("config explain reports default, user, project, and profile sources in text
       "fast-proto": {
         description: "Fast prototype",
         extends: "prototype",
-        limits: { maxParallel: 2 },
+        limits: { maxDepth: 2 },
       },
     },
   }));
-  writeFile(projectPath, JSON.stringify({ version: 1, limits: { maxParallel: 4 } }));
+  writeFile(projectPath, JSON.stringify({ version: 1, models: { "gpt-6.2-sol": { fast: false } } }));
 
   const options = { root, cwd: project, env: { PWD: project } };
   const text = spawnOmt(["config", "explain"], options);
@@ -39,13 +39,13 @@ test("config explain reports default, user, project, and profile sources in text
   for (const line of [
     "limits.maxDepth  1  defaults",
     "limits.maxReviewRounds  7  user",
-    "limits.maxParallel  4  project",
+    "models.gpt-6.2-sol.fast  false  project",
   ]) {
     assert.ok(rootLines.includes(line), `root output must include ${line}`);
   }
   assert.ok(
-    effectiveLines.includes("limits.maxParallel  2  profile fast-proto (user)"),
-    "effective output must attribute maxParallel to profile fast-proto (user)",
+    effectiveLines.includes("limits.maxDepth  2  profile fast-proto (user)"),
+    "effective output must attribute maxDepth to profile fast-proto (user)",
   );
 
   const json = spawnOmt(["config", "explain", "--profile", "fast-proto", "--json"], options);
@@ -57,8 +57,8 @@ test("config explain reports default, user, project, and profile sources in text
   for (const [entries, path, value, source] of [
     [report.root, ["limits", "maxDepth"], 1, { kind: "defaults" }],
     [report.root, ["limits", "maxReviewRounds"], 7, { kind: "user", path: userPath }],
-    [report.root, ["limits", "maxParallel"], 4, { kind: "project", path: projectPath }],
-    [report.effective, ["limits", "maxParallel"], 2, {
+    [report.root, ["models", "gpt-6.2-sol", "fast"], false, { kind: "project", path: projectPath }],
+    [report.effective, ["limits", "maxDepth"], 2, {
       kind: "profile",
       profile: "fast-proto",
       declaredIn: { kind: "user", path: userPath },

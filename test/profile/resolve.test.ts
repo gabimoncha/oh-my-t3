@@ -20,14 +20,14 @@ function configured(layer: ConfigLayer): OmtConfig {
 test("profiles apply root first after the config, with roles, limits, workflow, and models merged", () => {
   const config = configured({
     roles: { execute: { fast: false }, writing: null },
-    limits: { maxParallel: 2, maxReviewRounds: 7 },
+    limits: { maxDepth: 3, maxReviewRounds: 7 },
     models: { "gpt-6.2-sol": { fast: false }, custom: { fast: true } },
     profiles: {
       normal: { roles: { execute: { description: "Normal worker." } }, workflow: { plan: { testLayers: ["e2e", "unit"] } } },
       parent: {
         description: "Parent.",
         extends: "prototype",
-        limits: { maxParallel: 8 },
+        limits: { maxReviewRounds: 8 },
         roles: {
           execute: { fast: true },
           extra: { description: "Extra worker.", access: "edit", chain: [{ driver: "codex", model: "custom" }] },
@@ -48,7 +48,7 @@ test("profiles apply root first after the config, with roles, limits, workflow, 
   const result = resolveProfile(config, "custom");
   assert.equal(result.name, "custom");
   assert.equal(result.source, "argument");
-  assert.deepEqual(result.limits, { maxParallel: 8, maxDepth: 2, maxReviewRounds: 2 });
+  assert.deepEqual(result.limits, { maxDepth: 2, maxReviewRounds: 8 });
   assert.equal(result.roles.execute?.description, "Normal worker.");
   assert.equal(result.roles.execute?.fast, true);
   assert.deepEqual(result.roles.execute?.chain, [{ driver: "codex", model: "chosen" }]);

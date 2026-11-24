@@ -35,11 +35,11 @@ test("with no files the result is the defaults, and every source is listed", asy
 
 test("layers apply in order: defaults, then user, then project", async () => {
   const { userPath, projectPath, write, load } = setup();
-  write(userPath, '// user\n{ "limits": { "maxParallel": 8, "maxDepth": 2, }, "roles": { "explore": null } }');
-  write(projectPath, '{ "limits": { "maxParallel": 2 }, "roles": { "review": { "runtimeMode": "auto" } } }');
+  write(userPath, '// user\n{ "limits": { "maxReviewRounds": 8, "maxDepth": 2, }, "roles": { "explore": null } }');
+  write(projectPath, '{ "limits": { "maxReviewRounds": 2 }, "roles": { "review": { "runtimeMode": "auto" } } }');
   const loaded = await load();
   assert.deepEqual(loaded.issues, []);
-  assert.deepEqual(loaded.config.limits, { ...DEFAULT_CONFIG.limits, maxParallel: 2, maxDepth: 2 });
+  assert.deepEqual(loaded.config.limits, { ...DEFAULT_CONFIG.limits, maxReviewRounds: 2, maxDepth: 2 });
   assert.equal(loaded.config.roles.explore, undefined);
   assert.equal(loaded.config.roles.review?.runtimeMode, "auto");
   assert.deepEqual(
@@ -50,10 +50,10 @@ test("layers apply in order: defaults, then user, then project", async () => {
 
 test("a JSONC syntax error is one error issue, and only that file is skipped", async () => {
   const { userPath, projectPath, write, load } = setup();
-  write(userPath, '{ "limits": { "maxParallel": 8 } }');
-  write(projectPath, '{\n  "limits": { "maxParallel": 2 }\n  "roles": {}\n}');
+  write(userPath, '{ "limits": { "maxReviewRounds": 8 } }');
+  write(projectPath, '{\n  "limits": { "maxReviewRounds": 2 }\n  "roles": {}\n}');
   const loaded = await load();
-  assert.equal(loaded.config.limits.maxParallel, 8);
+  assert.equal(loaded.config.limits.maxReviewRounds, 8);
   assert.equal(loaded.issues.length, 1);
   const issue = loaded.issues[0];
   assert.equal(issue?.source, projectPath);

@@ -5,32 +5,11 @@ import { readFileIfExists, writeFileAtomic } from "../util/fs.ts";
 import { isRecord } from "../util/json.ts";
 import { projectWriteTarget, writeTargetFor } from "./fsops.ts";
 
+// Earlier releases added a Claude Code UserPromptSubmit hook with this signature. omt now only removes it.
 export const HOOK_SIGNATURE = "# oh-my-t3code";
 export const HOOK_EVENT = "UserPromptSubmit";
-export const HOOK_TIMEOUT_SECONDS = 10;
-
-export type HookAction = "create" | "update" | "unchanged" | "remove";
 
 type Json = Record<string, unknown>;
-
-function assertQuotable(path: string): void {
-  if (/["$`\\\n]/.test(path)) {
-    throw new OmtError("hook_cli_path", `refusing --hooks: the path cannot be quoted safely for a shell: ${path}`);
-  }
-}
-
-// A binary runs by itself, so its command names no runtime. Source and bundle mode name the runtime.
-export function hookCommand(runtimePath: string | undefined, cliPath: string): string {
-  const paths = runtimePath === undefined ? [cliPath] : [runtimePath, cliPath];
-  for (const path of paths) assertQuotable(path);
-  return `${paths.map((path) => `"${path}"`).join(" ")} hook user-prompt-submit ${HOOK_SIGNATURE}`;
-}
-
-// Project scope calls the shim, so the runtime and CLI paths live in one file.
-export function shimHookCommand(shimPath: string): string {
-  assertQuotable(shimPath);
-  return `"${shimPath}" hook user-prompt-submit ${HOOK_SIGNATURE}`;
-}
 
 export function isManagedCommand(command: unknown): boolean {
   return typeof command === "string" && command.trimEnd().endsWith(HOOK_SIGNATURE);
@@ -84,11 +63,6 @@ export function serializeSettings(settings: Json, style: JsonStyle = DEFAULT_JSO
   return style.crlf ? text.replaceAll("\n", "\r\n") : text;
 }
 
-// True when serializing the parsed file in its detected style gives its exact bytes back.
-export function isOmtLayout(text: string, path: string): boolean {
-  return serializeSettings(parseSettings(text, path), detectJsonStyle(text)) === text;
-}
-
 function managedHandlers(settings: Json): Json[] {
   const groups = (settings.hooks as Json | undefined)?.[HOOK_EVENT];
   if (!Array.isArray(groups)) return [];
@@ -104,22 +78,6 @@ function managedHandlers(settings: Json): Json[] {
 
 export function findManagedCommands(settings: Json): string[] {
   return managedHandlers(settings).map((handler) => handler.command as string);
-}
-
-// Returns a copy of the settings with the managed entry added or its command replaced.
-export function withHook(settings: Json, command: string): Json {
-  const next = structuredClone(settings);
-  const existing = managedHandlers(next);
-  if (existing.length > 0) {
-    for (const handler of existing) handler.command = command;
-    return next;
-  }
-  const hooks = isRecord(next.hooks) ? next.hooks : {};
-  const groups = Array.isArray(hooks[HOOK_EVENT]) ? (hooks[HOOK_EVENT] as unknown[]) : [];
-  groups.push({ hooks: [{ type: "command", command, timeout: HOOK_TIMEOUT_SECONDS }] });
-  hooks[HOOK_EVENT] = groups;
-  next.hooks = hooks;
-  return next;
 }
 
 // Returns a copy of the settings without managed entries. Groups, the event key, and `hooks`
@@ -155,24 +113,12 @@ export function withoutHook(settings: Json): Json {
 
 export interface HookChange {
   settingsPath: string;
-  command: string; // the managed command after the change; the removed one for "remove"
-  action: HookAction;
+  command: string; // the removed command
+  action: "remove";
   before: string | undefined; // file content now, undefined when the file is missing
-  after: string; // content to write; equals before when unchanged
-  empty?: boolean; // "remove": only {} is left
-  restoreBackup?: string; // "remove": `after` holds the bytes of this install-time backup, which is then deleted
-}
-
-export async function planHookInstall(settingsPath: string, command: string): Promise<HookChange> {
-  const before = await readFileIfExists(settingsPath);
-  const settings = parseSettings(before, settingsPath);
-  const current = findManagedCommands(settings);
-  if (current.length > 0 && current.every((existing) => existing === command)) {
-    return { settingsPath, command, action: "unchanged", before, after: before ?? "" };
-  }
-  const after = serializeSettings(withHook(settings, command), detectJsonStyle(before));
-  if (after === before) return { settingsPath, command, action: "unchanged", before, after };
-  return { settingsPath, command, action: current.length > 0 ? "update" : "create", before, after };
+  after: string; // content to write
+  empty?: boolean; // only {} is left
+  restoreBackup?: string; // `after` holds the bytes of this install-time backup, which is then deleted
 }
 
 function parsesTo(text: string, value: Json): boolean {
@@ -211,7 +157,6 @@ export async function planHookRemoval(settingsPath: string, installBackup?: stri
 // Backs up the old file into `backupDir` (no backup when it is undefined), then writes onto the real
 // path so a symlink stays a symlink. Returns the backup path, if one was written.
 export async function writeHookChange(change: HookChange, backupDir: string | undefined, root?: string): Promise<string | undefined> {
-  if (change.action === "unchanged") return undefined;
   const current = await readFileIfExists(change.settingsPath);
   if (current !== change.before) {
     throw new OmtError("claude_settings", `${change.settingsPath} changed after the plan was made; nothing was written`, {
