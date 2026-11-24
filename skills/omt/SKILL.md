@@ -20,6 +20,7 @@ On git actions, reply style, tests, and model choice, the user's own instruction
 | `omt-code-review` | The user wants a review of uncommitted changes, a branch, a commit, or a PR (`omt-code-review <number>`). |
 | `omt-research` | The user wants a cited answer from this repository, docs, or the web, with no code changes. |
 | `omt-setup` | The user wants help with omt, or wants it set up, configured, or updated. It asks before each write. |
+| `omt-climb` | The user names it, to raise a score to a target in rounds. Needs T3 Workflows. |
 
 Each skill name works as a composer mention: `$omt-ulw` becomes `/omt-ulw` in Claude and Cursor, `/skill:omt-ulw` in Pi, and stays `$omt-ulw` in Codex.
 

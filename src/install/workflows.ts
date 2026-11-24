@@ -73,7 +73,7 @@ export function t3Workflows(ctx: Pick<CliContext, "env" | "cwd">): WorkflowsStat
   }
   const output = `${result.stderr ?? ""}${result.stdout ?? ""}`;
   if (result.status !== 0) {
-    if (/Workflows are off/.test(output)) return { state: "off", message: "T3 Workflows is off; turn it on in T3 Settings → Labs → Workflows", unfinished };
+    if (/Workflows are off/.test(output)) return { state: "off", message: "T3 Workflows is off, and omt-climb needs it; turn it on in T3 Settings → Labs → Workflows", unfinished };
     return { state: "unknown", message: `${command} workflow list failed: ${output.trim().split("\n")[0] ?? `exit ${String(result.status)}`}`, unfinished };
   }
   try {

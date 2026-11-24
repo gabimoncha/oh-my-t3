@@ -31,6 +31,7 @@ test("end to end: install, use every command in a project, then uninstall", () =
   assert.match(ok(["install", "--yes"]), /^Applied \d+ changes\.$/m);
   assert.deepEqual(omtEntries(join(home, ".agents", "skills")).sort(), [
     "omt",
+    "omt-climb",
     "omt-code-review",
     "omt-design",
     "omt-plan",

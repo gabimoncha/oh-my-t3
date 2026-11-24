@@ -1,0 +1,5 @@
+interface:
+  display_name: "omt climb"
+  short_description: "Change, gate, and score in T3 workflow rounds until every judge meets the target."
+policy:
+  allow_implicit_invocation: false
