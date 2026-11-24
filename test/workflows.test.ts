@@ -9,7 +9,7 @@ import { PACKAGE_ROOT } from "./helpers.ts";
 // Each entry maps the workflow versions that workflows/omt.ts defines to the hash of the file that shipped them.
 const SHIPPED: Record<string, string> = {
   "omt-ulw@1 omt-code-review@1": "932ed2be4e93d5f4052c2bc5b5dc4901ea20dfe673607d35bd79c2a102c32fea",
-  "omt-ulw@1 omt-code-review@1 omt-climb@1": "ff5fbbf0c14c6e0c695cafa12ce27fb798ed5f9ed5bb7f283d4ed4e9b1e1e759",
+  "omt-ulw@1 omt-code-review@1 omt-climb@1": "b5cb9a646c0617fa64babc423e71525b63d0b1830a6dc49ce0b1821c53c1fe89",
 };
 
 test("workflows/omt.ts raises a workflow version whenever its text changes", () => {

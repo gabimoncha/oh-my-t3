@@ -47,7 +47,7 @@ Done when: the tree is clean, and the input file holds `head` from `git rev-pars
 
 ### 3. Start the run
 
-Make the key once for this launch: `omt-climb/<slug>/<head>/<date -u +%Y%m%dT%H%M%SZ>`. Reuse it only to retry this start; a new or changed input gets a new key. Run `t3 workflow start omt-climb --input "$(cat <file>)" --key <key>`. When it fails, apply the first rule and stop; when it names no workflow `omt-climb`, add that `omt update` installs it. Tell the owner the run id, that the Workflows page shows each round, and that a plateau or the round limit asks there. End your turn.
+Make the key once for this launch: `omt-climb/<slug>/<head>/<date -u +%Y%m%dT%H%M%SZ>`. Reuse it only to retry this start; a new or changed input gets a new key. Run `t3 workflow start omt-climb --input "$(cat <file>)" --key <key>`. When it fails, apply the first rule and stop; when it names no workflow `omt-climb`, add that only a user install copies the workflow file: `omt install`, not `omt install --project`. Tell the owner the run id, that the Workflows page shows each round, and that a plateau or the round limit asks there. End your turn.
 
 Done when: the run started and your turn ended.
 
@@ -57,5 +57,6 @@ The run ends with a message to this thread, `omt-climb workflow run <id> ...`, w
 
 - `met`, `plateau`, or `limit`: merge `result.head` with `git merge --ff-only <head>`, or `git merge <head>` when that fails. Show the owner the table, `result.changes`, and `result.declined`, then commit, push, and open a draft PR by [Git actions](../omt/references/delegation.md#git-actions), with the table in its body.
 - `stopped` or `cancelled`: tell the owner the reason. A run that stopped on invalid input names the field; fix the input and start again with a new key.
+- `skipped`: tell the owner the status and the reason. Merge nothing and open no PR.
 
 Done when: the owner has the table and the PR URL, or the reason that the run stopped.

@@ -949,7 +949,8 @@ const finish = (
   declined: readonly string[],
 ) =>
   Effect.gen(function* () {
-    yield* step(
+    // A failed wake stays in the run's journal; the run still returns its result.
+    yield* step.try(
       "wake",
       { returns: Schema.String },
       wake(
@@ -1029,7 +1030,7 @@ workflow(
         blinded = yield* step(`labels-r${round}`, { returns: Blind }, blind(input.evidence, subjects));
       }
 
-      // Judges, one tier at a time, the judges of a tier in parallel.
+      // Judges, one tier at a time.
       const scoreJudge = (judge: typeof ClimbJudgeInput.Type) =>
         Effect.gen(function* () {
           if (judge.command !== "") {
@@ -1082,7 +1083,12 @@ workflow(
       while (next.action === "score") {
         const tier = next.tier;
         const due = input.judges.filter((judge) => judge.tier === tier && scoreOf(scores, round, judge.name, CURRENT) === undefined);
-        const results = yield* Effect.all(due.map(scoreJudge), { concurrency: 4 });
+        // Command judges share one checkout, and the pin check does not see untracked build output, so they run
+        // one at a time.
+        const results = [
+          ...(yield* Effect.all(due.filter((judge) => judge.command !== "").map(scoreJudge), { concurrency: 1 })),
+          ...(yield* Effect.all(due.filter((judge) => judge.command === "").map(scoreJudge), { concurrency: 4 })),
+        ];
         for (const result of results) {
           scores.push(...result.scores);
           findings.push(...result.findings);
