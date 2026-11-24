@@ -1,6 +1,6 @@
 import { Draw, type Point, type Scene } from "./metro";
 
-// The animated pictures: one for each skill. The hero shows the ulw and swarm pictures side by side.
+// The animated pictures: one for each skill. The hero shows the ulw and code-review pictures side by side.
 // All share one canvas (480 x 256) with three lanes, so that they read as one set.
 
 const W = 480;
@@ -143,92 +143,32 @@ function design(): Scene {
   return g.scene();
 }
 
+// The same grid as ulw, so that the two read side by side in the hero: the diff splits into groups
+// at Build's x, each reviewer sits on the rail at Review's x, and the oracle and the report sit at
+// QA's and Done's x.
 function codeReview(): Scene {
   const g = new Draw(W, H, "s", SKILL_SPEED);
-  g.rail("M260 0 L260 256");
-  g.station(40, MID, "goal", 0);
-  g.text(40, MID + 36, "Target", 0);
-  let t = g.line([[0, MID], [40, MID]], 0);
-  t = g.line([[40, MID], [112, MID]], t + 150);
-  g.station(112, MID, "plan", t);
-  g.text(112, MID + 36, "Split", t);
-  const split = t;
-  const arrivals = LANES.map((lane, i) => {
-    let at = g.line(branch(112, MID, lane, 260), split + i * 100);
-    g.station(260, lane, "review", at);
-    if (i === 0) g.verdict(282, 40, "finding", "closed", at + 200);
-    at += PAUSE;
-    return g.line(join(260, lane, MID, 372), at);
-  });
-  t = Math.max(...arrivals);
-  g.station(372, MID, "verify", t);
-  g.text(372, MID + 36, "Oracle", t);
-  t = g.line([[372, MID], [448, MID]], t + 200);
-  g.station(448, MID, "done", t);
-  g.text(448, MID + 36, "Report", t);
-  g.text(268, 228, "Reviewers", split, { anchor: "start" });
-  return g.scene();
-}
-
-function research(): Scene {
-  const g = new Draw(W, H, "s", SKILL_SPEED);
-  g.station(40, MID, "goal", 0);
-  g.text(40, MID + 36, "Question", 0);
-  let t = g.line([[0, MID], [40, MID]], 0);
-  t = g.line([[40, MID], [112, MID]], t + 150);
-  g.station(112, MID, "plan", t);
-  g.text(112, MID + 36, "Split", t);
-  const split = t;
-  const sources = ["repo", "docs", "web"];
-  const arrivals = LANES.map((lane, i) => {
-    let at = g.line(branch(112, MID, lane, 230), split + i * 140);
-    g.station(230, lane, "work", at);
-    g.text(230, lane - 24, sources[i]!, at, { style: "code", size: 14 });
-    at += PAUSE + i * 200;
-    return g.line(join(230, lane, MID, 352), at);
-  });
-  t = Math.max(...arrivals);
-  g.station(352, MID, "verify", t);
-  g.text(352, MID + 36, "Check", t);
-  t = g.line([[352, MID], [448, MID]], t + 200);
-  g.station(448, MID, "done", t);
-  g.text(448, MID + 36, "Answer", t);
-  return g.scene();
-}
-
-// The same grid as ulw, so that the two read side by side in the hero: the tracks leave the plan at
-// different times and speeds, and each builds and checks in its own thread. Then one review covers
-// every track, the tracks merge, one QA run checks the merged code, and one pull request ends the run.
-function swarm(): Scene {
-  const g = new Draw(W, H, "s", SKILL_SPEED);
   g.rail("M300 0 L300 256");
-  g.station(28, MID, "plan", 0);
-  g.text(28, MID + 36, "Plan", 0);
+  g.station(28, MID, "goal", 0);
+  g.text(28, MID + 36, "Target", 0);
   const split = g.line([[0, MID], [96, MID]], 0);
   g.station(96, MID, "plan", split);
   g.text(96, MID + 36, "Split", split);
-  const offsets = [0, 700, 1400];
-  const speeds = [1, 1.3, 1.1];
   const arrivals = LANES.map((lane, i) => {
-    const speed = speeds[i]!;
-    let t = g.line(branch(96, MID, lane, 200), split + offsets[i]!, { speed });
-    g.station(200, lane, "work", t);
-    t = g.line([[200, lane], [250, lane]], t, { speed });
-    g.station(250, lane, "verify", t);
-    return g.line([[250, lane], [300, lane]], t, { speed });
+    let at = g.line(branch(96, MID, lane, 200), split + i * 100);
+    g.station(200, lane, "work", at);
+    at = g.line([[200, lane], [300, lane]], at);
+    g.station(300, lane, "review", at);
+    if (i === 0) g.verdict(322, 40, "finding", "closed", at + 200);
+    return g.line(join(300, lane, MID, 380), at + PAUSE);
   });
-  const review = Math.max(...arrivals);
-  for (const lane of LANES) g.station(300, lane, "review", review);
-  const merged = Math.max(...LANES.map((lane) => g.line(join(300, lane, MID, 380), review + PAUSE)));
-  g.station(380, MID, "work", merged);
-  g.text(380, MID + 36, "Merge", merged);
-  let t = g.line([[380, MID], [424, MID]], merged);
-  g.station(424, MID, "verify", t);
-  g.text(424, 100, "QA", t);
-  t = g.line([[424, MID], [456, MID]], t);
-  g.bar(456, MID, t);
-  g.text(456, MID + 36, "PR", t);
-  g.text(200, 228, "Build", split);
+  let t = Math.max(...arrivals);
+  g.station(380, MID, "verify", t);
+  g.text(380, MID + 36, "Oracle", t);
+  t = g.line([[380, MID], [460, MID]], t + 200);
+  g.station(460, MID, "done", t);
+  g.text(476, MID + 36, "Report", t, { anchor: "end" });
+  g.text(200, 228, "Groups", split);
   g.text(292, 228, "Review", split, { anchor: "end" });
   return g.scene();
 }
@@ -263,7 +203,7 @@ function router(): Scene {
   g.text(48, MID + 36, "omt", 0, { style: "code", size: 14 });
   let t = g.line([[0, MID], [48, MID]], 0);
   t = g.line([[48, MID], [120, MID]], t + 150);
-  const names = ["ulw", "plan", "design", "code-review", "research", "setup", "swarm"];
+  const names = ["ulw", "plan", "design", "code-review", "setup"];
   names.forEach((name, i) => {
     const lane = MID + (i - (names.length - 1) / 2) * 26;
     const end = g.line(branch(120, MID, lane, 300), t + i * 90, { radius: 10 });
@@ -278,8 +218,6 @@ export const SKILL_SCENES: Record<string, Scene> = {
   "omt-plan": plan(),
   "omt-design": design(),
   "omt-code-review": codeReview(),
-  "omt-research": research(),
   "omt-setup": setup(),
-  "omt-swarm": swarm(),
   omt: router(),
 };

@@ -3,12 +3,12 @@ import { useInView } from "./inView";
 import { Metro } from "./metro";
 import { SKILL_SCENES } from "./scenes";
 
-type Skill = { name: string; note: string; shows: string; tag?: string };
+type Skill = { name: string; note: string; shows: string };
 
 const AGENT_SKILLS: Skill[] = [
   {
     name: "omt-ulw",
-    note: "You want a task built, fixed, or shipped from start to end. Type $omt-ulw and the task, or say start ulw.",
+    note: "You want a task built, fixed, or shipped from start to end. Type $omt-ulw and the task.",
     shows:
       "The agent asks its questions, plans, and builds the change in its own thread. Then one review child fixes small findings and reports the rest, and one QA child runs the checks.",
   },
@@ -31,12 +31,6 @@ const AGENT_SKILLS: Skill[] = [
       "A small diff gets 1 reviewer. A large diff gets up to 4 reviewers and 1 oracle. The agent merges their findings and makes the fixes that you approve.",
   },
   {
-    name: "omt-research",
-    note: "You need an answer with sources from the repository, library docs, or the web.",
-    shows:
-      "The agent answers a narrow question itself. For a broad one, it searches the repository, library docs, and the web at the same time, checks each claim, and writes an answer with sources.",
-  },
-  {
     name: "omt-setup",
     note: "You want to set up, configure, or update omt, or ask what it can do.",
     shows:
@@ -45,13 +39,6 @@ const AGENT_SKILLS: Skill[] = [
 ];
 
 const NAMED_SKILLS: Skill[] = [
-  {
-    name: "omt-swarm",
-    tag: "opt-in",
-    note: "You have a plan with independent tracks, and each needs its own worktree thread.",
-    shows:
-      "Each track builds and checks in its own T3 worktree thread. Then one review covers all tracks, the tracks merge, one QA run checks the result, and one pull request ships it.",
-  },
   {
     name: "omt",
     note: "You want the list of workflows and CLI commands.",
@@ -64,7 +51,7 @@ const ALL = [...AGENT_SKILLS, ...NAMED_SKILLS];
 // After a picture ends, the tour holds the last frame for this long, then goes to the next skill.
 const HOLD = 2200;
 
-// The agent starts the first six by itself; you start the last two by name. A pointer goes down
+// The agent starts the first five by itself; you start the last one by name. A pointer goes down
 // the list of skills, and the picture of each skill plays next to it. A click or
 // the arrow keys select a skill and stop the tour. Out of view, the tour pauses.
 export function SkillTour() {
@@ -116,7 +103,7 @@ export function SkillTour() {
     >
       <span className="skill-name">
         <code>{item.name}</code>
-        {index >= AGENT_SKILLS.length ? <span className="skill-tag">{item.tag ?? "by name only"}</span> : null}
+        {index >= AGENT_SKILLS.length ? <span className="skill-tag">by name only</span> : null}
       </span>
       <span className="skill-note">{item.note}</span>
       {index === active ? (

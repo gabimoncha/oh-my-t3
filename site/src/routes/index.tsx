@@ -166,8 +166,8 @@ function Install() {
       <h2 id="install-title">Install</h2>
       <InstallSteps />
       <p className="install-after muted">
-        Then restart your T3 agent sessions. <span className="no-ligatures">--hooks</span> adds the "start ulw" phrase to
-        Claude Code. The <a href={INSTALL_GUIDE}>install guide</a> lists each file and the uninstall.
+        Then restart your T3 agent sessions. The <a href={INSTALL_GUIDE}>install guide</a> lists each file and the
+        uninstall.
       </p>
     </section>
   );
