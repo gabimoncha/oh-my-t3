@@ -25,7 +25,7 @@ const TARGETS: Record<string, number> = {
   "omt/references/roles/*.md": 2_600,
   "omt/references/results/*.md": 240,
 };
-const TOTAL = 17_000;
+const TOTAL = 16_000;
 
 // Strings that the trim removes from every skill.
 const BANNED: RegExp[] = [
