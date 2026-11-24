@@ -17,7 +17,7 @@ This page describes how omt builds a goal, plans, researches, designs, runs para
 9. The main thread reads the reviewer's fix diff and fixes the reported findings.
 10. One qa task runs every verify command, the final checks, and the device flows. It edits nothing.
 11. The main thread fixes each failed check, and qa runs only the failed checks again. After 2 re-runs that still fail, it stops and asks you.
-12. It commits, pushes, and opens or updates a draft PR by the [git policy](#commit-push-and-open-a-pr). It reports each done condition with its evidence.
+12. It commits, pushes, and opens or updates a draft PR by [your git rules](#commit-push-and-open-a-pr). It reports each done condition with its evidence.
 
 The main thread ends its turn only for you (a batch of questions, a plan approval, or the report) or to wait for a child task. No heartbeat wakes the thread: T3 wakes it when a child ends ([Run a child task](#run-a-child-task)). A LIGHT run skips the plan review and your plan approval, but it still has the review task and the qa task. In the `normal` profile, the reviewer checks the fixes again after each round, up to `maxReviewRounds` reviews.
 
@@ -72,7 +72,7 @@ The skill does these steps in order:
 3. Reviewers read the PR head commits. A diff under 200 changed lines gets 1 reviewer. A larger diff gets 2 to 4 reviewers, each with one group of files. Reviewers edit nothing.
 4. It merges the findings. When the profile turns the oracle on, an oracle from the other model family checks them over the whole change. For a small diff, the one reviewer is the oracle.
 5. It writes the report: the findings by severity, the design files, and the command that returns you to your branch.
-6. It offers a fix loop. After your yes, the main thread makes the fixes, commits each one, and pushes them to the PR branch by the [git policy](#commit-push-and-open-a-pr).
+6. It offers a fix loop. After your yes, the main thread makes the fixes, commits each one, and pushes them to the PR branch by [your git rules](#commit-push-and-open-a-pr).
 
 A review starts at most 4 reviewers and 1 oracle. Reviews after a fix read the working tree. The skill posts no GitHub comment and no GitHub review. The same skill, without a PR number, reviews uncommitted changes, a branch, or a commit.
 
@@ -91,20 +91,15 @@ The [spec](spec.md#154-pull-request-review) lists the steps and the extras.
 
 ## Commit, push, and open a PR
 
-The git policy in your config decides each commit, push, PR, and merge. The skills act through `omt git`, which applies the policy, reads your GitHub login with `gh`, and checks who owns the repo and its open PRs:
+The skills follow the git rules in your message and your `AGENTS.md` or `CLAUDE.md`:
 
 1. Before the first edit, `omt git start` records the files that were already changed.
 2. `omt git commit` commits only the files that the run changed. A file that you changed before the run stays out of the commit.
-3. `omt git pr` pushes the branch and opens a draft PR, or updates the open PR of the branch. In a PR review, `omt git pr --pr <number>` pushes the fixes to that PR only, and asks for a PR from a fork or by another author. When the PR would change more than `maxPrFiles` files, the skill cuts the branch into slices and opens one stacked PR per slice with `omt git stack`.
+3. `git push -u origin HEAD` pushes the branch, and T3's `pull_request_create` tool opens a draft PR, or returns the branch's open PR. To get a PR that is ready for review, ask for one in your message or in your `AGENTS.md`.
 
-Each command acts on `auto`. On `ask`, it acts on nothing, and the skill asks you first. On `off`, the skill skips the action and says so.
+Before a run, the skills sync the branch: they fetch and merge the default branch in. `omt-ulw` makes one commit for the run after QA passes, then opens the PR. `omt-code-review` commits each approved fix and pushes it to the PR branch. For a PR by another author, it asks you first.
 
-With the default policy, on a branch that is not the default branch:
-
-- `omt-ulw` makes one commit for the run after QA passes. Then it pushes the branch and opens a draft PR, or the push updates the branch's open PR. To get a PR that is ready for review, ask for one in your message or in your `AGENTS.md`.
-- `omt-code-review` commits each approved fix and pushes it to the PR branch with no further question. For a PR by another author, it asks you first.
-
-A commit or push on the default branch asks you first. Each merge and each force push also asks you first. Without a git policy, each action asks. To change the policy, set `workflow.git` in a profile ([Write a custom profile](configuration.md#write-a-custom-profile)). The [spec](spec.md#515-omt-git) lists the rules.
+Unless your rules say otherwise, a commit or push on the default branch, a push to a repo that is not yours, and each merge ask you first. A force push always asks you first.
 
 ## Stress-test a goal before you plan
 

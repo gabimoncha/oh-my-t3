@@ -2,17 +2,13 @@ import { posix } from "node:path";
 import type { CliContext } from "../types.ts";
 import { OmtError, usageError } from "../util/errors.ts";
 import { firstLine, git, ok, runTool, trimEnd } from "./exec.ts";
-import { gate } from "./gate.ts";
 import { contentHash, readCheckout, readStart, readStatus, startHash } from "./start.ts";
 
 export interface CommitOptions {
   id: string;
   message: string;
-  profile: string | undefined;
-  plan: string | undefined;
   paths: string[];
   includes: string[];
-  yes: boolean;
 }
 
 // A --path or --include value, relative to the current folder, as a path below the top folder.
@@ -49,11 +45,6 @@ export async function commit(ctx: CliContext, options: CommitOptions): Promise<n
   const checkout = readCheckout(ctx);
   const paths = options.paths.map((value) => topPath(checkout.prefix, value, "path"));
   const includes = options.includes.map((value) => topPath(checkout.prefix, value, "include"));
-  const policy = await gate(ctx, { profile: options.profile, plan: options.plan, yes: options.yes, actions: ["commit"], hostFailure: "owner" });
-  if (policy.stop !== undefined) {
-    ctx.stdout(policy.stop);
-    return 0;
-  }
   const ask = (reason: string) => {
     ctx.stdout(`ask: ${reason}\n`);
     return 0;

@@ -29,14 +29,6 @@
           "tests": "off",
           "crap": "off"
         },
-        "git": {
-          "branchCommits": "auto",
-          "pullRequests": "auto",
-          "defaultBranch": "ask",
-          "merge": "ask",
-          "owners": [],
-          "maxPrFiles": 100
-        },
         "build": {
           "review": "every-round",
           "qa": "planned",

@@ -32,7 +32,7 @@ In `plan` interaction mode you are read-only. Write no files: no `omt init`, no 
 
 ## Branch check
 
-Run `omt git behind --ff` (in `plan` mode, `omt git behind`). `ask:` means the branch is behind and the tree is not clean: report the count and ask the user how to go on.
+Sync the branch with the default branch: `git fetch origin`, then merge `origin/<default branch>` into it. Never rebase. When the tree is not clean or the merge conflicts, ask the user how to go on. In `plan` mode, only report how many commits the branch is behind.
 
 ## Worktree setup
 
@@ -79,25 +79,16 @@ Settle each child when you are done with it, or T3 keeps it loaded for 30 idle m
 
 ## Git actions
 
-The `workflow.git` policy is the owner's standing approval for each action that it marks `auto`. The CLI applies it, finds the user's GitHub login, and checks who owns the repo and its open PRs.
+Follow the git rules of the user's instruction files. Without a rule, ask the owner before you commit or push to the default branch, push to a repo that is not the user's, or merge a PR. A force push always asks the owner.
 
 - Before the first edit of a run, run `omt git start --plan <slug>` (or `--run <id>` with no plan file). It records the files that were already changed, so that a commit takes only the run's own files.
 - Commit with `omt git commit -m "<message>" --plan <slug>`. Add `--path <path>` for each path when one commit holds only part of the run. Follow the commit conventions of the repo's `AGENTS.md` and its `git log`.
-- Push and open or update the PR with `omt git pr --title "<title>" --body-file <file> --plan <slug>`. It opens a draft PR. Pass `--ready` only when the user's message or their `AGENTS.md` asks for one that is ready for review.
-- Before a plan file exists, pass `--run <id>` and the run's `--profile <name>`.
-
-Each command prints one first word:
-
-- `committed`, `created`, or `updated`: done. Report the hash or the URL.
-- `ask: <reason>`: ask the owner and wait. After the owner's yes in this run, run the same command with `--yes`. A rule in the user's own instruction file counts as a yes only when the reason starts with `workflow.git.`, which marks a policy decision; never for an ownership reason. `--yes` never covers a path problem; for a path that had changes before the run, the owner's yes means `--include <path>`.
-- `off: <reason>`: the policy turns the action off. Do not act, and say so in the report.
-- `split: <reason>`: the PR has more files than `maxPrFiles`. Cut the branch into slices between existing commits, with code and tests low and docs on top. Run the tests at each cut. Then run `omt git stack <sha>,<sha>...` with the last commit of each lower slice, bottom first, and the same flags as `omt git pr`.
-
-A force push always asks the owner. After a yes for it in this run, pass `--force-with-lease` to `omt git pr`.
+- `committed <sha>` means done: report the hash. `ask: <reason>` means a path problem: ask the owner. For a path that had changes before the run, the owner's yes means `--include <path>`. `skipped:` means the run changed nothing.
+- Push the branch with `git push -u origin HEAD`, then open a draft PR with T3's `pull_request_create` tool. T3 releases up to 0.1.11 refuse a branch that was not pushed. The tool links the PR, and returns the open PR when one exists. Set `draft: false` only when the user's message or their `AGENTS.md` asks for a PR that is ready for review.
 
 ## Pull requests
 
-When you create a PR, link it with `link_pull_request`, call `watch_pull_request`, and end the turn. On each wake, read the checks with `gh pr checks <number>`. When a check fails, find the cause in its log, fix it, and push the fix with `omt git pr`. When every check passed or was skipped, call `unwatch_pull_request` and tell the user.
+After you create a PR, call `watch_pull_request`, then run `gh pr checks <number>`. When every check already passed or was skipped, call `unwatch_pull_request` and tell the user: T3 releases up to 0.1.11 send no wake for checks that passed before the watch. Otherwise, end the turn. On each wake, read the checks with `gh pr checks <number>`. When a check fails, find the cause in its log, fix it, commit, and `git push`. When every check passed or was skipped, call `unwatch_pull_request` and tell the user.
 
 ## Verification and devices
 

@@ -40,7 +40,6 @@ test("the presets store a full normal workflow with the PR extras off and sparse
       reviewers: "auto", families: "one", oracle: "on", fixLoop: "offer", ci: "off", verify: "off",
       tests: "off", crap: "off",
     },
-    git: { branchCommits: "auto", pullRequests: "auto", defaultBranch: "ask", merge: "ask", owners: [], maxPrFiles: 100 },
   });
   assert.equal(prototype.extends, "normal");
   assert.deepEqual(prototype.limits, { maxReviewRounds: 2 });
@@ -212,7 +211,6 @@ test("every workflow enum and numeric boundary is accepted and invalid values ar
     for (const [key, rule] of Object.entries(rules)) {
       const good: unknown[] = "values" in rule ? [...rule.values]
         : "items" in rule ? [[], [...rule.items]]
-        : "strings" in rule ? [[], ["acme", "Alice-1"]]
         : [rule.minimum, rule.maximum, ...("auto" in rule ? ["auto"] : [])];
       for (const value of good) {
         const checked = validateLayer({ profiles: { normal: { workflow: { [group]: { [key]: value } } } } }, "src");
@@ -220,7 +218,6 @@ test("every workflow enum and numeric boundary is accepted and invalid values ar
       }
       const bad: unknown[] = "values" in rule ? ["unknown", 1, null]
         : "items" in rule ? ["e2e", ["snapshot"], [1]]
-        : "strings" in rule ? ["acme", ["-acme"], [1]]
         : [rule.minimum - 1, rule.maximum + 1, 1.5, "1", null];
       for (const value of bad) {
         const checked = validateLayer({ profiles: { normal: { workflow: { [group]: { [key]: value } } } } }, "src");

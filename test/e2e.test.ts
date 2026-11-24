@@ -107,44 +107,6 @@ test("end to end: the shared grills path works from a worktree, and plan-review 
   }
 });
 
-test("end to end: git policy checks each action on feature and default branches and explicit overrides", () => {
-  const p = gitProject({});
-  p.git(["remote", "add", "origin", "git@github.com:alice/app.git"]);
-  p.git(["update-ref", "refs/remotes/origin/main", "HEAD"]);
-  p.git(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
-  p.git(["checkout", "-q", "-b", "feat/x"]);
-  for (const branch of ["feat/x", "main"]) {
-    p.git(["checkout", "-q", branch]);
-    for (const action of ["commit", "push", "pr", "merge"]) {
-      const expected = branch === "feat/x" && action !== "merge" ? "auto" : "ask";
-      assert.match(p.omt("git", "check", action, "--user", "alice"), new RegExp(`^${expected}: `), `${branch}: ${action}`);
-    }
-  }
-  p.git(["checkout", "-q", "feat/x"]);
-  mkdirSync(join(p.project, ".omt3"));
-  writeFileSync(join(p.project, ".omt3", "config.jsonc"), JSON.stringify({ profiles: { normal: { workflow: { git: { branchCommits: "ask" } } } } }));
-  assert.match(p.omt("git", "check", "commit", "--user", "alice"), /^ask: /);
-});
-
-test("end to end: git policy permits owned repos and asks for another owner's repo or PR", () => {
-  const p = gitProject({});
-  p.git(["remote", "add", "origin", "git@github.com:alice/app.git"]);
-  p.git(["update-ref", "refs/remotes/origin/main", "HEAD"]);
-  p.git(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
-  p.git(["checkout", "-q", "-b", "feat/ownership"]);
-
-  assert.match(p.omt("git", "check", "commit", "--user", "bob"), /^ask: .*alice\/app/);
-  assert.match(p.omt("git", "check", "commit", "--user", "alice"), /^auto: /);
-
-  mkdirSync(join(p.project, ".omt3"));
-  writeFileSync(join(p.project, ".omt3", "config.jsonc"), JSON.stringify({
-    profiles: { normal: { workflow: { git: { owners: ["acme"] } } } },
-  }));
-  p.git(["remote", "set-url", "origin", "https://github.com/acme/app.git"]);
-  assert.match(p.omt("git", "check", "commit", "--user", "bob"), /^auto: /);
-  assert.match(p.omt("git", "check", "push", "--user", "bob", "--pr-author", "carol"), /^ask: .*carol/);
-});
-
 // A committed git repository in a temp root, with an omt runner whose HOME and git config point into the root.
 function gitProject(files: Record<string, string>) {
   const root = tempDir("omt-e2e-project-");

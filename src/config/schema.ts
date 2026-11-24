@@ -1,5 +1,5 @@
 import { EFFORT_LADDER } from "../types.ts";
-import { RETIRED_BUILD_KEYS, RETIRED_LIMIT_KEYS, RETIRED_PROFILES, RETIRED_REVIEW_KEYS } from "./defaults.ts";
+import { RETIRED_BUILD_KEYS, RETIRED_LIMIT_KEYS, RETIRED_PROFILES, RETIRED_REVIEW_KEYS, RETIRED_WORKFLOW_GROUPS } from "./defaults.ts";
 import { SCHEMA_URL } from "./starter.ts";
 import {
   ACCESS_VALUES,
@@ -36,7 +36,6 @@ function workflowGroup(rules: (typeof WORKFLOW_RULES)[keyof typeof WORKFLOW_RULE
   const properties = Object.fromEntries(Object.entries(rules).map(([key, rule]) => {
     if ("values" in rule) return [key, { enum: [...rule.values] }];
     if ("items" in rule) return [key, { type: "array", items: { enum: [...rule.items] } }];
-    if ("strings" in rule) return [key, { type: "array", items: { type: "string", pattern: rule.strings } }];
     const integer = { type: "integer", minimum: rule.minimum, maximum: rule.maximum };
     return [key, "auto" in rule ? { oneOf: [{ const: "auto" }, integer] } : integer];
   }));
@@ -168,7 +167,7 @@ export const CONFIG_SCHEMA = {
         design: workflowGroup(WORKFLOW_RULES.design),
         build: workflowGroup(WORKFLOW_RULES.build, RETIRED_BUILD_KEYS),
         review: workflowGroup(WORKFLOW_RULES.review, RETIRED_REVIEW_KEYS),
-        git: workflowGroup(WORKFLOW_RULES.git),
+        ...retired(RETIRED_WORKFLOW_GROUPS),
       },
     },
   },

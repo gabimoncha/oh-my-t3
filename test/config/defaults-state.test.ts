@@ -70,7 +70,7 @@ test("doctor removes every retired key without a prompt and keeps comments, over
     '    "prototype": { "workflow": { "review": {',
     "      // Keep this note.",
     '      "guardrails": "off"',
-    "    } } }",
+    '    }, "git": { "pullRequests": "off", "owners": ["acme"], "maxPrFiles": 10 } } }',
     "  }",
     "}",
     "",
@@ -83,6 +83,7 @@ test("doctor removes every retired key without a prompt and keeps comments, over
     "limits.maxTasksPerRun",
     "profiles.normal.workflow.review.guardrails",
     "profiles.prototype.workflow.review.guardrails",
+    "profiles.prototype.workflow.git",
   ]);
   assert.equal(readFileSync(config, "utf8"), before, "a dry run writes nothing");
   await doctor({ ...ctx, argv: ["--project"], isTTY: true, prompt: async () => "no" });
@@ -90,7 +91,7 @@ test("doctor removes every retired key without a prompt and keeps comments, over
   const after = readFileSync(config, "utf8");
   assert.match(after, /Keep this override/);
   assert.match(after, /Keep this note/);
-  assert.doesNotMatch(after, /guardrail|grill|maxTasksPerRun|"normal"/);
+  assert.doesNotMatch(after, /guardrail|grill|maxTasksPerRun|"normal"|"git"/);
   const loaded = await loadConfig(ctx);
   assert.deepEqual(loaded.issues, []);
   assert.equal(loaded.config.limits.maxParallel, 2);

@@ -61,16 +61,6 @@ export interface Workflow {
     tests: "off" | "offer";
     crap: "off" | "report";
   };
-  git?: Partial<GitPolicy>; // a missing key means "ask"
-}
-
-export interface GitPolicy {
-  branchCommits: "auto" | "ask";
-  pullRequests: "auto" | "ask" | "off";
-  defaultBranch: "ask" | "auto";
-  merge: "ask" | "auto";
-  owners: string[]; // GitHub owners besides the user whose repos count as the user's own
-  maxPrFiles: number; // most changed files in one PR before the skills split it into a stack; 0 means no limit
 }
 
 export type WorkflowLayer = { [K in keyof Workflow]?: Partial<Workflow[K]> };

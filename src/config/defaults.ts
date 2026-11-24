@@ -5,6 +5,8 @@ import { parseJsonc } from "./jsonc.ts";
 
 export const RETIRED_BUILD_KEYS: readonly string[] = ["verify", "checkpoint", "stallMinutes"];
 export const RETIRED_REVIEW_KEYS: readonly string[] = ["guardrails"];
+// workflow.git held the git policy of the retired check, pr, and stack subcommands of omt git.
+export const RETIRED_WORKFLOW_GROUPS: readonly string[] = ["git"];
 export const RETIRED_LIMIT_KEYS: readonly string[] = ["maxTasksPerRun"];
 export const RETIRED_ROLES: readonly string[] = ["verify", "quick", "deep", "plan", "grill", "guardrail"];
 // A selection of a retired profile resolves to normal, which now runs the PR review steps.

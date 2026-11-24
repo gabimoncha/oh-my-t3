@@ -5,8 +5,8 @@ import { test } from "bun:test";
 import { fakeHost } from "./fixtures/fake-gh/setup.ts";
 import { writeFile } from "./helpers.ts";
 
-function run(options: { origin?: boolean } = {}) {
-  const host = fakeHost({ files: { "a.txt": "a\n", "b.txt": "b\n", "src/lib.txt": "lib\n" }, ...options });
+function run() {
+  const host = fakeHost({ files: { "a.txt": "a\n", "b.txt": "b\n", "src/lib.txt": "lib\n" } });
   host.git(["checkout", "-q", "-b", "feat/x"]);
   const edit = (path: string, text: string) => writeFile(join(host.cwd, path), text);
   const ok = (args: string[], cwd?: string) => {
@@ -34,8 +34,7 @@ test("git commit takes only the run's paths and leaves earlier and staged change
   assert.deepEqual(r.committed(), ["README.md", "new/c.txt"]);
   assert.equal(r.git(["diff", "--cached", "--name-only"]), "b.txt\n");
   assert.equal(r.git(["diff", "--name-only"]), "a.txt\n");
-  assert.ok(r.ghLog().some((line) => line.startsWith("api --hostname github.com user")));
-  assert.ok(r.ghLog().some((line) => line.startsWith("pr list --repo github.com/alice/app --head feat/x")));
+  assert.deepEqual(r.ghLog(), [], "commit makes no call to the git host");
 
   r.edit("d.txt", "d\n");
   r.edit("src/lib.txt", "lib changed\n");
@@ -57,36 +56,9 @@ test("git commit asks for a path outside the run, a path changed before and duri
   assert.equal(r.ok(["commit", "-m", "x", "--run", "r1", "--path", "a.txt"]), "ask: a.txt is not a path that this run changed\n");
   r.edit("a.txt", "a changed again by the run\n");
   assert.equal(r.ok(["commit", "-m", "x", "--run", "r1"]), "ask: a.txt had changes before the run, and the run changed it too\n");
-  assert.equal(r.ok(["commit", "-m", "x", "--run", "r1", "--yes"]), "ask: a.txt had changes before the run, and the run changed it too\n");
   assert.equal(r.git(["rev-parse", "HEAD"]), head);
   assert.match(r.ok(["commit", "-m", "x", "--run", "r1", "--include", "a.txt"]), /^committed [0-9a-f]+: 2 files\n$/);
   assert.deepEqual(r.committed(), ["README.md", "a.txt"]);
-});
-
-test("git commit with an ask policy prints ask and commits nothing, and --yes commits", () => {
-  const r = run();
-  r.config({ profiles: { normal: { workflow: { git: { branchCommits: "ask" } } } } });
-  r.ok(["start", "--run", "r1"]);
-  r.edit("new.txt", "new\n");
-  const head = r.git(["rev-parse", "HEAD"]);
-  assert.equal(r.ok(["commit", "-m", "x", "--run", "r1"]), "ask: workflow.git.branchCommits is \"ask\" in profile \"normal\" on branch feat/x\n");
-  assert.equal(r.git(["rev-parse", "HEAD"]), head);
-  assert.equal(r.git(["status", "--porcelain"]), "?? new.txt\n");
-  assert.match(r.ok(["commit", "-m", "x", "--run", "r1", "--yes"]), /^committed [0-9a-f]+: 1 file\n$/);
-});
-
-test("git commit asks for another owner's repo and needs no gh without origin", () => {
-  const foreign = run();
-  foreign.git(["remote", "set-url", "origin", "git@github.com:bob/app.git"]);
-  foreign.ok(["start", "--run", "r1"]);
-  foreign.edit("new.txt", "new\n");
-  assert.equal(foreign.ok(["commit", "-m", "x", "--run", "r1"]), "ask: bob/app is not your repo; add the owner to workflow.git.owners to allow it\n");
-
-  const local = run({ origin: false });
-  local.ok(["start", "--run", "r1"]);
-  local.edit("new.txt", "new\n");
-  assert.match(local.ok(["commit", "-m", "x", "--run", "r1"]), /^committed [0-9a-f]+: 1 file\n$/);
-  assert.deepEqual(local.ghLog(), []);
 });
 
 test("git start writes the record in the linked worktree's own git dir", () => {

@@ -144,7 +144,7 @@ Done when: every check passed in a QA run, or the owner has the failures.
 
 ### 12. Ship and report
 
-After every check passed, make one commit for the run with `omt git commit`, then push and open or update the PR with `omt git pr` ([Git actions](../omt/references/delegation.md#git-actions)). When you create a PR, follow [Pull requests](../omt/references/delegation.md#pull-requests).
+After every check passed, make one commit for the run with `omt git commit`, then push and open a draft PR with `pull_request_create` ([Git actions](../omt/references/delegation.md#git-actions)). Then follow [Pull requests](../omt/references/delegation.md#pull-requests).
 
 The report contains:
 
@@ -152,7 +152,7 @@ The report contains:
 - Each done condition with its command, exit code, and log path from the QA run.
 - The review verdict, the reviewer's fixes, and the findings that you fixed or dropped, with the reason.
 - The QA verdict and each re-run, with each screenshot as a Markdown image with its absolute path, grouped by screen.
-- The commit hash and the PR URL, or the reason that the git policy gave.
+- The commit hash and the PR URL, or why there is none.
 - Open items: blocked units, open findings, and decisions left.
 
 Done when: every done condition from step 3 is in the report with evidence or as an open item.

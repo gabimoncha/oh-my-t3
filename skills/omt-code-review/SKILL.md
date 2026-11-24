@@ -113,6 +113,6 @@ Done when: the owner has the evidence file and the return command.
 
 ### PR 6. Offers
 
-Offer the fix loop of step 6. After yes, check out the PR (PR step 1). Run `omt git start --run review-<slug>` before the first fix. Commit each fix with `omt git commit -m "<message>" --path <path>`, and push to the PR branch with `omt git pr --pr <n>`, which updates only that PR and asks for a fork PR or another author's PR. Pass `--run review-<slug> --profile <profile>` to both. For a fork PR, leave the commits local and tell the owner. Follow [Git actions](../omt/references/delegation.md#git-actions) on `ask:` and `off:`. Post nothing else to GitHub.
+Offer the fix loop of step 6. After yes, check out the PR (PR step 1). Run `omt git start --run review-<slug>` before the first fix. Commit each fix with `omt git commit -m "<message>" --path <path> --run review-<slug>`, and `git push` to the PR's head branch. Ask the owner before you push to another author's PR. For a fork PR, leave the commits local and tell the owner. Follow [Git actions](../omt/references/delegation.md#git-actions). Post nothing else to GitHub.
 
 Done when: each approved fix is pushed, or the owner said no.
