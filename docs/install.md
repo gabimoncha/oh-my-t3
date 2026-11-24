@@ -280,7 +280,7 @@ When the bundle no longer ships a skill that an earlier install wrote, such as `
 
 The install and `omt update` also remove what other retired features left, with no question:
 
-- The Claude Code `UserPromptSubmit` hook of an earlier `--hooks` install, from the settings file that it was written to. When the rest of the file equals the install-time backup, they write the backup's bytes back and delete the backup, as `omt uninstall` does. A settings file that the install created and that holds nothing else is deleted. Until the hook is gone, `omt doctor` prints `WARN` on a `hooks` line.
+- The Claude Code `UserPromptSubmit` hook of an earlier `--hooks` install, from the settings file that it was written to. They drop only that entry, keep the file's style, and back the old file up in `backups/`. They never delete a settings file or an older backup. A settings file that is not valid JSON stays as it is, and a later run removes the entry once you fix it. Until the hook is gone, `omt doctor` prints `WARN` on a `hooks` line.
 - The retired config keys, such as `limits.maxParallel`.
 - In a project, `.omt3/ledger.jsonl` and `.omt3/locks/`, which `omt ledger` and `omt lock` wrote.
 

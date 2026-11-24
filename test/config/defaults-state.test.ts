@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { existsSync, lstatSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "bun:test";
 import { run as doctor } from "../../src/commands/doctor.ts";
 import { run as install } from "../../src/commands/install.ts";
-import { DEFAULT_CONFIG } from "../../src/config/defaults.ts";
+import { DEFAULT_CONFIG, withUpdaterLimits } from "../../src/config/defaults.ts";
 import { explainConfig } from "../../src/config/explain.ts";
-import { applyDefaults, cleanRetired, defaultsSnapshotPath, planDefaults, reviewDefaults } from "../../src/config/defaultsState.ts";
+import { applyDefaults, cleanRetired, defaultsSnapshotPath, formatRetiredCleanup, planDefaults, reviewDefaults } from "../../src/config/defaultsState.ts";
 import { loadConfig, readConfigLayers } from "../../src/config/load.ts";
 import { omtDir, projectConfigPath } from "../../src/paths.ts";
 import { fakeContext, gitRepo, tempDir, writeFile } from "../helpers.ts";
@@ -51,7 +51,8 @@ test("doctor accepts current defaults and removes only the retired pin", async (
   const loaded = await loadConfig(ctx);
   assert.equal(loaded.config.roles.execute?.chain[0]?.effort, DEFAULT_CONFIG.roles.execute?.chain[0]?.effort);
   assert.equal(loaded.config.limits.maxReviewRounds, 2);
-  assert.deepEqual(JSON.parse(readFileSync(path, "utf8")).acceptedDefaults.config, DEFAULT_CONFIG);
+  // The saved snapshot keeps limits.maxParallel, because omt update of v0.7.1 rejects a snapshot without it.
+  assert.deepEqual(JSON.parse(readFileSync(path, "utf8")).acceptedDefaults.config, withUpdaterLimits(DEFAULT_CONFIG));
 });
 
 test("doctor removes every retired key without a prompt and keeps comments, overrides, and emptied parents with a comment", async () => {
@@ -112,24 +113,55 @@ test("cleanup deletes an empty guardrails.md and keeps one with text", async () 
   assert.equal(existsSync(file), true);
 });
 
-// A link at .omt3/locks to a project folder must lose only the link: a followed link deleted the folder.
-test("cleanup removes a symlinked locks or ledger entry itself, never its target, and skips an entry of the wrong type", async () => {
+// A recursive removal behind a type check deleted a project folder that .omt3/locks pointed at, or that a swap put
+// there. The cleanup now unlinks single entries and lock files only, and removes locks/ only when that empties it.
+test("cleanup unlinks a symlinked locks or ledger entry itself, never its target, and deletes nothing recursively", async () => {
   const { ctx } = await setup();
+  const omt = omtDir(ctx.cwd);
   const keep = join(ctx.cwd, "keep");
   writeFile(join(keep, "notes.md"), "mine\n");
   writeFile(join(ctx.cwd, "data.jsonl"), "mine\n");
-  symlinkSync(keep, join(omtDir(ctx.cwd), "locks"));
-  symlinkSync(join(ctx.cwd, "data.jsonl"), join(omtDir(ctx.cwd), "ledger.jsonl"));
+  symlinkSync(keep, join(omt, "locks"));
+  symlinkSync(join(ctx.cwd, "data.jsonl"), join(omt, "ledger.jsonl"));
   const cleanup = await cleanRetired(ctx, "project", { dryRun: false });
-  assert.deepEqual(cleanup.files.sort(), [join(omtDir(ctx.cwd), "ledger.jsonl"), join(omtDir(ctx.cwd), "locks")]);
-  assert.throws(() => lstatSync(join(omtDir(ctx.cwd), "locks")));
-  assert.throws(() => lstatSync(join(omtDir(ctx.cwd), "ledger.jsonl")));
+  assert.deepEqual(cleanup.files.sort(), [join(omt, "ledger.jsonl"), join(omt, "locks")]);
+  assert.throws(() => lstatSync(join(omt, "locks")));
+  assert.throws(() => lstatSync(join(omt, "ledger.jsonl")));
   assert.equal(readFileSync(join(keep, "notes.md"), "utf8"), "mine\n");
   assert.equal(readFileSync(join(ctx.cwd, "data.jsonl"), "utf8"), "mine\n");
 
-  writeFile(join(omtDir(ctx.cwd), "ledger.jsonl", "inside.txt"), "a folder, not the ledger\n");
-  assert.deepEqual((await cleanRetired(ctx, "project", { dryRun: false })).files, []);
-  assert.ok(existsSync(join(omtDir(ctx.cwd), "ledger.jsonl", "inside.txt")));
+  writeFile(join(omt, "locks", "build.lock"), "");
+  writeFile(join(omt, "locks", ".gitignore"), "*\n");
+  writeFile(join(omt, "locks", "notes.md"), "mine\n");
+  writeFile(join(omt, "locks", "sub", "x.lock"), "");
+  writeFile(join(omt, "ledger.jsonl", "inside.txt"), "a folder, not the ledger\n");
+  await cleanRetired(ctx, "project", { dryRun: false });
+  assert.deepEqual(readdirSync(join(omt, "locks")).sort(), ["notes.md", "sub"]);
+  assert.ok(existsSync(join(omt, "locks", "sub", "x.lock")));
+  assert.ok(existsSync(join(omt, "ledger.jsonl", "inside.txt")));
+
+  rmSync(join(omt, "locks", "notes.md"));
+  rmSync(join(omt, "locks", "sub"), { recursive: true });
+  writeFile(join(omt, "locks", "ledger.lock"), "");
+  await cleanRetired(ctx, "project", { dryRun: false });
+  assert.ok(!existsSync(join(omt, "locks")), "a locks folder with only lock files goes");
+});
+
+// A followed .omt3 link sent the cleanup into another folder.
+test("cleanup skips a symlinked state folder and says so, but still removes the retired config keys", async () => {
+  const { ctx } = await setup();
+  const omt = omtDir(ctx.cwd);
+  const real = join(ctx.cwd, "state");
+  renameSync(omt, real);
+  symlinkSync(real, omt);
+  writeFile(join(real, "ledger.jsonl"), "{}\n");
+  writeFileSync(join(real, "config.jsonc"), '{ "version": 1, "limits": { "maxParallel": 2 } }\n');
+  const cleanup = await cleanRetired(ctx, "project", { dryRun: false });
+  assert.equal(cleanup.skipped, omt);
+  assert.deepEqual(cleanup.files, []);
+  assert.ok(existsSync(join(real, "ledger.jsonl")));
+  assert.deepEqual(cleanup.keys, ["limits.maxParallel"]);
+  assert.match(formatRetiredCleanup(cleanup, false), /^skipped the retired files in .*: it is a symlink; remove ledger\.jsonl and locks\/ there by hand$/m);
 });
 
 test("install removes the retired keys without a prompt", async () => {

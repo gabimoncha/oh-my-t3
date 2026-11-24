@@ -13,6 +13,13 @@ export const RETIRED_ROLES: readonly string[] = ["verify", "quick", "deep", "pla
 // A selection of a retired profile resolves to normal, which now runs the PR review steps.
 export const RETIRED_PROFILES: readonly string[] = ["pr-review"];
 
+// omt update of v0.7.1 rejects defaults without limits.maxParallel, both in `config show --defaults` and in the
+// acceptedDefaults snapshot of an install manifest. Every later release drops the retired key with a warning, so it
+// has no effect. Remove this once no supported install runs v0.7.1.
+export function withUpdaterLimits<T extends { limits: object }>(config: T): T {
+  return { ...config, limits: { maxParallel: 6, ...config.limits } };
+}
+
 // The values live in defaults.jsonc. test/defaults.test.ts checks that the file is a complete, valid config.
 export const DEFAULT_CONFIG: OmtConfig = parseJsonc(defaultsText(), "src/config/defaults.jsonc") as OmtConfig;
 

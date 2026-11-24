@@ -39,7 +39,7 @@ test("omt update removes omt-research, the prompt hook, limits.maxParallel, and 
   const out = ctx.out();
   assert.match(out, /^ {2}remove {3}omt-research {2}\(no longer shipped\)$/m);
   assert.match(out, new RegExp(`removed ${ledger.replaceAll(".", "\\.")}; the ledger is retired`));
-  assert.match(out, new RegExp(`removed ${locks.replaceAll(".", "\\.")}; omt lock is retired`));
+  assert.match(out, new RegExp(`removed the lock files in ${locks.replaceAll(".", "\\.")}; omt lock is retired`));
 
   for (const root of [f.home, project]) {
     assert.ok(!existsSync(join(root, ".agents", "skills", RESEARCH)), `${root}: skill`);
@@ -49,7 +49,7 @@ test("omt update removes omt-research, the prompt hook, limits.maxParallel, and 
   assert.ok(!(readJson(join(project, ".omt3", "install.json")).skills as string[]).includes(RESEARCH));
 
   assert.equal(readFileSync(f.settings, "utf8"), userSettings);
-  assert.ok(!existsSync(projectSettings), "the settings file that only the hook created is gone");
+  assert.equal(readFileSync(projectSettings, "utf8"), "{}\n", "the removal never deletes a settings file");
   assert.deepEqual(readJson(f.manifest).hooks, []);
   assert.deepEqual(readJson(join(project, ".omt3", "install.json")).hooks, []);
 

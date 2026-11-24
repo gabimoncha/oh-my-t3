@@ -96,7 +96,6 @@ export interface HarnessStep {
 
 export interface HookStep extends Omit<HookChange, "action"> {
   action: PlanAction;
-  removeFile?: boolean; // uninstall --project: the install created the file, and only {} is left
 }
 
 // A text file that the plan rewrites as a whole. `before` is undefined when the file is missing.
@@ -610,7 +609,7 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
     links,
     skippedRoots: linkPlan.skipped,
     config,
-    ...await planHookRemovals(scope, paths, previous, true).then(({ hooks, kept }) => ({ hooks, keptHooks: kept })),
+    ...await planHookRemovals(paths, previous, true).then(({ hooks, kept }) => ({ hooks, keptHooks: kept })),
     scratch: paths.root === undefined ? [] : await listScratch(paths.agentsRoot),
   };
   if (previous !== undefined) plan.previous = previous;
@@ -654,49 +653,34 @@ export async function buildInstallPlan(ctx: CliContext, options: InstallOptions)
 }
 
 // A remove step for each settings file that still holds the retired Claude prompt hook: the scope's
-// settings file and each one that the manifest records. A file that the install created and that holds
-// only {} after the removal goes; one whose install-time backup matches what is left gets the backup's bytes.
-// With `skipInvalid`, a settings file that is not a valid settings object is left alone, so an install or
-// update never fails on a file that omt only cleans.
+// settings file and each one that the manifest records, once per real file. Each step drops only the omt
+// entry and backs the old file up; it never deletes a settings file or reads a recorded backup.
+// With `skipInvalid`, a settings file that is not a valid settings object is left alone and its records stay,
+// so an install or update never fails on a file that omt only cleans, and a later run retries it.
 async function planHookRemovals(
-  scope: InstallScope,
   paths: ScopePaths,
   manifest: Manifest | undefined,
   skipInvalid = false,
 ): Promise<{ hooks: HookStep[]; kept: ManifestHook[] }> {
-  // Records match by real path, so a record under an alias of the scope's settings path keeps its backup and created flag.
-  const scopeKey = await resolveReal(paths.settingsPath);
-  const groups = new Map<string, { settingsPath: string; records: ManifestHook[] }>([[scopeKey, { settingsPath: paths.settingsPath, records: [] }]]);
+  const groups = new Map<string, { settingsPath: string; records: ManifestHook[] }>([
+    [await resolveReal(paths.settingsPath), { settingsPath: paths.settingsPath, records: [] }],
+  ]);
   for (const hook of manifest?.hooks ?? []) {
     const key = await resolveReal(hook.settingsPath);
     const group = groups.get(key) ?? { settingsPath: hook.settingsPath, records: [] };
     group.records.push(hook);
     groups.set(key, group);
   }
-  // Only a backup whose real path is in the scope's backups folder may be restored and then deleted.
-  const backupsRoot = await resolveReal(join(paths.stateDir, "backups"));
   const hooks: HookStep[] = [];
   const kept: ManifestHook[] = [];
-  for (const [key, { settingsPath, records }] of groups) {
-    let backup: string | undefined;
-    for (const record of records) {
-      if (record.backup !== undefined && isWithin(backupsRoot, await resolveReal(record.backup))) backup ??= record.backup;
-    }
-    let change: HookStep | undefined;
+  for (const { settingsPath, records } of groups.values()) {
     try {
-      change = await planHookRemoval(settingsPath, backup);
+      const change = await planHookRemoval(settingsPath);
+      if (change !== undefined) hooks.push(change);
     } catch (error) {
       if (!skipInvalid || !(error instanceof OmtError) || error.code !== "claude_settings") throw error;
-      // A later run retries the file once it parses again, so its records stay.
       kept.push(...records);
-      continue;
     }
-    if (change === undefined) continue;
-    const created =
-      records.some((record) => record.created === true) ||
-      (scope === "project" && key === scopeKey && manifest?.project?.settingsCreated === true);
-    if (created && change.empty === true) change.removeFile = true;
-    hooks.push(change);
   }
   return { hooks, kept };
 }
@@ -878,13 +862,9 @@ async function planProjectUninstall(root: string, manifest: Manifest | undefined
 
 async function createdThatStays(plan: UninstallPlan, root: string, manifest: Manifest | undefined): Promise<{ config: boolean; settings: boolean }> {
   const config = plan.config.action === "keep" && manifest?.config?.path === plan.config.path && manifest.config.created === true;
-  // A settings file that the install created stays when other keys are left in it, such as the
-  // permissions that Claude Code writes there.
+  // A settings file that an earlier install created stays: the hook removal never deletes it.
   const settingsPath = projectClaudeSettingsPath(root);
-  const settings =
-    manifest?.project?.settingsCreated === true &&
-    (await pathExists(settingsPath)) &&
-    !plan.hooks.some((hook) => hook.settingsPath === settingsPath && hook.removeFile === true);
+  const settings = manifest?.project?.settingsCreated === true && (await pathExists(settingsPath));
   return { config, settings };
 }
 
@@ -1041,7 +1021,7 @@ export async function buildUninstallPlan(
     links.push(link);
   }
 
-  const { hooks } = await planHookRemovals(scope, paths, manifest);
+  const { hooks } = await planHookRemovals(paths, manifest);
 
   const configPath = paths.configPath;
   const configExists = await pathExists(configPath);
@@ -1191,10 +1171,7 @@ export function renderUninstallPlan(plan: UninstallPlan): string {
   for (const skill of plan.skills) text += line(skill.action, skill.path, skill.reason);
   text += "Hooks:\n";
   if (plan.hooks.length === 0) text += "  none\n";
-  for (const hook of plan.hooks) {
-    const reason = hook.restoreBackup === undefined ? undefined : `restores the backup ${hook.restoreBackup}`;
-    text += line(hook.action, `Claude UserPromptSubmit in ${hook.settingsPath}`, reason);
-  }
+  for (const hook of plan.hooks) text += line(hook.action, `Claude UserPromptSubmit in ${hook.settingsPath}`, "retired");
   if (plan.workflows.length > 0) {
     text += "T3 workflows:\n";
     for (const step of plan.workflows) text += line(step.action, step.path, step.reason);

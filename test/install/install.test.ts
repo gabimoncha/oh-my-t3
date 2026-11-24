@@ -249,21 +249,19 @@ test("unknown flags and positionals are usage errors", async () => {
   assert.equal((await f.run(["uninstall", "--nope"])).code, 2);
 });
 
-test("update removes the retired hook from settings.json, restores the install-time backup byte for byte, and doctor passes", async () => {
+test("update removes the retired hook from settings.json, backs the file up, and doctor passes", async () => {
   const f = makeFixture();
   await f.runOk(["install", "--yes"]);
   const original = { model: "opus", hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo pre" }] }] } };
-  const originalText = `${JSON.stringify(original, null, 4)}\n`;
-  const backup = join(f.backups, "20251201000000", "claude-settings.json");
-  writeFile(backup, originalText);
-  writeFile(f.settings, `${JSON.stringify(withOldHook(original), null, 2)}\n`);
-  recordOldHook(f, f.settings, { backup });
+  const before = `${JSON.stringify(withOldHook(original), null, 2)}\n`;
+  writeFile(f.settings, before);
+  recordOldHook(f, f.settings);
   assert.match((await doctor(f)).get("hooks").message, /^the retired omt prompt hook is still in .*settings\.json; run omt update to remove it$/);
 
   const { ctx } = await f.runOk(["update", "--skills-only", "--yes"]);
   assert.match(ctx.out(), /^ {2}remove {3}Claude UserPromptSubmit in .*settings\.json {2}\(retired\)$/m);
-  assert.equal(readFileSync(f.settings, "utf8"), originalText);
-  assert.ok(!existsSync(backup));
+  assert.equal(readFileSync(f.settings, "utf8"), `${JSON.stringify(original, null, 2)}\n`);
+  assert.equal(readFileSync(join(f.backups, STAMP, "claude-settings.json"), "utf8"), before);
   assert.deepEqual(readJson(f.manifest).hooks, []);
   assert.ok(!(await doctor(f)).report.checks.some((check) => check.id === "hooks"));
 });
@@ -286,14 +284,34 @@ test("install removes the retired hook, keeps every other setting, the style, an
   assert.deepEqual(readJson(f.manifest).hooks, []);
 });
 
-test("install deletes a settings.json that only the retired hook created, without a backup", async () => {
+// The restore and delete paths of an earlier fix deleted a settings file or a backup that a wrong or aliased record
+// named. The removal now ignores the recorded created flag and backup: it only drops the omt entry.
+test("the hook removal never deletes a settings file or a recorded backup, whatever the records say", async () => {
   const f = makeFixture();
   await f.runOk(["install", "--yes"]);
+  const backup = join(f.backups, "20251201000000", "claude-settings.json");
+  writeFile(backup, '{ "theme": "dark" }\n');
+  const outside = join(f.root, "outside");
+  writeFile(join(outside, "claude-settings.json"), '{ "theme": "dark" }\n');
+  symlinkSync(outside, join(f.backups, "20251201000001"));
   writeFile(f.settings, `${JSON.stringify(withOldHook({}), null, 2)}\n`);
-  recordOldHook(f, f.settings, { created: true });
-  await f.runOk(["install", "--yes"]);
-  assert.ok(!existsSync(f.settings));
-  assert.ok(!existsSync(f.backups));
+  const alias = join(f.root, "claude-alias");
+  symlinkSync(dirname(f.settings), alias);
+  const manifest = readJson(f.manifest);
+  manifest.hooks = [
+    { kind: "claude-user-prompt-submit", settingsPath: join(alias, "settings.json"), command: "x # oh-my-t3code", created: true },
+    { kind: "claude-user-prompt-submit", settingsPath: f.settings, command: "x # oh-my-t3code", backup },
+    { kind: "claude-user-prompt-submit", settingsPath: f.settings, command: "x # oh-my-t3code", backup: join(f.backups, "20251201000001", "claude-settings.json") },
+  ];
+  writeFileSync(f.manifest, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  const { ctx } = await f.runOk(["install", "--yes"]);
+  assert.equal(ctx.out().match(/Claude UserPromptSubmit/g)?.length, 1, "one step for the one real file");
+  assert.equal(readFileSync(f.settings, "utf8"), "{}\n");
+  assert.equal(readFileSync(backup, "utf8"), '{ "theme": "dark" }\n');
+  assert.equal(readFileSync(join(outside, "claude-settings.json"), "utf8"), '{ "theme": "dark" }\n');
+  assert.ok(existsSync(join(f.backups, STAMP, "claude-settings.json")));
+  assert.deepEqual(readJson(f.manifest).hooks, []);
 });
 
 test("a symlinked settings.json stays a symlink when the retired hook goes", async () => {
@@ -333,37 +351,12 @@ test("install keeps the record of a retired hook in an invalid settings.json, wa
   assert.deepEqual(readJson(f.manifest).hooks, []);
 });
 
-// A backup that resolves outside the backups folder must be neither restored nor deleted.
-test("install restores no backup through a stamp folder linked outside the backups folder", async () => {
+// omt update of v0.7.1 parses the install manifest's accepted defaults and rejects them without limits.maxParallel.
+test("the install manifest keeps limits.maxParallel in its accepted defaults for the v0.7.1 updater", async () => {
   const f = makeFixture();
   await f.runOk(["install", "--yes"]);
-  const outside = join(f.root, "outside");
-  const original = '{ "theme": "dark" }\n';
-  writeFile(join(outside, "claude-settings.json"), original);
-  mkdirSync(f.backups, { recursive: true });
-  symlinkSync(outside, join(f.backups, "20251201000000"));
-  writeFile(f.settings, `${JSON.stringify(withOldHook({ theme: "dark" }), null, 2)}\n`);
-  recordOldHook(f, f.settings, { backup: join(f.backups, "20251201000000", "claude-settings.json") });
-  await f.runOk(["install", "--yes"]);
-  assert.deepEqual(readJson(f.settings), { theme: "dark" });
-  assert.equal(readFileSync(join(outside, "claude-settings.json"), "utf8"), original);
-  assert.ok(existsSync(join(f.backups, STAMP, "claude-settings.json")), "the removal backs the file up instead");
-});
-
-// The record of an old install can name the settings file through another path; its backup must still restore it.
-test("install restores the backup of a hook record that names the settings file through an alias", async () => {
-  const f = makeFixture();
-  await f.runOk(["install", "--yes"]);
-  const original = `${JSON.stringify({ theme: "dark" }, null, 4)}\n`;
-  const backup = join(f.backups, "20251201000000", "claude-settings.json");
-  writeFile(backup, original);
-  writeFile(f.settings, `${JSON.stringify(withOldHook({ theme: "dark" }), null, 2)}\n`);
-  const alias = join(f.root, "claude-alias");
-  symlinkSync(dirname(f.settings), alias);
-  recordOldHook(f, join(alias, "settings.json"), { backup });
-  await f.runOk(["install", "--yes"]);
-  assert.equal(readFileSync(f.settings, "utf8"), original);
-  assert.ok(!existsSync(backup));
+  const snapshot = readJson(f.manifest).acceptedDefaults as { config: { limits: Record<string, unknown> } };
+  assert.equal(snapshot.config.limits.maxParallel, 6);
 });
 
 test("a user install is refused for a temp or npx cliPath", async () => {

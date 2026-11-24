@@ -118,6 +118,9 @@ test("removal keeps a comment between the key and the colon", () => {
     { limits: { maxDepth: 2 } }, '{ "limits": { "maxDepth": 2 /* why */  } }');
   check('{\n  "limits": {\n    "maxParallel" // why\n      : 2,\n    "maxDepth": 2\n  }\n}\n', ["limits", "maxParallel"], undefined,
     { limits: { maxDepth: 2 } }, '{\n  "limits": {\n    // why\n    "maxDepth": 2\n  }\n}\n');
+  // A line comment moved out of a CRLF file gets the file's own line ending.
+  check('{\r\n  "limits": { "maxParallel" // why\r\n : 2, "maxDepth": 2 }\r\n}\r\n', ["limits", "maxParallel"], undefined,
+    { limits: { maxDepth: 2 } }, '{\r\n  "limits": { // why\r\n "maxDepth": 2 }\r\n}\r\n');
 });
 
 test("upward removal stops at members, comments, and root keys", () => {

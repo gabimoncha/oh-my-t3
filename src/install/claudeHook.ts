@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import { isDeepStrictEqual } from "node:util";
 import { OmtError } from "../util/errors.ts";
 import { readFileIfExists, writeFileAtomic } from "../util/fs.ts";
 import { isRecord } from "../util/json.ts";
@@ -115,63 +114,35 @@ export interface HookChange {
   settingsPath: string;
   command: string; // the removed command
   action: "remove";
-  before: string | undefined; // file content now, undefined when the file is missing
-  after: string; // content to write
-  empty?: boolean; // only {} is left
-  restoreBackup?: string; // `after` holds the bytes of this install-time backup, which is then deleted
+  before: string; // file content now
+  after: string; // content to write: the same settings without the omt entry, in the file's own style
 }
 
-function parsesTo(text: string, value: Json): boolean {
-  try {
-    return isDeepStrictEqual(text.trim() === "" ? {} : JSON.parse(text), value);
-  } catch {
-    return false;
-  }
-}
-
-// When the settings left after the removal equal the install-time backup, the change writes the
-// backup's bytes back, so the file is exactly what it was before the install.
-export async function planHookRemoval(settingsPath: string, installBackup?: string): Promise<HookChange | undefined> {
+// The removal never deletes the settings file and never reads or deletes an install-time backup: it only drops
+// the omt entry, so a recorded path that is wrong or linked elsewhere cannot make it remove anything else.
+export async function planHookRemoval(settingsPath: string): Promise<HookChange | undefined> {
   const before = await readFileIfExists(settingsPath);
   if (before === undefined) return undefined;
   const settings = parseSettings(before, settingsPath);
   const current = findManagedCommands(settings);
   if (current.length === 0) return undefined;
-  const remaining = withoutHook(settings);
-  const change: HookChange = {
-    settingsPath,
-    command: current[0] ?? "",
-    action: "remove",
-    before,
-    after: serializeSettings(remaining, detectJsonStyle(before)),
-    empty: isDeepStrictEqual(remaining, {}),
-  };
-  const backup = installBackup === undefined ? undefined : await readFileIfExists(installBackup);
-  if (installBackup !== undefined && backup !== undefined && parsesTo(backup, remaining)) {
-    change.after = backup;
-    change.restoreBackup = installBackup;
-  }
-  return change;
+  return { settingsPath, command: current[0] ?? "", action: "remove", before, after: serializeSettings(withoutHook(settings), detectJsonStyle(before)) };
 }
 
-// Backs up the old file into `backupDir` (no backup when it is undefined), then writes onto the real
-// path so a symlink stays a symlink. Returns the backup path, if one was written.
-export async function writeHookChange(change: HookChange, backupDir: string | undefined, root?: string): Promise<string | undefined> {
+// Backs up the old file into `backupDir`, then writes onto the real path so a symlink stays a symlink.
+// Returns the backup path.
+export async function writeHookChange(change: HookChange, backupDir: string, root?: string): Promise<string> {
   const current = await readFileIfExists(change.settingsPath);
   if (current !== change.before) {
     throw new OmtError("claude_settings", `${change.settingsPath} changed after the plan was made; nothing was written`, {
       hint: "run the command again",
     });
   }
-  let backup: string | undefined;
-  if (backupDir !== undefined && change.before !== undefined && change.restoreBackup === undefined) {
-    backup = join(backupDir, "claude-settings.json");
-    for (let n = 1; (await readFileIfExists(backup)) !== undefined; n += 1) {
-      backup = join(backupDir, `claude-settings-${n}.json`);
-    }
-    const target = root === undefined ? backup : await projectWriteTarget(root, backup);
-    await writeFileAtomic(target, change.before, { mode: 0o600 });
+  let backup = join(backupDir, "claude-settings.json");
+  for (let n = 1; (await readFileIfExists(backup)) !== undefined; n += 1) {
+    backup = join(backupDir, `claude-settings-${n}.json`);
   }
+  await writeFileAtomic(root === undefined ? backup : await projectWriteTarget(root, backup), change.before, { mode: 0o600 });
   const target = root === undefined ? await writeTargetFor(change.settingsPath) : await projectWriteTarget(root, change.settingsPath);
   await writeFileAtomic(target, change.after);
   return backup;

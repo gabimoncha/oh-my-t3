@@ -328,7 +328,7 @@ function removeMember(body: string, members: Member[], index: number): string {
   }
   // A comment between the key and the colon describes the member's place, not its value, so it stays.
   const notes = body.slice(member.keyEnd, member.colon).match(/\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g) ?? [];
-  const newline = lineEnd?.[1] ?? "\n";
+  const newline = lineEnd?.[1] ?? (body.includes("\r\n") ? "\r\n" : "\n");
   const kept = notes.length === 0
     ? ""
     : wholeLine

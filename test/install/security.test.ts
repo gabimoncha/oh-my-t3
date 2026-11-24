@@ -5,7 +5,7 @@ import { test } from "bun:test";
 import { applyInstall, applyUninstall } from "../../src/install/apply.ts";
 import { buildInstallPlan, buildUninstallPlan } from "../../src/install/plan.ts";
 import { fakeContext, writeFile } from "../helpers.ts";
-import { makeFixture, recordOldHook, snapshot, withOldHook } from "./fixture.ts";
+import { makeFixture, snapshot } from "./fixture.ts";
 
 test("apply refuses a retired project hook removal whose settings file became an external link after planning", async () => {
   const f = makeFixture();
@@ -23,25 +23,6 @@ test("apply refuses a retired project hook removal whose settings file became an
   await assert.rejects(applyInstall(plan, ctx.now()), /outside the project/);
   assert.deepEqual(snapshot(ctx.cwd), before);
   assert.equal(readFileSync(f.settings, "utf8"), settings);
-});
-
-test("apply refuses a hook backup restore whose stamp folder became an outside link after planning", async () => {
-  const f = makeFixture();
-  await f.runOk(["install", "--yes"]);
-  const ctx = fakeContext({ root: f.root, packageRoot: f.packageRoot });
-  const original = '{ "theme": "dark" }\n';
-  const stamp = join(f.backups, "20251201000000");
-  writeFile(join(stamp, "claude-settings.json"), original);
-  writeFile(f.settings, `${JSON.stringify(withOldHook({ theme: "dark" }), null, 2)}\n`);
-  recordOldHook(f, f.settings, { backup: join(stamp, "claude-settings.json") });
-  const plan = await buildInstallPlan(ctx, { targets: ["agents", "claude"], force: false });
-  assert.equal(plan.hooks[0]?.restoreBackup, join(stamp, "claude-settings.json"));
-  const outside = join(f.root, "outside");
-  writeFile(join(outside, "claude-settings.json"), original);
-  rmSync(stamp, { recursive: true });
-  symlinkSync(outside, stamp);
-  await assert.rejects(applyInstall(plan, ctx.now()), /changed after the plan was made/);
-  assert.equal(readFileSync(join(outside, "claude-settings.json"), "utf8"), original);
 });
 
 test("apply refuses a gitignore restore redirected after planning", async () => {
