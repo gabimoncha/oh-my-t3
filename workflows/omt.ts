@@ -229,7 +229,7 @@ const ulwOnEnd = (input: typeof UlwInput.Type, end: { id: string; outcome: strin
 
 workflow(
   "omt-ulw",
-  { version: 1, payload: UlwInput, returns: UlwResult, onEnd: ulwOnEnd },
+  { version: 2, payload: UlwInput, returns: UlwResult, onEnd: ulwOnEnd },
   Effect.fn(function* (input, run) {
     yield* title(`omt-ulw ${input.plan} r${input.round}`);
     let head = input.head;
@@ -333,7 +333,8 @@ workflow(
 
     const outcome = review?.verdict === "BLOCK" ? "blocked" : qa?.verdict === "VERIFIED" ? "verified" : "checks-failed";
     const result: typeof UlwResult.Type = { outcome, head, review, fixes, qa, qaRuns };
-    yield* step(
+    // A failed wake stays in the run's journal; the run still returns its result.
+    yield* step.try(
       "wake",
       { returns: Schema.String },
       wake(
@@ -402,7 +403,7 @@ const reviewOnEnd = (input: typeof ReviewInput.Type, end: { id: string; outcome:
 
 workflow(
   "omt-code-review",
-  { version: 1, payload: ReviewInput, returns: ReviewResult, onEnd: reviewOnEnd },
+  { version: 2, payload: ReviewInput, returns: ReviewResult, onEnd: reviewOnEnd },
   Effect.fn(function* (input, run) {
     yield* title(`omt-code-review ${input.slug} r${input.round}`);
     const plan = `review-${input.slug}`;
@@ -482,7 +483,8 @@ workflow(
     }
 
     const verdicts = [...groups.map((group) => `${group.unit} ${group.report.verdict}`), ...(oracle === null ? [] : [`oracle ${oracle.verdict}`])];
-    yield* step(
+    // A failed wake stays in the run's journal; the run still returns its result.
+    yield* step.try(
       "wake",
       { returns: Schema.String },
       wake(
