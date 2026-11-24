@@ -1009,12 +1009,6 @@ html:not(.js) .m-dim {
   flex-direction: column;
 }
 
-.skill-tag {
-  color: var(--text-3);
-  font-size: 12px;
-  line-height: 16px;
-}
-
 .skill-row {
   position: relative;
   display: flex;

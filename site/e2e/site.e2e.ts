@@ -97,7 +97,6 @@ test("the skill tour moves the pointer by itself and stops on a click", async ({
     "omt-design",
     "omt-code-review",
     "omt-setup",
-    "omt",
   ]);
   await tour.scrollIntoViewIfNeeded();
   await expect(tour).toHaveAttribute("data-play", "");

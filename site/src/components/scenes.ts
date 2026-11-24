@@ -197,27 +197,10 @@ function setup(): Scene {
   return g.scene();
 }
 
-function router(): Scene {
-  const g = new Draw(W, H, "s", SKILL_SPEED);
-  g.station(48, MID, "plan", 0);
-  g.text(48, MID + 36, "omt", 0, { style: "code", size: 14 });
-  let t = g.line([[0, MID], [48, MID]], 0);
-  t = g.line([[48, MID], [120, MID]], t + 150);
-  const names = ["ulw", "plan", "design", "code-review", "setup"];
-  names.forEach((name, i) => {
-    const lane = MID + (i - (names.length - 1) / 2) * 26;
-    const end = g.line(branch(120, MID, lane, 300), t + i * 90, { radius: 10 });
-    g.bar(300, lane, end, { length: 20 });
-    g.text(316, lane + 5, `omt-${name}`, end, { style: "code", size: 14, anchor: "start" });
-  });
-  return g.scene();
-}
-
 export const SKILL_SCENES: Record<string, Scene> = {
   "omt-ulw": ulw(),
   "omt-plan": plan(),
   "omt-design": design(),
   "omt-code-review": codeReview(),
   "omt-setup": setup(),
-  omt: router(),
 };

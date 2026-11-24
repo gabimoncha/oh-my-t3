@@ -5,7 +5,7 @@ import { SKILL_SCENES } from "./scenes";
 
 type Skill = { name: string; note: string; shows: string };
 
-const AGENT_SKILLS: Skill[] = [
+const ALL: Skill[] = [
   {
     name: "omt-ulw",
     note: "You want a task built, fixed, or shipped from start to end. Type $omt-ulw and the task.",
@@ -38,21 +38,10 @@ const AGENT_SKILLS: Skill[] = [
   },
 ];
 
-const NAMED_SKILLS: Skill[] = [
-  {
-    name: "omt",
-    note: "You want the list of workflows and CLI commands.",
-    shows: "omt lists the workflows, tells when to use each one, and lists the CLI commands.",
-  },
-];
-
-const ALL = [...AGENT_SKILLS, ...NAMED_SKILLS];
-
 // After a picture ends, the tour holds the last frame for this long, then goes to the next skill.
 const HOLD = 2200;
 
-// The agent starts the first five by itself; you start the last one by name. A pointer goes down
-// the list of skills, and the picture of each skill plays next to it. A click or
+// A pointer goes down the list of skills, and the picture of each skill plays next to it. A click or
 // the arrow keys select a skill and stop the tour. Out of view, the tour pauses.
 export function SkillTour() {
   const id = useId();
@@ -102,9 +91,7 @@ export function SkillTour() {
       onClick={() => select(index)}
     >
       <span className="skill-name">
-        <code>{item.name}</code>
-        {index >= AGENT_SKILLS.length ? <span className="skill-tag">by name only</span> : null}
-      </span>
+        <code>{item.name}</code>      </span>
       <span className="skill-note">{item.note}</span>
       {index === active ? (
         <span
