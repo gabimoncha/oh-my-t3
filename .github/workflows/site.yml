@@ -43,19 +43,13 @@ jobs:
           install: true
           cache: false
 
-      # Playwright Test runs on Node.
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24.22.1
-          package-manager-cache: false
-
       - run: bun install --frozen-lockfile
 
       - run: bun run typecheck
 
       - run: bun run build
 
-      - run: bunx playwright install --with-deps chromium webkit
+      - run: bunx --bun playwright install --with-deps chromium webkit
 
       - run: bun run e2e
 
