@@ -62,7 +62,7 @@ const STEPS: Step[] = [
 
 const OMT_FILES = [
   { path: ".omt3/plans/", note: "The plan of each run, split into units." },
-  { path: ".omt3/ledger.jsonl", note: "One line for each task start and each result." },
+  { path: ".omt3/evidence/", note: "The review reports, logs, and screenshots of each run." },
   { path: ".omt3/config.jsonc", note: "The profile: the models, the checks, and the limits." },
 ];
 
@@ -166,8 +166,8 @@ function Install() {
       <h2 id="install-title">Install</h2>
       <InstallSteps />
       <p className="install-after muted">
-        Then restart your T3 agent sessions. <span className="no-ligatures">--hooks</span> adds the "start ulw" phrase to
-        Claude Code. The <a href={INSTALL_GUIDE}>install guide</a> lists each file and the uninstall.
+        Then restart your T3 agent sessions. The <a href={INSTALL_GUIDE}>install guide</a> lists each file and the
+        uninstall.
       </p>
     </section>
   );
@@ -344,7 +344,7 @@ function States() {
       <div className="col-narrow two-parts">
         <h3>Two parts</h3>
         <p>The skills tell the agent how to plan, build, review, and test.</p>
-        <p>The omt CLI does the fixed steps: the config, the model for each role, the task briefs, and the ledger.</p>
+        <p>The omt CLI does the fixed steps: the config, the model for each role, and the task briefs.</p>
         <p className="muted">No runtime dependencies or telemetry. One update check a day, which you can turn off.</p>
       </div>
     </section>
@@ -355,7 +355,7 @@ function Evidence() {
   return (
     <section className="section wrap" aria-labelledby="evidence-title">
       <h2 id="evidence-title" className="h2-wide">
-        You can read the plan, the task count, and each review verdict in files under .omt3/.
+        You can read the plan and each review verdict in files under .omt3/.
       </h2>
       <div className="split evidence">
         <div className="col-even evidence-files">
@@ -370,8 +370,7 @@ function Evidence() {
             ))}
           </dl>
           <p className="muted">
-            A plan and its ledger stay in .omt3/ after context compaction and across sessions, so one plan can run for
-            days.
+            A plan stays in .omt3/ after context compaction and across sessions, so one plan can run for days.
           </p>
           <p>
             <a className="strong-link" href={WALKTHROUGH}>

@@ -1,10 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
-import { constants, realpathSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import type { Stats } from "node:fs";
-import { chmod, lstat, mkdir, open, readFile, readdir, readlink, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
-import type { FileHandle } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { OmtError } from "./errors.ts";
+import { chmod, lstat, mkdir, readFile, readdir, readlink, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { basename, dirname, join, relative } from "node:path";
 
 export const MANAGED_MARKER = ".omt-managed.json";
 
@@ -35,54 +33,6 @@ export function realOrSelf(path: string): string {
 
 export async function ensureDir(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true });
-}
-
-// The checkout root can be an alias. State paths below it must use real directories and a single-link regular file.
-export async function openStateFile(root: string, path: string, append = true): Promise<FileHandle> {
-  const rel = relative(resolve(root), resolve(path));
-  if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-    throw new OmtError("unsafe_state_path", `state file is outside ${root}: ${path}`);
-  }
-  await ensureDir(root);
-  const base = await realpath(root);
-  const target = join(base, rel);
-  const verifyParents = async (create: boolean) => {
-    let parent = base;
-    for (const part of rel.split(sep).slice(0, -1)) {
-      parent = join(parent, part);
-      if (create) {
-        try {
-          await mkdir(parent);
-        } catch (error) {
-          if (errorCode(error) !== "EEXIST") throw error;
-        }
-      }
-      const info = await lstat(parent);
-      if (!info.isDirectory() || info.isSymbolicLink()) {
-        throw new OmtError("unsafe_state_path", `state directory must be a real directory: ${parent}`);
-      }
-    }
-  };
-  await verifyParents(true);
-  let file: FileHandle;
-  try {
-    file = await open(target, constants.O_RDWR | (append ? constants.O_APPEND : 0) | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
-  } catch (error) {
-    if (errorCode(error) === "ELOOP") throw new OmtError("unsafe_state_path", `state file must not be a symlink: ${path}`, { cause: error });
-    throw error;
-  }
-  try {
-    await verifyParents(false);
-    const info = await file.stat();
-    const current = await lstat(target);
-    if (!info.isFile() || info.nlink !== 1 || current.isSymbolicLink() || current.dev !== info.dev || current.ino !== info.ino) {
-      throw new OmtError("unsafe_state_path", `state file must be a single-link regular file: ${path}`);
-    }
-    return file;
-  } catch (error) {
-    await file.close();
-    throw error;
-  }
 }
 
 export function tempPathFor(target: string): string {

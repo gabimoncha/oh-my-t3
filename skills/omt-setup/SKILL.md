@@ -5,7 +5,18 @@ description: Set up, configure, update, or explain omt in T3 Code. Use when the 
 
 # Setup and help
 
-You answer questions about omt and configure it through the omt CLI. Show the text output of each command.
+You answer questions about omt and configure it through its CLI. Show each command's text output.
+
+## Workflows
+
+- `omt-ulw` (the default): build or fix end to end, checked by one review and one QA child.
+- `omt-plan`: a reviewed plan before code, or a stress test of a vague goal.
+- `omt-design`: designs, mockups, or a design pass.
+- `omt-code-review`: review changes, a branch, a commit, or a PR.
+- `omt-setup`: help, setup, config, or update.
+- `omt-climb`: raise a score to a target. Only the user starts it; it needs T3 Workflows.
+
+A question with no change needs no workflow.
 
 ## Write rules
 
@@ -16,11 +27,11 @@ You answer questions about omt and configure it through the omt CLI. Show the te
 
 ## Steps
 
-Run step 1 first. For a question, run step 3. For a change, run step 2, then the steps that it names. For a plain "set up omt", run steps 2, 4, 5, and 6, then check for Anthropic's optional `frontend-design` skill and recommend it for UI work when it is missing. End with step 9 when you proposed a write.
+Run step 1 first. For a question, run step 3. For a change, run step 2, then the steps that it names. For a plain "set up omt", run steps 2, 4, 5, and 6, then recommend Anthropic's optional `frontend-design` skill for UI work when it is missing. End with step 9 when you proposed a write.
 
 ### 1. Find the CLI and your mode
 
-Follow [The CLI](../omt/references/delegation.md#the-cli). Call `t3_thread_configure` with no arguments and read `interactionMode`. In `plan` mode, run only read commands, list the writes for the user, and ask the user to switch to default mode.
+Follow [The CLI](../omt/references/delegation.md#the-cli). Call `t3_thread_configure` with no arguments and read `interactionMode`. In `plan` mode, run only read commands, list the writes, and ask the user to switch to default mode.
 
 Done when: `omt --version` prints a version, and you know your mode.
 
@@ -34,14 +45,14 @@ Done when: each line that is not `PASS` has a step or a fix, and the user knows 
 
 This step writes nothing. Sort the question, and run its commands first:
 
-- Which skill to use, or what omt can do: the workflow list of the [router](../omt/SKILL.md).
+- Which skill to use, or what omt can do: [Workflows](#workflows).
 - What a command means: `omt help <command>`.
 - A config question: `omt config show`, `omt config explain`, `omt profile list`, `omt profile show <name>`, `omt roles`, or `omt detect`.
 - What to do next: the doctor command of step 2, and `omt update --check` for a new version.
 
 Answer first, in one to three sentences. For a skill, give its composer form, such as `$omt-ulw <task>`. For a change, name the key and the file, and offer the write steps. Link one doc as `https://github.com/gabimoncha/oh-my-t3/blob/main/docs/<file>.md`: `install`, `configuration`, `commands`, `workflows`, `walkthrough`, or `design`.
 
-Done when: every fact in the answer comes from a command that you ran in this turn, the router, or the linked doc.
+Done when: every fact in the answer comes from a command that you ran in this turn, [Workflows](#workflows), or the linked doc.
 
 ### 4. Fit the roles to the harnesses
 
@@ -52,13 +63,13 @@ Pass `--project`, or `--user` for a global install, to each command of this step
 3. After the user agrees, run `omt detect --write --yes`.
 4. The check: `omt detect`, then `omt roles`.
 
-Without the T3 tools, say that detection sees only the T3 settings file and `PATH`. When `omt detect` finds no driver, ask the user to sign in to Claude Code or Codex and enable it in T3 Settings, then run this step again.
+Without the T3 tools, say that detection sees only the T3 settings file and `PATH`. With no driver found, ask the user to sign in to Claude Code or Codex and enable it in T3 Settings, then repeat.
 
 Done when: the check recommends no further change, and `omt roles` shows each role as the effect lines said.
 
 ### 5. Review current defaults
 
-Run the doctor command of step 2, and explain each `<path>: <from> -> <to>` line. A line marked `(overridden by <file>)` has no effect. On the first review of an older install, show the current role choices, since no baseline exists. After the user accepts, run the same command with `--yes` in place of `--dry-run`. Declining keeps the last accepted defaults.
+Run the doctor command of step 2, and explain each `<path>: <from> -> <to>` line. A line marked `(overridden by <file>)` has no effect. With no baseline, show the current role choices. After the user accepts, run the same command with `--yes` in place of `--dry-run`. Declining keeps the last accepted defaults.
 
 Done when: the user accepted or declined, and `omt config validate` exits 0 after acceptance.
 
@@ -71,8 +82,8 @@ Done when: you finished each step of worktrees.md that applies.
 ### 7. Change a profile or a role
 
 1. Run `omt config path`. Pick the project file for one project, or the user file for all. When it is absent, propose `omt init` or `omt config init`.
-2. Read the file and `omt config show --defaults`. Write the JSONC edit with its key path by the [configuration guide](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/configuration.md). A new role needs `description`, `access`, and `chain`. A `chain` replaces the old chain, and `null` removes a role. To run the review and QA steps as T3 workflows, set `profiles.normal.t3Workflow` to `true`. That needs the doctor's `workflows` line to say that T3 Workflows is on; otherwise tell the user to turn it on in T3 Settings → Labs → Workflows.
-3. Show the edit and ask. After yes, make it, and keep every other byte of the file.
+2. Read the file and `omt config show --defaults`. Write the JSONC edit with its key path by the [configuration guide](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/configuration.md). A new role needs `description`, `access`, and `chain`. A `chain` replaces the old chain, and `null` removes a role. To run the review and QA steps as T3 workflows, set `profiles.normal.t3Workflow` to `true`. When the doctor's `workflows` line says T3 Workflows is off, tell the user to turn it on in T3 Settings → Labs → Workflows.
+3. Show the edit and ask. After yes, make it, and keep every other byte.
 4. The check: `omt config validate`, then `omt profile show <name>`.
 
 Done when: `omt config validate` exits 0, and `omt profile show <name>` shows the new values.
@@ -80,9 +91,9 @@ Done when: `omt config validate` exits 0, and `omt profile show <name>` shows th
 ### 8. Update omt
 
 1. Run `omt update --dry-run`, and show its update command, pin, hint, or package switch.
-2. When you ask, say that `--yes` also accepts the current defaults. When the user wants to see a defaults diff that the dry run cannot show, run `omt update` interactively instead.
-3. After the user agrees, run `omt update --yes`. Tell the user each `kept <skill>` line: that skill keeps the user's edits. When the npm registry is out of reach, follow [Update omt](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/agents/quickstart.md#update-omt).
-4. The check: the doctor command of step 2. When a skill changed, tell the user to start new threads, because a running session keeps the old skills.
+2. When you ask, say that `--yes` also accepts the current defaults. To show a defaults diff, run `omt update` interactively.
+3. After the user agrees, run `omt update --yes`. Name each `kept <skill>` line: that skill keeps the user's edits. When the npm registry is out of reach, follow [Update omt](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/agents/quickstart.md#update-omt).
+4. The check: the doctor command of step 2. When a skill changed, tell the user to start new threads.
 
 Done when: the doctor prints `PASS` for `skills`, and the user knows to start new threads.
 

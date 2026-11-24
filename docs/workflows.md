@@ -1,12 +1,12 @@
 # How the omt workflows run
 
-This page describes how omt builds a goal, plans, researches, designs, and reviews a pull request, and how the review and QA steps run as T3 workflows. It also describes how the main thread runs a child task, when omt commits and opens a PR, how it adds tests, and how parallel workers share builds. To change these steps, see [Configure roles and profiles](configuration.md).
+This page describes how omt builds a goal, plans, designs, and reviews a pull request, and how the review and QA steps run as T3 workflows. It also describes how the main thread runs a child task, when omt commits and opens a PR, how it adds tests, and how parallel workers share builds. To change these steps, see [Configure roles and profiles](configuration.md).
 
 ## Build a goal
 
-`omt-ulw` (or the phrase `start ulw` with the Claude Code hook) runs the build flow. The main thread, the T3 thread that runs the skill, does the work in one context:
+`omt-ulw` runs the build flow. The main thread, the T3 thread that runs the skill, does the work in one context:
 
-1. It checks the interaction mode and the branch. If your message is a question and not a goal, it runs `omt-research` instead.
+1. It checks the interaction mode and the branch. If your message is a question and not a goal, it answers in the thread with a source for each fact, or sends a question that needs docs or the web to one `research` task, and stops.
 2. It reads the code. It sends only broad reads to `explore` tasks, in parallel.
 3. It frames the goal: the objective, done conditions that can fail, the tier (LIGHT or HEAVY), and a slug.
 4. It asks you every open question at once, each with 2 to 4 options and a recommendation. After your answers it asks the next batch, until no question is open. It does not ask what the code can answer.
@@ -27,20 +27,21 @@ UI work needs no design spec. The agent that builds the UI follows an approved s
 
 Each child task takes three calls in the main thread:
 
-1. `omt brief <role> ... --plan <slug> --unit <id> --save --json` renders the brief and saves it. It also checks the parallel limit and records the start in the ledger. At the limit, it exits 75 and writes nothing, and the main thread waits for a child to end.
+1. `omt brief <role> ... --plan <slug> --unit <id> --save --json` renders the brief and saves it.
 2. The T3 tool `delegate_task` starts the child with the payload from step 1, unchanged.
-3. When the result is in, `omt ledger done <requestId> --verdict <word>` closes the start. It prints `settle: allowed`, and the main thread then settles the child, so that T3 releases it at once. In a linked worktree, it prints `settle: no (linked worktree)`, and the main thread settles no child.
+3. When the result is in and `task_status` shows the child ended, the main thread settles the child, so that T3 releases it at once. In a linked worktree, it settles no child.
+
+T3 tracks each child task, so omt keeps no record of them.
 
 When the next step needs the result, the main thread starts the child in wait mode. Otherwise it follows the `next` field of the T3 result: it ends its turn, and T3 wakes the thread when the child ends. It does not poll.
 
-When T3 refuses a target, for example with `provider_unavailable`, the main thread runs the same `omt brief` command with `--fallback`. The CLI picks the next target that this unit has not tried. A cross-family review passes `--strict`, so the run stops when no reviewer from the other family is left, instead of a review by the same family.
+When T3 refuses a target, for example with `provider_unavailable`, the main thread runs the same `omt brief` command with `--fallback`, the next `--attempt`, and one `--tried <targetKey>` for each target that failed. The CLI picks the next target that is not in that list. A cross-family review passes `--strict`, so the run stops when no reviewer from the other family is left, instead of a review by the same family.
 
-In T3 plan mode, the main thread writes nothing: it leaves out `--save`, records no start, and keeps the parallel limit itself.
+In T3 plan mode, the main thread writes nothing: it leaves out `--save`.
 
-## Plan, research, and design
+## Plan and design
 
 - `omt-plan` plans only. The main thread reads the code, asks question batches until no question is open, and writes the plan with its summary last. One `plan-review` task from the other model family reviews it. The main thread fixes the blockers, and one more review checks only those blockers: at most 2 rounds. The reply shows the plan summary. For a vague goal, it offers a [stress test](#stress-test-a-goal-before-you-plan) first.
-- `omt-research` answers a narrow question in the main thread, with a `path:line` or a URL for each fact. A broad question gets 2 to 4 read-only tasks in parallel, and the main thread checks each claim before it answers.
 - `omt-design` draws the variants of each screen with the tool that `workflow.design.tool` names. `paper`, the default, draws in a new Paper file when Paper's tools load, and in HTML mockups otherwise. `html` draws HTML mockups only. When the first model of the `design` role is the main thread's model, the main thread draws the variants itself. Otherwise one routed `design` task draws them, with the configured fallbacks. Both use Anthropic's `frontend-design` skill when available. You pick one variant per screen and steer until you approve. Then the main thread writes `docs/design/<slug>.md`, and on request it builds the screens with the build steps 7 to 12.
 
 ## Run the review and QA steps as T3 workflows
@@ -137,13 +138,4 @@ The main thread writes only the approved tests while it builds. In the `normal` 
 
 ## Share builds between parallel workers
 
-Parallel workers, such as an `execute` task that builds a large unit beside the main thread, share one checkout and edit different files. Commands that share build state take a lock, one lock name for each resource:
-
-```sh
-omt lock run build -- npm run build
-omt lock list
-```
-
-A command waits up to 900 seconds for a busy lock. `--wait <seconds>` changes the wait. After a timeout, the command exits with code 75. The lock uses `flock` or `lockf`, and omt never takes a lock from its holder. If neither tool is installed, the command runs with a warning, and the planner runs shared builds one at a time.
-
-A command that leaves a server or a watcher running cannot use the lock. The planner runs such commands one at a time, outside the lock.
+Parallel workers, such as an `execute` task that builds a large unit beside the main thread, share one checkout and edit different files. The planner names each shared resource, such as a build folder, a simulator, or a dev-server port, and the units that use one run one at a time. Work that must run in parallel on shared state runs as a T3 workflow, whose agents each have their own worktree. `omt lock` was removed.

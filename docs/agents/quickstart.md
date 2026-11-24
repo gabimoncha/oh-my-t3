@@ -15,7 +15,6 @@ Check each requirement on the user's machine. Ask the user about the items that 
 | At least one provider signed in and enabled in T3 Settings, Providers: Claude Code (`claude auth login`), Codex with a ChatGPT sign-in, or both. | Run `claude auth status` or `codex login status` when the CLI is on `PATH`. Ask the user to confirm the provider is enabled in T3. |
 | One way to install and run omt: `mise`, Node.js 22 or later, or Bun 1.4.4 or later. The release binary that mise installs needs neither Node nor Bun. The `omt` command of the npm package needs Node. | `mise --version`, `node --version`, `bun --version` |
 | git. | `git --version` |
-| Optional: `flock` or `lockf`, for shared build locks. Without either, `omt lock run` runs the command with a warning. | `command -v flock || command -v lockf` |
 
 Tell the user what one provider family costs them:
 
@@ -111,14 +110,12 @@ Use the install command of the channel from step 3:
 
 The commands below use `omt`. Replace `omt` with the command before `install` in the table, for example `npx oh-my-t3`.
 
-Add `--hooks` only when the user runs Claude Code. The hook lets the user start ultrawork with the phrase `start ulw` or `start ultrawork`. The bare words do not start it. Codex gets no hook. Codex users type `$omt-ulw`. With a one-shot install, the hook calls the runner on each prompt. If the runner's cache is cleared and the network is down, the hook can pass its 10-second timeout.
-
 If you run in a T3 thread (step 2), give the install the live provider list. Call `orchestrator_capabilities` with no arguments, save the result to a temp file outside the repository, such as `/tmp/t3-capabilities.json`, and add `--capabilities <file>` to both install commands below. Outside a T3 thread, leave the flag out. The install then reads the T3 settings file and `PATH`.
 
 First, show the plan and write nothing:
 
 ```sh
-omt install --project --hooks --dry-run
+omt install --project --dry-run
 ```
 
 Read the `Harnesses` section of the plan to the user. It lists `claudeAgent` and `codex` as `detected` or `not detected`. When one is missing, it shows the `"harnesses"` value that the new config gets and its effect, such as `cross-family review: the same family reviews`. When a harness is missing that the user expected, stop, and help the user sign in to it or enable it in T3 before you apply the plan.
@@ -126,12 +123,12 @@ Read the `Harnesses` section of the plan to the user. It lists `claudeAgent` and
 Then apply it. Without a terminal, the install does not ask. It prints `Re-run with --yes to apply.` and changes nothing, so pass `--yes` only after the user agrees with the plan:
 
 ```sh
-omt install --project --hooks --yes
+omt install --project --yes
 ```
 
 The install writes the shim `.omt3/bin/omt`. From now on, agents in this project call the CLI as `.omt3/bin/omt`, for every channel. The commands below use that path. If `omt` is on `PATH` from a global install, `omt` works too.
 
-A project from an earlier release keeps its state in `.omt/` until `omt migrate` moves it, and the install then writes `.omt/bin/omt`. In such a project, use the paths that `omt paths` prints, and create nothing in `.omt3/`: once `.omt3/` exists, omt reads it and no longer reads `.omt/`. Run `omt migrate` to move the folder.
+A project from an earlier release can keep its state in `.omt/`, and the install then writes `.omt/bin/omt`. In such a project, use the paths that `omt paths` prints, and create nothing in `.omt3/`: once `.omt3/` exists, omt reads it and no longer reads `.omt/`.
 
 Check the install:
 
@@ -146,9 +143,8 @@ PASS  runtime    <runtime>
 PASS  config     11 roles
 PASS  defaults   current defaults
 PASS  harnesses  claudeAgent, codex
-PASS  skills     8 skills installed in <project>/.agents/skills
-PASS  links      8 links in <project>/.claude/skills
-PASS  hooks      Claude UserPromptSubmit hook in <project>/.claude/settings.local.json
+PASS  skills     7 skills installed in <project>/.agents/skills
+PASS  links      7 links in <project>/.claude/skills
 PASS  shim       <project>/.omt3/bin/omt
 PASS  exclude    omt block in <project>/.git/info/exclude
 PASS  t3         <home>/.t3/userdata/settings.json
@@ -159,13 +155,13 @@ PASS  worktree   <project>: the setup script "Setup" runs node .t3/omt-worktree-
 
 The `worktree` line is often `WARN` or `INFO` on the first install. The worktree setup step below covers it.
 
-Without `--hooks`, the `hooks` line is `INFO  hooks      no hook installed; ...`. That is correct for Codex.
+A `WARN  hooks` line means an earlier install left the retired Claude prompt hook. Run the install with `--yes` again, or `omt update`, to remove it.
 
 An `INFO  harnesses` line, such as `codex only; cross-family review: the same family reviews`, means that the config skips one harness. Tell the user the effect.
 
 A `WARN  t3` line means doctor found no T3 settings file: `... settings.json does not exist; is T3 Code installed?`. The install itself is fine. Ask the user if T3 Code is installed. If T3 Code keeps its data in another place, set `T3CODE_HOME` to that directory and run doctor again.
 
-A `WARN  skills` line means the installed skills do not match the CLI. Doctor still exits 0, so read the line. Run the install with `--yes` again. If the line says `no longer shipped:`, an old omt left a skill that this version removed, such as `omt-grill`, `omt-help`, or `omt-loop`. The install with `--yes` removes it. If the line says `modified:`, the user edited an installed skill. Ask the user before you add `--force`, which backs up the edited skill and installs over it.
+A `WARN  skills` line means the installed skills do not match the CLI. Doctor still exits 0, so read the line. Run the install with `--yes` again. If the line says `no longer shipped:`, an old omt left a skill that this version removed, such as `omt-research` or `omt-swarm`. The install with `--yes` removes it. If the line says `modified:`, the user edited an installed skill. Ask the user before you add `--force`, which backs up the edited skill and installs over it.
 
 Check: this command prints the `PASS  skills` line:
 
@@ -209,7 +205,7 @@ Suggest these tasks, in this order. Each runs in a T3 thread of the project.
    $omt-ulw add a --version flag to the CLI
    ```
 
-   With the Claude Code hook, `start ulw add a --version flag to the CLI` works too. A small task gets a LIGHT run: a short plan that the main thread builds itself, one review child, and one QA child.
+   A small task gets a LIGHT run: a short plan that the main thread builds itself, one review child, and one QA child.
 
 2. A review of the uncommitted changes:
 
@@ -217,15 +213,9 @@ Suggest these tasks, in this order. Each runs in a T3 thread of the project.
    $omt-code-review the uncommitted changes
    ```
 
-3. A cited answer to a question about the project or a library:
-
-   ```text
-   $omt-research how does this project load its config?
-   ```
-
 `$omt-ulw` is the T3 composer mention. T3 turns it into each provider's form: `/omt-ulw` for Claude Code and `$omt-ulw` for Codex.
 
-The user starts `$omt` by name. An agent does not pick it on its own. It lists the workflows and when to use each.
+To find which skill fits a task, the user types `$omt-setup`. A question with no change needs no skill: the user asks it in the thread.
 
 `$omt-setup` helps with omt itself. The agent can start it on its own when the user asks for help or for a change. It answers questions such as "what can omt do", "what do I do next", or "which skill do I use", from the output of read commands. It also sets up, configures, or updates omt: the harnesses, the defaults, models, roles, profiles, and the worktree setup. It shows each change first and asks before it writes.
 
@@ -260,7 +250,7 @@ omt counts child tasks, not tokens. Tell the user:
 
 - The main thread builds the units itself. A build run starts one review child and one QA child, plus a few `explore` children for broad reads. In the `normal` profile, the reviewer checks the fixes again after each round, up to 4 reviews. A failed check gets at most 2 QA re-runs.
 - A HEAVY run also starts one `plan-review` child, for at most 2 plan review rounds.
-- A run has no task budget. The default limit is 6 child tasks at a time. Lower it for one plan with `.omt3/bin/omt plan limit <slug> <n>`.
+- A run has no task budget, and omt sets no limit on parallel child tasks.
 
 Check: the user knows what a run starts and the limit of child tasks at a time.
 
@@ -299,7 +289,7 @@ In these steps, `omt` means the command of the install. With a project install, 
    omt doctor --project | grep -E '^PASS +skills '
    ```
 
-   Check: the command prints `PASS  skills     8 skills installed in <folder>`. If it prints nothing, run the doctor command without the pipe, and do the fix that its `skills` line prints.
+   Check: the command prints `PASS  skills     7 skills installed in <folder>`. If it prints nothing, run the doctor command without the pipe, and do the fix that its `skills` line prints.
 
 4. Review the defaults changes. `omt update` and `--skills-only` show the difference and ask before accepting it. `--yes` also accepts the current defaults, so get approval for that before you pass it.
 
@@ -351,7 +341,7 @@ Run this in the project root:
 .omt3/bin/omt uninstall --project --yes
 ```
 
-It removes what the install wrote, except the files that the user changed. It also removes the shim, so run the next commands with the install command of the channel from step 4, such as `omt` or `npx oh-my-t3`. It keeps the user's own files in `.omt3/`: the plans, the ledger, the evidence, an edited config, the personas, and the backups. It also keeps an edited skill with its links, and the parts of the exclude block and the manifest that the kept files need. The [install guide](../install.md) gives the details. Add `--dry-run` to see the list first. Tell the user to restart the T3 threads of this project.
+It removes what the install wrote, except the files that the user changed. It also removes the shim, so run the next commands with the install command of the channel from step 4, such as `omt` or `npx oh-my-t3`. It keeps the user's own files in `.omt3/`: the plans, the evidence, an edited config, the personas, and the backups. It also keeps an edited skill with its links, and the parts of the exclude block and the manifest that the kept files need. The [install guide](../install.md) gives the details. Add `--dry-run` to see the list first. Tell the user to restart the T3 threads of this project.
 
 Check: the uninstall exits 0. Then run a second dry run in the project root. Replace `omt` with the command of the channel:
 

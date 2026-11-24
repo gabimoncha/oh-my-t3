@@ -34,13 +34,13 @@ function skillCommands(channel: Channel, scope: Scope): { comment?: string; line
   const omt = channel === "once" ? "npx oh-my-t3" : "omt";
   if (scope === "user") {
     return {
-      lines: [`${omt} install --hooks`, `${omt} doctor`],
+      lines: [`${omt} install`, `${omt} doctor`],
       note: "For every project. A project then needs no install of its own.",
     };
   }
   return {
     comment: "# in the folder of your project",
-    lines: [`${omt} install --project --hooks`, `${omt} doctor --project`],
+    lines: [`${omt} install --project`, `${omt} doctor --project`],
     note: channel === "once" ? "A one-shot run can install into one project only." : "For this repository only.",
   };
 }

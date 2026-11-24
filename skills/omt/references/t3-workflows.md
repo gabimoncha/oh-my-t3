@@ -5,7 +5,7 @@ Read this file when `omt profile show --json` prints `"t3Workflow": true`. Then 
 - `omt-ulw` steps 8 to 11 (review, fixes, QA, QA re-runs) run as the workflow `omt-ulw`.
 - `omt-code-review` steps 3 to 5 (reviewers and oracle) run as the workflow `omt-code-review`.
 
-The workflow agents run in their own threads. You start no child for these steps and write no ledger entry.
+The workflow agents run in their own threads. You start no child for these steps.
 
 `omt-climb` runs only as the workflow `omt-climb`, whatever `t3Workflow` says, and has no in-thread steps. Its skill gives the start and the stop rule; [its input](#omt-climb-input) is below.
 

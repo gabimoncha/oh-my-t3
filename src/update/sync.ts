@@ -186,13 +186,13 @@ function isNewer(target: string, pin: string): boolean {
 }
 
 // An update repeats the choices of the scope's last install, which its manifest records.
-function manifestOptions(paths: ScopePaths, manifest: Manifest | undefined): { targets: TargetName[]; hooks: boolean; gitExclude: boolean } {
+function manifestOptions(paths: ScopePaths, manifest: Manifest | undefined): { targets: TargetName[]; gitExclude: boolean } {
   const targets: TargetName[] = ["agents"];
   for (const name of ["claude", "gemini"] as const) {
     const root = paths.linkRoots[name];
     if (root !== undefined && manifest?.links.some((link) => dirname(link.path) === root) === true) targets.push(name);
   }
-  return { targets, hooks: (manifest?.hooks.length ?? 0) > 0, gitExclude: manifest?.project?.gitExcludeOff !== true };
+  return { targets, gitExclude: manifest?.project?.gitExcludeOff !== true };
 }
 
 export async function planHere(ctx: CliContext, scope: "user" | "project"): Promise<InstallPlan> {
@@ -258,7 +258,7 @@ async function projectTargets(ctx: CliContext, projectOnly: boolean): Promise<Pr
 }
 
 // Whether this CLI syncs the project itself: a runner shim that calls the runner and version that run now, or a
-// path shim whose CLI is this file or has the running channel. omt migrate uses the same rule.
+// path shim whose CLI is this file or has the running channel.
 export function shimRunsHere(ctx: CliContext, channel: Channel, root: string, shim: ProjectShim): boolean {
   if (shim.kind === "runner") {
     const running = oneShotRunner(ctx.cliPath, ctx.env);

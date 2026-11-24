@@ -7,10 +7,18 @@ export const RETIRED_BUILD_KEYS: readonly string[] = ["verify", "checkpoint", "s
 export const RETIRED_REVIEW_KEYS: readonly string[] = ["guardrails"];
 // workflow.git held the git policy of the retired check, pr, and stack subcommands of omt git.
 export const RETIRED_WORKFLOW_GROUPS: readonly string[] = ["git"];
-export const RETIRED_LIMIT_KEYS: readonly string[] = ["maxTasksPerRun"];
+// The ledger's parallel-limit check read maxParallel; T3 now tracks child tasks.
+export const RETIRED_LIMIT_KEYS: readonly string[] = ["maxTasksPerRun", "maxParallel"];
 export const RETIRED_ROLES: readonly string[] = ["verify", "quick", "deep", "plan", "grill", "guardrail"];
 // A selection of a retired profile resolves to normal, which now runs the PR review steps.
 export const RETIRED_PROFILES: readonly string[] = ["pr-review"];
+
+// omt update of v0.7.1 rejects defaults without limits.maxParallel, both in `config show --defaults` and in the
+// acceptedDefaults snapshot of an install manifest. Every later release drops the retired key with a warning, so it
+// has no effect. Remove this once no supported install runs v0.7.1.
+export function withUpdaterLimits<T extends { limits: object }>(config: T): T {
+  return { ...config, limits: { maxParallel: 6, ...config.limits } };
+}
 
 // The values live in defaults.jsonc. test/defaults.test.ts checks that the file is a complete, valid config.
 export const DEFAULT_CONFIG: OmtConfig = parseJsonc(defaultsText(), "src/config/defaults.jsonc") as OmtConfig;

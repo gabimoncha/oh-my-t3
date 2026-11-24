@@ -10,7 +10,7 @@ Never wait with `--watch`: when checks are pending at PR step 5, call `watch_pul
 
 ## Coverage and CRAP (`review.crap: report`)
 
-Before PR step 3, run the coverage command once as `omt lock run coverage -- <command>`, with lcov output to `coverage-<slug>.lcov`. Each reviewer computes `CRAP = complexity² × (1 − coverage)³ + complexity` per added or changed function, with McCabe complexity, and coverage 0 without a coverage file. Report each function above 30 as P2, with its three values.
+Before PR step 3, run the coverage command once, with lcov output to `coverage-<slug>.lcov`. Each reviewer computes `CRAP = complexity² × (1 − coverage)³ + complexity` per added or changed function, with McCabe complexity, and coverage 0 without a coverage file. Report each function above 30 as P2, with its three values.
 
 ## Changed-flow QA (`review.verify: changed-flows`)
 

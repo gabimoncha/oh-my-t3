@@ -22,7 +22,7 @@ test("doctor prints one line per check and exits 0 without failures", async () =
   const project = makeProject();
   const { ctx } = await project.runOk(["doctor"]);
   const ids = ctx.out().trimEnd().split("\n").map((line) => line.split(/\s+/)[1]);
-  assert.deepEqual(ids, ["runtime", "config", "defaults", "harnesses", "skills", "links", "hooks", "path", "t3", "homes", "workflows"]);
+  assert.deepEqual(ids, ["runtime", "config", "defaults", "harnesses", "skills", "links", "path", "t3", "homes", "workflows"]);
   assert.match(ctx.out(), /^PASS  config     11 roles$/m);
 });
 
@@ -90,24 +90,21 @@ test("doctor links check: PASS, WARN for a missing link, FAIL for a conflicting 
   assert.match(broken.get("links").message, /omt-plan \(target is missing\)/);
 });
 
-test("doctor hooks check: INFO, PASS, WARN when removed, FAIL for a missing path", async () => {
-  const plain = await installed();
-  const info = (await doctor(plain)).get("hooks");
-  assert.equal(info.status, "INFO");
-  assert.match(info.message, /omt install --hooks/);
-
-  const project = await installed(["--hooks"]);
-  assert.equal((await doctor(project)).get("hooks").status, "PASS");
+test("doctor warns only while the retired prompt hook is left in a settings file", async () => {
+  const project = await installed();
+  const ids = async () => (await doctor(project)).report.checks.map((check) => check.id);
+  assert.ok(!(await ids()).includes("hooks"));
 
   const settings = join(project.home, ".claude", "settings.json");
-  const original = readFileSync(settings, "utf8");
-  writeFileSync(settings, original.replace(CLI_PATH, join(project.root, "gone", "cli.ts")));
-  const lost = await doctor(project);
-  assert.equal(lost.get("hooks").status, "FAIL");
-  assert.equal(lost.code, 1);
+  const command = `"${CLI_PATH}" hook user-prompt-submit # oh-my-t3code`;
+  writeFileSync(settings, JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command }] }] } }));
+  const left = await doctor(project);
+  assert.equal(left.get("hooks").status, "WARN");
+  assert.match(left.get("hooks").message, /run omt update to remove it$/);
+  assert.equal(left.code, 0);
 
-  writeFileSync(settings, "{}\n");
-  assert.equal((await doctor(project)).get("hooks").status, "WARN");
+  writeFileSync(settings, "{ not json");
+  assert.ok(!(await ids()).includes("hooks"));
 });
 
 test("doctor path check: PASS with an executable omt on PATH, WARN without", async () => {

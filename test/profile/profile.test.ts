@@ -13,12 +13,12 @@ test("end to end: pick and switch a custom profile, then use its limits for the 
   const configPath = join(project, ".omt3", "config.jsonc");
   const config = {
     profile: "prototype",
-    limits: { maxParallel: 2 },
+    limits: { maxDepth: 2 },
     profiles: {
       hackathon: {
         description: "Demo day.", extends: "prototype",
         workflow: { build: { oracle: "always" } },
-        limits: { maxParallel: 8 },
+        limits: { maxDepth: 3 },
         roles: { execute: { fast: true } },
         models: { "claude-opus-5-5": { fast: true } },
       },
@@ -60,28 +60,16 @@ test("end to end: pick and switch a custom profile, then use its limits for the 
   assert.equal(JSON.parse(ok("profile", "show", "--profile", "normal", "--plan", "demo", "--json")).profile, "normal");
   assert.match(ok("plan", "status", "demo"), /^profile: hackathon$/m);
   assert.equal(JSON.parse(ok("plan", "status", "demo", "--json")).profile, "hackathon");
-  assert.match(ok("ledger", "stats", "--plan", "demo"), /^profile: hackathon$/m);
-  assert.deepEqual(JSON.parse(ok("ledger", "stats", "--plan", "demo", "--json")).limits, { maxParallel: 8 });
-  ok("ledger", "add", "--plan", "demo", "--unit", "U1", "--role", "execute", "--status", "dispatched", "--task-id", "t1");
-  assert.equal(JSON.parse(ok("ledger", "stats", "--plan", "demo", "--json")).canDispatch, true);
-  ok("plan", "limit", "demo", "1");
-  const stats = JSON.parse(ok("ledger", "stats", "--plan", "demo", "--json"));
-  assert.deepEqual(stats.limits, { maxParallel: 1 });
-  assert.equal(stats.canDispatch, false);
-  ok("plan", "limit", "demo", "12");
-  assert.equal(JSON.parse(ok("ledger", "stats", "--plan", "demo", "--json")).limits.maxParallel, 8);
+  assert.equal(selected.limits.maxDepth, 3);
   ok("plan", "profile", "demo", "normal");
   assert.match(ok("plan", "status", "demo"), /^profile: normal$/m);
-  assert.match(ok("ledger", "stats", "--plan", "demo"), /^profile: normal$/m);
   ok("plan", "profile", "demo", "none");
   assert.doesNotMatch(readFileSync(path, "utf8"), / profile=/);
-  assert.match(readFileSync(path, "utf8"), / max-parallel=12\b/);
   assert.match(ok("plan", "status", "demo"), /^profile: prototype$/m);
-  assert.match(ok("ledger", "stats", "--plan", "demo"), /^profile: prototype$/m);
-  assert.deepEqual(JSON.parse(ok("ledger", "stats", "--json")).limits, { maxParallel: 2 });
+  assert.equal(JSON.parse(ok("profile", "show", "--plan", "demo", "--json")).limits.maxDepth, 2);
   config.profile = "hackathon";
   writeFileSync(configPath, JSON.stringify(config));
-  assert.deepEqual(JSON.parse(ok("ledger", "stats", "--json")).limits, { maxParallel: 8 });
+  assert.equal(JSON.parse(ok("profile", "show", "--json")).limits.maxDepth, 3);
 });
 
 test("profile CLI rejects unknown selections and broken chains and prints role merge issues", () => {
@@ -106,7 +94,7 @@ test("profile CLI rejects unknown selections and broken chains and prints role m
     assert.equal(readFileSync(path, "utf8"), original);
   }
   writeFileSync(path, original.replace(" -->", " profile=missing -->"));
-  for (const args of [["profile", "show", "--plan", "demo"], ["plan", "status", "demo"], ["ledger", "stats", "--plan", "demo"]]) {
+  for (const args of [["profile", "show", "--plan", "demo"], ["plan", "status", "demo"], ["route", "execute", "--plan", "demo"]]) {
     const result = run(...args);
     assert.equal(result.code, 2, args.join(" "));
     assert.match(result.stderr, /known profiles: normal, prototype, custom/);
@@ -117,7 +105,7 @@ test("profile CLI rejects unknown selections and broken chains and prints role m
   assert.match(broken.stderr, /profile cycle: custom -> custom/);
   writeFileSync(path, original.replace(" -->", " profile=custom -->"));
   writeFileSync(configPath, JSON.stringify({ profiles: { custom: { description: "Custom.", roles: { brandnew: { fast: true } } } } }));
-  for (const args of [["profile", "show", "custom"], ["plan", "status", "demo"], ["ledger", "stats", "--plan", "demo"]]) {
+  for (const args of [["profile", "show", "custom"], ["plan", "status", "demo"], ["route", "execute", "--plan", "demo"]]) {
     const result = run(...args);
     assert.equal(result.code, 0, args.join(" "));
     assert.match(result.stderr, /error \S+config\.jsonc profiles\.custom\.roles\.brandnew: a new role needs description, access, and chain/);

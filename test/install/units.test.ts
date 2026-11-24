@@ -3,13 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import {
-  hookCommand,
-  isManagedCommand,
-  parseSettings,
-  withHook,
-  withoutHook,
-} from "../../src/install/claudeHook.ts";
+import { isManagedCommand, parseSettings, withoutHook } from "../../src/install/claudeHook.ts";
 import { backupStamp } from "../../src/install/fsops.ts";
 import { mergeManifest } from "../../src/install/manifest.ts";
 import type { Manifest } from "../../src/install/manifest.ts";
@@ -18,15 +12,6 @@ import { classifySkill, listBundledSkills, writeMarker } from "../../src/install
 import { OmtError } from "../../src/util/errors.ts";
 import { hashDir } from "../../src/util/fs.ts";
 import { tempDir } from "../helpers.ts";
-
-test("hookCommand quotes both paths and ends with the signature", () => {
-  const command = hookCommand("/usr/bin/node", "/opt/omt/dist/cli.js");
-  assert.equal(command, '"/usr/bin/node" "/opt/omt/dist/cli.js" hook user-prompt-submit # oh-my-t3code');
-  assert.ok(isManagedCommand(command));
-  assert.ok(!isManagedCommand("echo hi"));
-  assert.throws(() => hookCommand("/usr/bin/node", '/a"b/cli.js'), OmtError);
-  assert.throws(() => hookCommand("/usr/bin/node", "/a$HOME/cli.js"), OmtError);
-});
 
 test("assertInstallSource refuses temp paths, and one-shot caches except for a project install", () => {
   const user = (cliPath: string, tempRoot = "/tmpx") => () => assertInstallSource(cliPath, {}, "user", tempRoot);
@@ -47,21 +32,20 @@ test("assertInstallSource refuses temp paths, and one-shot caches except for a p
   assert.doesNotThrow(user("/opt/tmpx-other/cli.js", "/opt/tmpx"));
 });
 
-test("withHook and withoutHook keep unrelated entries", () => {
+test("withoutHook removes only the omt entry and keeps unrelated entries", () => {
   const settings = {
     hooks: {
       UserPromptSubmit: [{ matcher: "", hooks: [{ type: "command", command: "echo a" }] }],
       Stop: [{ hooks: [{ type: "command", command: "echo stop" }] }],
     },
   };
-  const added = withHook(settings, "x # oh-my-t3code");
-  assert.equal((added.hooks as { UserPromptSubmit: unknown[] }).UserPromptSubmit.length, 2);
-  assert.deepEqual(withoutHook(added), settings);
-  assert.deepEqual(settings.hooks.UserPromptSubmit.length, 1, "the input is not mutated");
-
-  const replaced = withHook(added, "y # oh-my-t3code");
-  assert.deepEqual(withHook(replaced, "y # oh-my-t3code"), replaced);
-  assert.deepEqual(withoutHook(withHook({}, "z # oh-my-t3code")), {});
+  const withOmt = structuredClone(settings);
+  withOmt.hooks.UserPromptSubmit.push({ matcher: "", hooks: [{ type: "command", command: "x # oh-my-t3code" }] });
+  assert.ok(isManagedCommand("x # oh-my-t3code"));
+  assert.ok(!isManagedCommand("echo hi"));
+  assert.deepEqual(withoutHook(withOmt), settings);
+  assert.equal(withOmt.hooks.UserPromptSubmit.length, 2, "the input is not mutated");
+  assert.deepEqual(withoutHook({ hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: "z # oh-my-t3code" }] }] } }), {});
 
   const shared = { hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: "echo a" }, { type: "command", command: "z # oh-my-t3code" }] }] } };
   assert.deepEqual(withoutHook(shared), { hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: "echo a" }] }] } });

@@ -25,7 +25,7 @@ Done when: you know your mode and your family, and the branch is synced, or the 
 
 Use the slug that `omt-ulw` passes. Otherwise pick one that matches `^[a-z0-9][a-z0-9-]{0,63}$`. Every brief of this plan uses `--plan <slug>`. When the user names a profile, pass `--profile <name>` to each `omt brief` before the plan file exists.
 
-Read the code that the goal touches yourself. Send only broad reads to 1 to `maxParallel` read-only `explore` children in parallel, one narrow question each, with the unit `E<k>`. Dispatch them with `mode: "async"`, and follow `next` until every result is in.
+Read the code that the goal touches yourself. Send only broad reads to 1 to 4 read-only `explore` children in parallel, one narrow question each, with the unit `E<k>`. Dispatch them with `mode: "async"`, and follow `next` until every result is in.
 
 Done when: you can name each file and function that the change touches, with a `path:line` citation.
 
@@ -62,7 +62,7 @@ Done when: a direction is chosen, and each edge case is accepted, changed, or dr
 - Under `## Research`, write each research question, its answer, and its sources.
 - Paste the output of `omt roles --plan <slug>` under `Roles`.
 - UI units use the `ui` role, and cite an approved design spec when one exists. Plan an `omt-design` step only when the user asked for a design pass first. A missing spec or design tool does not block a UI unit.
-- Name each shared resource and lock its verify commands, by [planning.md](../omt/references/planning.md).
+- Name each shared resource, and make the units that use it run one at a time, by [planning.md](../omt/references/planning.md).
 
 Test lines, by [planning.md](../omt/references/planning.md):
 

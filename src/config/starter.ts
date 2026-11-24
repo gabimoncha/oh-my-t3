@@ -29,7 +29,7 @@ export const USER_STARTER_CONFIG = `// oh-my-t3 user config. It applies to every
     // },
   },
   "limits": {
-    // "maxParallel": 6,
+    // "maxReviewRounds": 4,
   },
   // omt install and omt doctor check for a new omt once a day (they ask the npm registry).
   // Set "off" to stop the check, or "apply" to also update at a terminal.
@@ -63,7 +63,7 @@ export const PROJECT_STARTER_CONFIG = `// oh-my-t3 project config. It overrides 
     // },
   },
   "limits": {
-    // "maxParallel": 2,
+    // "maxReviewRounds": 2,
   },
 }
 `;

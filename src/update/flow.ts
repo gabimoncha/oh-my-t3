@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { chmod } from "node:fs/promises";
 import { DEFAULT_CONFIG } from "../config/defaults.ts";
-import { parseDefaultsSnapshot, reviewDefaults } from "../config/defaultsState.ts";
+import { cleanRetired, formatRetiredCleanup, parseDefaultsSnapshot, reviewDefaults } from "../config/defaultsState.ts";
 import { confirmApply } from "../install/confirm.ts";
 import { oneShotRunner, runnerCommand, shimContent } from "../install/project.ts";
 import type { Runner } from "../install/project.ts";
@@ -333,24 +333,30 @@ async function defaultsStep(
   results: ScopeResult[],
   cli: DefaultsCli,
 ): Promise<{ reports: DefaultsResult[]; failed: boolean }> {
-  if (ctx.env.OMT_UPDATE_DEFER_DEFAULTS === "1") return { reports: [], failed: false };
+  const all: { scope: "user" | "project"; root: string }[] = options.project ? [] : [{ scope: "user", root: ctx.cwd }];
+  for (const result of results) {
+    if (result.scope === "project" && result.root !== undefined && ["synced", "unchanged"].includes(result.status)) {
+      all.push({ scope: "project", root: result.root });
+    }
+  }
+  const seen = new Set<string>();
+  const scopes = all.filter(({ scope, root }) => !seen.has(`${scope}:${root}`) && seen.add(`${scope}:${root}`));
+  // The CLI that started the update reviews the defaults, but an older one does not know what this release
+  // retired, so this CLI removes it here.
+  if (ctx.env.OMT_UPDATE_DEFER_DEFAULTS === "1") {
+    const say = options.json ? ctx.stderr : ctx.stdout;
+    for (const { scope, root } of scopes) {
+      say(formatRetiredCleanup(await cleanRetired({ ...ctx, cwd: root }, scope, { dryRun: options.dryRun }), options.dryRun));
+    }
+    return { reports: [], failed: false };
+  }
   const target = await cli.current(ctx.cwd).catch(() => undefined);
   if (target === undefined) {
     ctx.stderr("warning: cannot read the updated CLI's defaults; run omt doctor to review them\n");
     return { reports: [], failed: true };
   }
-  const scopes: { scope: "user" | "project"; root: string }[] = options.project ? [] : [{ scope: "user", root: ctx.cwd }];
-  for (const result of results) {
-    if (result.scope === "project" && result.root !== undefined && ["synced", "unchanged"].includes(result.status)) {
-      scopes.push({ scope: "project", root: result.root });
-    }
-  }
   const reports: DefaultsResult[] = [];
-  const seen = new Set<string>();
   for (const { scope, root } of scopes) {
-    const key = `${scope}:${root}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
     const result = await reviewDefaults({ ...ctx, cwd: root }, scope, { yes: options.yes, dryRun: options.dryRun, json: options.json }, target);
     reports.push({ scope, ...(scope === "project" ? { root } : {}), ...result });
   }

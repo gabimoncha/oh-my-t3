@@ -30,8 +30,8 @@ A role, such as `execute` or `review`, maps to an ordered chain of provider, mod
 
 | Role | Use | Used by | First choice | Fallback |
 | --- | --- | --- | --- | --- |
-| `explore` | Answer one narrow question about this repository | `omt-research`, `omt-plan`, `omt-ulw` | GPT-6.2-Sol, low | Claude Sonnet 5.5, low |
-| `research` | Answer a question from docs, the web, and code | `omt-research` | GPT-6.2-Sol, medium | Claude Sonnet 5.5, medium |
+| `explore` | Answer one narrow question about this repository | `omt-plan`, `omt-ulw` | GPT-6.2-Sol, low | Claude Sonnet 5.5, low |
+| `research` | Answer a question from docs, the web, and code | `omt-ulw` | GPT-6.2-Sol, medium | Claude Sonnet 5.5, medium |
 | `plan-review` | Check a plan for gaps | `omt-plan` | GPT-6.2-Astra, high | Claude Fable 5.2, high |
 | `execute` | Implement one planned unit that the main thread hands off as an independent track | `omt-ulw` | Claude Opus 5.5, medium | GPT-6.2-Sol, high |
 | `review` | Review a diff against its brief, fix local findings, and report the rest | `omt-ulw`, `omt-code-review` | GPT-6.2-Sol, xhigh | Claude Opus 5.5, high |
@@ -132,7 +132,7 @@ This role runs a security review on GPT-6.2-Astra in plan mode:
 }
 ```
 
-If the project still has an `.omt/` folder from an earlier release, run `omt migrate` first. A new `.omt3/` folder makes omt read `.omt3/` and stop reading the config, plans, and ledger in `.omt/` until the migration runs.
+If the project still has an `.omt/` folder from an earlier release, write the config there, or move the folder to `.omt3/` first. A new `.omt3/` folder makes omt read `.omt3/` and stop reading the config and plans in `.omt/`.
 
 To give a role its own persona, write `.omt3/roles/<role>.md`. The file content is the persona and the rules for that role, and it replaces the bundled persona. omt looks in `.omt3/roles/`, then in `~/.config/oh-my-t3/roles/`, then in the bundled personas.
 
@@ -150,7 +150,7 @@ Run `omt profile list` to see the presets and your custom profiles. Run `omt pro
 To use the prototype profile for one build, type this in a T3 thread:
 
 ```text
-start ulw --profile prototype build a demo of the search screen
+$omt-ulw --profile prototype build a demo of the search screen
 ```
 
 To switch the profile of a running plan, run `omt plan profile <slug> normal`. `omt plan profile <slug> none` removes the plan override. The change applies to the remaining work of the plan.
@@ -173,7 +173,7 @@ Add the profile under `profiles` in either config file. The starter configs hold
 
 A profile cannot set `harnesses`, `update`, or `defaults`. These keys apply to the whole config file.
 
-This profile builds like `prototype`, with failure proofs, fast `execute` and `ui` workers, at most 2 children at the same time, and GPT-6.2-Sol without fast mode in the other roles:
+This profile builds like `prototype`, with failure proofs, fast `execute` and `ui` workers, at most 3 review rounds, and GPT-6.2-Sol without fast mode in the other roles:
 
 ```jsonc
 {
@@ -183,7 +183,7 @@ This profile builds like `prototype`, with failure proofs, fast `execute` and `u
       "description": "Use the prototype workflow with fast workers and failure proofs.",
       "extends": "prototype",
       "workflow": { "build": { "failureProofs": "on" } },
-      "limits": { "maxParallel": 2 },
+      "limits": { "maxReviewRounds": 3 },
       "roles": { "execute": { "fast": true }, "ui": { "fast": true } },
       "models": { "gpt-6.2-sol": { "fast": false } }
     }
@@ -235,19 +235,18 @@ Set limits at the root of a config file, or in a profile:
 
 ```jsonc
 {
-  "limits": { "maxParallel": 2, "maxReviewRounds": 3 }
+  "limits": { "maxDepth": 2, "maxReviewRounds": 3 }
 }
 ```
 
 | Limit | What it counts | Range | Default |
 | --- | --- | --- | --- |
-| `maxParallel` | Child tasks that run at the same time. A plan's own limit, set with `omt plan limit <slug> <n>`, can only lower it. | 1 to 32 | 6 |
 | `maxDepth` | Levels of child tasks below the main thread. At the maximum depth, a child does the work itself. | 0 to 3 | 1 |
 | `maxReviewRounds` | Reviews of one build, and fix review rounds of one code review, before the main thread stops and asks you. A plan review has at most 2 rounds. | 1 to 10 | 4 |
 
 Each value must be an integer. `prototype` sets `maxReviewRounds` to 2.
 
-A run has no task budget. Only `maxParallel` can stop the next child task. The number of tasks that a run already started never does. `omt ledger stats` prints `can dispatch: yes` while fewer than `maxParallel` tasks are active. `limits.maxTasksPerRun` was removed, and `omt plan limit --tasks` fails with a usage error. A plan header that still has a `max-tasks` key has no effect, and `omt plan status` prints a warning for it.
+A run has no task budget and no parallel limit: T3 tracks the child tasks. `limits.maxTasksPerRun` and `limits.maxParallel` were removed, and `omt plan new --tasks` fails with a usage error. A plan header that still has a `max-tasks` or `max-parallel` key has no effect, and `omt plan status` prints a warning for it.
 
 ## Set fast mode per role
 
@@ -322,12 +321,12 @@ The main thread runs the build, so the keys that served per-unit dispatch have n
 
 - `workflow.build.verify`, `workflow.build.checkpoint`, and `workflow.build.stallMinutes`, in any profile.
 - `workflow.review.guardrails`, in any profile.
-- `limits.maxTasksPerRun`, at the root or in a profile.
+- `limits.maxTasksPerRun` and `limits.maxParallel`, at the root or in a profile.
 - The roles `verify`, `quick`, and `deep`, at the root or in a profile. `qa` now runs the checks and the device flows that `verify` ran.
 
 A config file that still sets one of them loads. omt ignores the key and prints one warning for each key, such as `profiles.normal.workflow.build.checkpoint is no longer used; remove it`. `omt update`, `omt doctor`, and `omt install` remove these keys for you, with no prompt, because they have no effect. Each prints `removed the retired keys from <config>: <paths>` and keeps your comments and other settings. This applies to every retired key on this page, also `roles.grill`, `roles.guardrail`, `profiles.pr-review`, and `visuals`. With `--dry-run`, the line says `would remove` and nothing changes.
 
-The same commands delete an empty `.omt3/guardrails.md` from an earlier release. A `guardrails.md` with text stays, because it holds proposals that agents wrote for you. omt no longer reads it, and `.omt3/.gitignore` keeps it out of git. `omt doctor --project` reports it as an `INFO` line with the id `leftovers`. Delete the file when you no longer need it.
+The same commands delete an empty `.omt3/guardrails.md` from an earlier release. A `guardrails.md` with text stays, because it holds proposals that agents wrote for you. omt no longer reads it, and `.omt3/.gitignore` keeps it out of git. `omt doctor --project` reports it as an `INFO` line with the id `leftovers`. Delete the file when you no longer need it. They also delete `.omt3/ledger.jsonl` and `.omt3/locks/`, which the removed `omt ledger` and `omt lock` wrote.
 
 ## Remove the `pr-review` profile
 
@@ -357,7 +356,7 @@ Only the user config can set the key. In the project config, omt prints the warn
 
 When the user config has no `update` key and the `CI` or `NO_UPDATE_NOTIFIER` variable is set, omt does not check. A value of `0` or `false` does not count. CI jobs and machines without network access thus send no request. An `update` key in the user config wins over these variables.
 
-omt asks the registry only in `omt install`, `omt doctor`, and `omt update`. The hook and the commands that agents call, such as `omt brief` and `omt roles`, never use the network. omt saves the result of the check in `update-check.json`, in the folder of the user config. A failed check, for example when the machine is offline, gives an `INFO` line in `omt doctor` and does not change its exit code. omt tries again the next day. [Update omt](install.md#update-omt) explains the update itself.
+omt asks the registry only in `omt install`, `omt doctor`, and `omt update`. The commands that agents call, such as `omt brief` and `omt roles`, never use the network. omt saves the result of the check in `update-check.json`, in the folder of the user config. A failed check, for example when the machine is offline, gives an `INFO` line in `omt doctor` and does not change its exit code. omt tries again the next day. [Update omt](install.md#update-omt) explains the update itself.
 
 ## See where each value comes from
 
@@ -369,7 +368,7 @@ omt config explain
 
 Each line holds the dotted path, the value, and the layer that sets it: `defaults`, `user`, `project`, or `profile <name> (<layer that declares the value>)`. Below a value, each `over <layer>: <value>` line names a lower layer that also sets the path, highest first. The `root` block holds the merged config that `omt config show` prints. The `effective` block holds the `roles`, `limits`, `models`, and `workflow` values after omt applies the profile, as `omt profile show` resolves them. A `removed` block, when present, lists each role or profile that a config file removes with `null`.
 
-In this example, the user config adds a profile `fast-proto` that extends `prototype` and sets `limits.maxParallel` to 2, and the project config sets `limits.maxParallel` to 4. The output is shortened:
+In this example, the user config adds a profile `fast-proto` that extends `prototype` and sets `limits.maxDepth` to 2, and the project config sets `limits.maxDepth` to 0. The output is shortened:
 
 ```sh
 omt config explain --profile fast-proto
@@ -381,11 +380,11 @@ project: <project>/.omt3/config.jsonc
 defaults: <home>/.config/oh-my-t3/install.json
 profile: fast-proto (argument)
 root:
-limits.maxParallel  4  project
-  over defaults: 6
+limits.maxDepth  0  project
+  over defaults: 1
 effective:
-limits.maxParallel  2  profile fast-proto (user)
-  over project: 4
+limits.maxDepth  2  profile fast-proto (user)
+  over project: 0
 limits.maxReviewRounds  2  profile prototype (defaults)
   over defaults: 4
 ```

@@ -27,7 +27,7 @@ Read-only roles run in `plan` interaction mode, and edit roles in `default`. Eve
 
 ## Cross-family roles
 
-`plan-review`, `review`, and `oracle` review from the family other than the worker's. The family of a target is its driver, such as `claudeAgent` or `codex`. `--against <provider|driver>` names the worker, and `--against auto` reads it from the ledger of `--plan`. The CLI then tries the other family's targets first. With `--strict`, it exits 1 instead of falling back to the worker's family.
+`plan-review`, `review`, and `oracle` review from the family other than the worker's. The family of a target is its driver, such as `claudeAgent` or `codex`. `--against <provider|driver>` names the worker. The CLI then tries the other family's targets first. With `--strict`, it exits 1 instead of falling back to the worker's family.
 
 ## Main thread or child
 

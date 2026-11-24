@@ -122,8 +122,8 @@ export type ShimTarget =
   | { kind: "binary"; cli: string }
   | { kind: "runner"; runner: Runner; version: string };
 
-// The runtime that a shim or a user hook records: the one that runs the CLI now.
-export function runtimeOf(ctx: Pick<CliContext, "build" | "runtimePath">): string {
+// The runtime that a shim records: the one that runs the CLI now.
+function runtimeOf(ctx: Pick<CliContext, "build" | "runtimePath">): string {
   return ctx.runtimePath ?? (ctx.build === "source" ? "bun" : "node");
 }
 

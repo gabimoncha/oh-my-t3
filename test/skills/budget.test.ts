@@ -7,14 +7,13 @@ import { SKILLS_DIR } from "./shared.ts";
 // Word targets from plans/skill-trim.md. A file may exceed its target by 10%. A key that ends in /*.md
 // is the total of the files in that folder.
 const TARGETS: Record<string, number> = {
-  "omt/SKILL.md": 300,
+  "omt/SKILL.md": 120,
   "omt-ulw/SKILL.md": 1_800,
   "omt-plan/SKILL.md": 1_300,
-  "omt-research/SKILL.md": 700,
   "omt-code-review/SKILL.md": 1_100,
   "omt-code-review/pr-extras.md": 350,
   "omt-design/SKILL.md": 700,
-  "omt-setup/SKILL.md": 1_000,
+  "omt-setup/SKILL.md": 1_050,
   "omt-climb/SKILL.md": 850,
   "omt/references/delegation.md": 1_600,
   "omt/references/roles.md": 500,
@@ -35,7 +34,10 @@ const BANNED: RegExp[] = [
   /omt ultrawork:/,
   /t3_thread_configuration/,
   /ledger\.dispatched/,
-  /omt ledger add/,
+  /omt ledger/,
+  /omt lock/,
+  /omt-research/,
+  /against auto/,
   /shasum/,
   /t3_thread_wait/,
 ];

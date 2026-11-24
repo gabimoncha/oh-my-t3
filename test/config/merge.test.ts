@@ -125,8 +125,8 @@ test("a role removed in one layer can be added back as a new role in a later one
 });
 
 test("each limit field replaces the old value", () => {
-  const { config } = mergeLayer(DEFAULT_CONFIG, { limits: { maxParallel: 8 } }, "src");
-  assert.deepEqual(config.limits, { ...DEFAULT_CONFIG.limits, maxParallel: 8 });
+  const { config } = mergeLayer(DEFAULT_CONFIG, { limits: { maxReviewRounds: 8 } }, "src");
+  assert.deepEqual(config.limits, { ...DEFAULT_CONFIG.limits, maxReviewRounds: 8 });
 });
 
 test("the result does not share arrays with the layer", () => {

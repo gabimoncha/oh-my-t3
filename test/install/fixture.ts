@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync } from "node:fs";
+import { lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tempDir, writeFile } from "../helpers.ts";
 import { runMain, runOk } from "../run.ts";
@@ -78,6 +78,23 @@ export function snapshot(dir: string): Record<string, string> {
 
 export function readJson(path: string): Record<string, unknown> {
   return JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+}
+
+// The Claude UserPromptSubmit entry that omt install --hooks of an earlier release wrote.
+export const OLD_HOOK_COMMAND = '"/old/node" "/old/cli.js" hook user-prompt-submit # oh-my-t3code';
+
+export function withOldHook(settings: Record<string, unknown>, command = OLD_HOOK_COMMAND): Record<string, unknown> {
+  const hooks = { ...(settings.hooks as Record<string, unknown[]> | undefined) };
+  hooks.UserPromptSubmit = [...(hooks.UserPromptSubmit ?? []), { hooks: [{ type: "command", command, timeout: 10 }] }];
+  return { ...settings, hooks };
+}
+
+// The manifest record of that entry, as the earlier release wrote it.
+export function recordOldHook(manifestPath: { manifest: string } | string, settingsPath: string, fields: { created?: boolean; backup?: string } = {}): void {
+  const path = typeof manifestPath === "string" ? manifestPath : manifestPath.manifest;
+  const manifest = readJson(path);
+  manifest.hooks = [{ kind: "claude-user-prompt-submit", settingsPath, command: OLD_HOOK_COMMAND, ...fields }];
+  writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
 export function assertAllUnchanged(output: string, options: { message?: string; ignoreNone?: boolean } = {}): void {

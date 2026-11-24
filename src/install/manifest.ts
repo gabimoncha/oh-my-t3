@@ -1,3 +1,4 @@
+import { withUpdaterLimits } from "../config/defaults.ts";
 import { parseDefaultsSnapshot } from "../config/defaultsState.ts";
 import type { DefaultsSnapshot } from "../config/defaultsState.ts";
 import { basename, dirname, join, relative, sep } from "node:path";
@@ -301,7 +302,9 @@ export function rebaseManifest(manifest: Manifest, root: string): Manifest {
 }
 
 export function manifestText(manifest: Manifest): string {
-  return `${JSON.stringify(manifest, null, 2)}\n`;
+  const snapshot = manifest.acceptedDefaults;
+  const saved = snapshot === undefined ? manifest : { ...manifest, acceptedDefaults: { ...snapshot, config: withUpdaterLimits(snapshot.config) } };
+  return `${JSON.stringify(saved, null, 2)}\n`;
 }
 
 export async function writeManifest(path: string, manifest: Manifest): Promise<void> {

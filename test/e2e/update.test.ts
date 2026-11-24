@@ -44,8 +44,8 @@ test("global npm oh-my-t3 install of A updates to B with --yes: CLI, user skills
   const userCfg = userConfigPath(env, env.HOME!);
   const projCfg = projectConfigPath(project);
   mkdirSync(dirname(userCfg), { recursive: true });
-  writeFileSync(userCfg, '{\n  // Keep this override.\n  "defaults": "2026-10",\n  "limits": { "maxParallel": 2 }\n}\n');
-  writeFileSync(projCfg, '{\n  // Keep this override.\n  "defaults": "2026-10",\n  "limits": { "maxParallel": 2 }\n}\n');
+  writeFileSync(userCfg, '{\n  // Keep this override.\n  "defaults": "2026-10",\n  "limits": { "maxReviewRounds": 2 }\n}\n');
+  writeFileSync(projCfg, '{\n  // Keep this override.\n  "defaults": "2026-10",\n  "limits": { "maxReviewRounds": 2 }\n}\n');
 
   const line = () => `This line exists only in the e2e update build ${B}.`;
   const skillFiles = [
@@ -68,7 +68,7 @@ test("global npm oh-my-t3 install of A updates to B with --yes: CLI, user skills
     const text = readFileSync(file, "utf8");
     assert.doesNotMatch(text, /"defaults"/);
     assert.match(text, /Keep this override/);
-    assert.match(text, /"maxParallel": 2/);
+    assert.match(text, /"maxReviewRounds": 2/);
   }
 }, LONG);
 

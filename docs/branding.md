@@ -1,6 +1,6 @@
 # Names and compatibility
 
-The public name is **oh-my-t3**. The descriptor is "CLI, skills, and hooks for T3 Code". The repository is `gabimoncha/oh-my-t3`. `src/brand.ts` defines the CLI's primary package, package aliases, and repository identity.
+The public name is **oh-my-t3**. The descriptor is "CLI and skills for T3 Code". The repository is `gabimoncha/oh-my-t3`. `src/brand.ts` defines the CLI's primary package, package aliases, and repository identity.
 
 New install examples use these commands:
 
@@ -16,11 +16,11 @@ The website is `https://omt3.dev`, on the Cloudflare Pages project `oh-my-t3`. T
 
 ## Compatibility identities
 
-These strings identify existing installations. They retain their original values, except the two folder names, which `omt migrate` moves:
+These strings identify existing installations. They retain their original values, except the two folder names, which have new names for new installs:
 
 - The user config directory is `~/.config/oh-my-t3`, or `oh-my-t3` under `XDG_CONFIG_HOME`. `OMT_CONFIG_DIR` still overrides it. Earlier releases used `oh-my-t3code`.
-- Project state lives in `.omt3/`. Earlier releases used `.omt/`. omt still reads an old folder, prints a hint, and `omt migrate` moves it. The `OMT_*` environment variables stay the same.
-- Managed skill markers and manifests retain the package identity `oh-my-t3code`. Hook signatures, shim signatures, and git exclude delimiters retain their existing text.
+- Project state lives in `.omt3/`. Earlier releases used `.omt/`. omt still reads an old folder while the new one does not exist. The `OMT_*` environment variables stay the same.
+- Managed skill markers and manifests retain the package identity `oh-my-t3code`. The retired hook signature, shim signatures, and git exclude delimiters retain their existing text.
 - One-shot project shims continue to pin `omt3@<version>`. Public one-shot examples use `npx oh-my-t3`.
 - Release archives keep the prefix `oh-my-t3code-v`. Their executable is `omt`.
 - mise detection accepts both the old and new repository install directories. New commands use `github:gabimoncha/oh-my-t3`.
