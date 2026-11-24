@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import { chmod } from "node:fs/promises";
 import { DEFAULT_CONFIG } from "../config/defaults.ts";
-import { cleanRetired, formatRetiredCleanup, parseDefaultsSnapshot, reviewDefaults } from "../config/defaultsState.ts";
+import { cleanRetired, formatRetiredCleanup, parseDefaultsSnapshot, reviewDefaultsScopes } from "../config/defaultsState.ts";
+import type { DefaultsReview } from "../config/defaultsState.ts";
 import { confirmApply } from "../install/confirm.ts";
 import { oneShotRunner, runnerCommand, shimContent } from "../install/project.ts";
 import type { Runner } from "../install/project.ts";
@@ -355,11 +356,12 @@ async function defaultsStep(
     ctx.stderr("warning: cannot read the updated CLI's defaults; run omt doctor to review them\n");
     return { reports: [], failed: true };
   }
-  const reports: DefaultsResult[] = [];
-  for (const { scope, root } of scopes) {
-    const result = await reviewDefaults({ ...ctx, cwd: root }, scope, { yes: options.yes, dryRun: options.dryRun, json: options.json }, target);
-    reports.push({ scope, ...(scope === "project" ? { root } : {}), ...result });
-  }
+  const reviews = await reviewDefaultsScopes(ctx, scopes.map(({ scope, root }) => ({ scope, cwd: root })), {
+    yes: options.yes, dryRun: options.dryRun, json: options.json,
+  }, target);
+  const reports = scopes.map(({ scope, root }, index): DefaultsResult => ({
+    scope, ...(scope === "project" ? { root } : {}), ...(reviews[index] as DefaultsReview),
+  }));
   return { reports, failed: false };
 }
 
