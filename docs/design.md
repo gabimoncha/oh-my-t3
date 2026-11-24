@@ -37,7 +37,7 @@ T3 validates `target.options` strictly. An unknown option id or a value outside 
 
 The `plan-review`, `review`, and `oracle` roles are cross-family. The skill passes the worker's provider to `omt brief --against`, and the CLI tries the candidates of the other family first. A reviewer from another family misses fewer of the worker's blind spots. The owner chose this rule. When the other family is not available, the same family reviews, because a review from the same family is better than no review. The family is the driver, so a driver that runs models of several vendors (Cursor, OpenCode) counts as its own family.
 
-The ledger records the provider of each dispatch. So `--against auto` finds the worker of a unit, or the main implementer of a plan, without help from the agent.
+The main thread knows its own family from `t3_thread_configure`, so it passes that family to `--against`. An earlier `--against auto` read the worker from the ledger; it went with the ledger.
 
 ### The main thread builds, and children check
 
@@ -45,9 +45,22 @@ Before the workflow change, the conductor of an `omt-ulw` run edited no product 
 
 The [workflow fold design](design/workflow-fold.md) follows one rule: keep a child only for black-box verification, for independent parallel work that needs a fresh context, or for a context that one loop cannot hold. So the main thread now explores, asks the owner its questions in batches, plans, and builds in one context. One review child on the other family reviews the whole diff, and one QA child runs every check and device flow. The reviewer fixes local findings itself, because a reviewer that only reports costs one more round for a fix that it could see. The main thread reads the reviewer's fix diff before QA starts, because a child's summary is a claim and the diff is the evidence. QA edits nothing, so its result says only what passed. T3 wakes the main thread when a child ends, so no heartbeat and no `omt-loop` are needed.
 
-The same rule shapes the other flows. `omt-plan`, `omt-research`, and `omt-design` do their work in the main thread and start a child only for a second opinion from the other family, a broad read, or a design that the main thread's model cannot draw. `omt-code-review` gives a small diff 1 reviewer and a large diff 2 to 4 grouped reviewers and 1 oracle, because a review of a few hundred lines fits in one context and more reviewers only repeat findings.
+The same rule shapes the other flows. `omt-plan` and `omt-design` do their work in the main thread and start a child only for a second opinion from the other family, a broad read, or a design that the main thread's model cannot draw. `omt-code-review` gives a small diff 1 reviewer and a large diff 2 to 4 grouped reviewers and 1 oracle, because a review of a few hundred lines fits in one context and more reviewers only repeat findings.
 
 `omt-swarm` built one plan as parallel tracks, each a top-level thread in its own worktree, and merged them. Each track ran its own review and QA, and the main thread waited for every track inside its turn. The owner removed it. `omt install` and `omt update` delete an installed copy as a skill that is no longer shipped.
+
+### omt keeps only what T3 does not cover
+
+omt began because T3 lacked features that it now has. So omt keeps only what T3 and its workflows do not cover, and the owner removed the rest:
+
+- `omt-research`: the main thread answers a question itself, or sends it to a `research` child (`delegate_task` with `role: "research"`), and T3 plan mode keeps it read-only.
+- The `omt` router skill: `omt-setup` already says which skill to use. The `omt` folder stays without a workflow, because the other skills and the CLI read its `references/`.
+- The ledger (`.omt3/ledger.jsonl`, `omt ledger`, the start records of `omt brief --save`, the parallel limit, and the settle advice): T3 tracks each child (`task_status`, `task_cancel`, and a wake when a child ends), and a workflow run keeps its own journal. `omt brief --fallback` now takes the tried targets from the caller (`--attempt` and `--tried <targetKey>`), the same path that plan mode always used.
+- `omt lock`: parallel work that shares build state runs in worktrees, as the T3 workflow agents do.
+- The Claude Code `start ulw` hook: `$omt-ulw` works on every provider.
+- `omt migrate` and its notice: omt still reads an old `.omt/` or `oh-my-t3code` folder.
+
+`omt install` and `omt update` remove what these features left: the retired skill folders and links, the hook entry in the settings file that it was written to, the retired config keys, and each project's `.omt3/ledger.jsonl` and `.omt3/locks/`. They are omt's own machine state, git ignores them, and nothing reads them any more, so the cleanup asks nothing.
 
 ### Fixed steps can run as T3 workflows
 
@@ -73,13 +86,13 @@ Config merging, chain resolution, option mapping, brief rendering, and plan coun
 
 The CLI cannot call T3 itself. Claude and Codex sessions get the T3 MCP server through config, not through environment variables, so a shell command has no credential. Routing is therefore unverified by default: the CLI trusts the chain and maps the effort, `delegate_task` validates the target, and the skill moves to the next candidate on a typed T3 error. An agent can pass a saved copy of `orchestrator_capabilities` to check the chains ahead of time.
 
-The skills need the CLI. Users always install the CLI, and the CLI installs the skills, so a manual path for routing, briefs, and the ledger only doubled the skill text. When no CLI is found, a skill points to the agent quick start and stops. T3 is still the final validator: on a typed T3 error, `omt brief --fallback` picks the next target.
+The skills need the CLI. Users always install the CLI, and the CLI installs the skills, so a manual path for routing and briefs only doubled the skill text. When no CLI is found, a skill points to the agent quick start and stops. T3 is still the final validator: on a typed T3 error, `omt brief --fallback` picks the next target.
 
 ### The CLI does the bookkeeping
 
 The skills once told the model to record each dispatch and result in the ledger by hand, compare the active count with the parallel limit, hash the plan before each review, find the next candidate after a refused target, check the branch, and stage and commit only the run's own paths. Each of these steps is deterministic, and each one cost tokens and turns when a model did it. The skill text was about 36,600 words, and most of it was this bookkeeping.
 
-So the CLI took it over, and the skills dropped to about 16,000 words. A dispatch takes three calls: `omt brief --save --json` checks the limit and records the start, `delegate_task` runs the child, and `omt ledger done` closes the start and says whether the child can be settled. `omt git start` and `commit` record the files that a run found changed and commit only the run's own files. The skills keep only the workflow decisions. `test/skills/budget.test.ts` holds a word budget for each skill file, so the text cannot grow back without a failing test.
+So the CLI took it over, and the skills dropped to about 16,000 words. A dispatch takes two calls: `omt brief --save --json` renders the brief and picks the target, and `delegate_task` runs the child. T3 tracks the child from there. `omt git start` and `commit` record the files that a run found changed and commit only the run's own files. The skills keep only the workflow decisions. `test/skills/budget.test.ts` holds a word budget for each skill file, so the text cannot grow back without a failing test.
 
 ### The CLI and the skills serve people and agents
 
@@ -121,7 +134,7 @@ Plan mode has one trap. T3 stores a proposed plan as its own item type, and `tas
 
 ### Children share the checkout by default
 
-`delegate_task` can give a child its own worktree, but omt's children stay in the main thread's checkout so their changes are integrated throughout the run. The agents of the omt T3 workflows are the exception: each edit agent works in its own worktree from a commit, and the main thread merges its commits. A worktree per unit would need repeated setup, integration, and checks after merge. Each unit has an explicit file scope. A large unit that the main thread hands to an `execute` child runs in parallel only when its scope does not overlap other edits, up to the default `maxParallel` of 6. The reviewer and QA never run at the same time, because the reviewer edits files. Shared build state uses a lock.
+`delegate_task` can give a child its own worktree, but omt's children stay in the main thread's checkout so their changes are integrated throughout the run. The agents of the omt T3 workflows are the exception: each edit agent works in its own worktree from a commit, and the main thread merges its commits. A worktree per unit would need repeated setup, integration, and checks after merge. Each unit has an explicit file scope. A large unit that the main thread hands to an `execute` child runs in parallel only when its scope does not overlap other edits. The reviewer and QA never run at the same time, because the reviewer edits files. Units that share build state run one at a time; work that must run in parallel on shared state runs as a T3 workflow, whose agents each have their own worktree.
 
 ### Worktrees install their own dependencies
 
@@ -131,11 +144,11 @@ The runner selects a global virtual store with the isolated linker. Each worktre
 
 ### Finished children are settled
 
-T3 keeps a finished child loaded for 30 idle minutes. Codex then keeps the thread for its unload delay, which is 1800 seconds from Codex 0.163.0. Each loaded Codex thread starts its own stdio MCP server processes. In one long run, a single Codex app-server had 1,042 child processes: up to 174 copies of each of its 6 MCP servers. Codex native subagents of an idle parent stay loaded until the app-server stops, because T3's idle release unsubscribes only the parent. A settle releases the child at once and unsubscribes its native subagents too. So the main thread settles each child when `omt ledger done` closes its start. In a linked worktree, `omt ledger done` says not to settle, because T3 runs the project's settle script in a settled thread's worktree, and a child that shares the main thread's worktree has that worktree. Owners also set `-c thread_unload_delay_secs=60` in T3's Codex launch arguments, which makes Codex close a settled thread after one minute.
+T3 keeps a finished child loaded for 30 idle minutes. Codex then keeps the thread for its unload delay, which is 1800 seconds from Codex 0.163.0. Each loaded Codex thread starts its own stdio MCP server processes. In one long run, a single Codex app-server had 1,042 child processes: up to 174 copies of each of its 6 MCP servers. Codex native subagents of an idle parent stay loaded until the app-server stops, because T3's idle release unsubscribes only the parent. A settle releases the child at once and unsubscribes its native subagents too. So the main thread settles each child after it reads the result and `task_status` shows that the child ended. In a linked worktree, it settles no child, because T3 runs the project's settle script in a settled thread's worktree, and a child that shares the main thread's worktree has that worktree. Owners also set `-c thread_unload_delay_secs=60` in T3's Codex launch arguments, which makes Codex close a settled thread after one minute.
 
 ### The config shows where each value comes from
 
-A value in the effective config can come from four places: the accepted defaults, the user config, the project config, or a profile and the file that declares it. `omt config show` prints only the result. A user who wants to know why `limits.maxParallel` is 2 has to read both files and the profile chain. So `omt config explain` prints the layer that sets each value and the lower layers that it overrides. The sources come from the merge steps themselves, not from the keys that a file names. A key-based guess fails for a role that one file removes and another file creates again, and for the fields that omt fills in for a new role.
+A value in the effective config can come from four places: the accepted defaults, the user config, the project config, or a profile and the file that declares it. `omt config show` prints only the result. A user who wants to know why `limits.maxReviewRounds` is 2 has to read both files and the profile chain. So `omt config explain` prints the layer that sets each value and the lower layers that it overrides. The sources come from the merge steps themselves, not from the keys that a file names. A key-based guess fails for a role that one file removes and another file creates again, and for the fields that omt fills in for a new role.
 
 ### Profiles select the workflow
 
@@ -155,27 +168,23 @@ The main thread writes the approved tests while it builds, and it makes the requ
 
 Each new test maps to an owner-approved `## Tests` line. This makes the test's flow, file, and reason reviewable before the main thread writes it. The default layer is integration: real code through the interface that production uses, with only external services faked. It runs the code that production runs, so it catches regressions that a unit test with mocks misses, without the setup of a full e2e run. e2e tests cover only core user journeys and failures that need the client, server, and backend together, and unit tests cover pure logic with real branching. Other layers need a reason and owner approval. Each line names the bug or regression that the test catches. An empty list means no new tests, while verification still checks the artifact.
 
-### Build locks follow open files
-
-A kernel lock on an inherited fd 3 survives a wrapper crash while another holder remains. Nothing guesses that a lock is stale or takes it over. The lock file keeps its inode, and the kernel releases the lock when the last holder closes it. Commands that leave processes behind run outside the lock with a serial plan. Without `flock` or `lockf`, the CLI still runs the command and the plan keeps shared builds serial.
-
 ### Limits that T3 does not set
 
-T3 has no cap on concurrent tasks or nesting depth. The config sets three limits: parallel tasks, depth, and review rounds. Every brief states the child's depth. At the maximum depth a child does the work itself.
+T3 has no cap on nesting depth. The config sets two limits: depth and review rounds. Every brief states the child's depth. At the maximum depth a child does the work itself.
 
-omt once also capped the tasks of one run. One config cap did not fit every plan: a dogfood run hit it after 2 of 16 units, and a per-plan budget only moved the question to the owner. After the fold, a run starts about two children plus the broad reads, so omt removed the task budget. `maxParallel` still stops a fan-out storm.
+omt once also capped the tasks of one run and the tasks that ran at the same time. One config cap did not fit every plan: a dogfood run hit it after 2 of 16 units, and a per-plan budget only moved the question to the owner. After the fold, a run starts about two children plus the broad reads, so omt removed the task budget, and the parallel limit went with the ledger that counted the active tasks.
 
 ### State lives in the repository
 
-A long run outlives the agent's context. The plan (`.omt3/plans/<slug>.md`) and the ledger (`.omt3/ledger.jsonl`) hold the state: units, scopes, done conditions, task ids, rounds, and verdicts. After compaction the main thread re-reads both files. The plan uses checkbox grammar that people can read and that `omt plan status` can count.
+A long run outlives the agent's context. The plan (`.omt3/plans/<slug>.md`) holds the state: units, scopes, done conditions, and their marks. T3 holds the child tasks. After compaction the main thread re-reads the plan and the `task_status` of its children. The plan uses checkbox grammar that people can read and that `omt plan status` can count.
 
 Live plans stay out of git. All worktrees share the one `.omt3` in the main checkout, and omt reads and edits only that copy. A committed plan gives every worktree branch a tracked copy that goes stale, and that copy makes every omt command warn about shadowed state. So `.omt3/.gitignore` holds `plans/`. To keep a finished plan as a record, copy it to a path outside `.omt3/`, such as `docs/`, and commit it there.
 
-The folders carry the product name: `.omt3/` in each project and `oh-my-t3` in the user config folder. Earlier releases used `.omt/` and `oh-my-t3code`. A rename must not break a project that has not moved yet, so omt reads an old folder until `omt migrate` moves it, and it prints one hint line meanwhile. Migrate moves a project only when no delegated task runs there, because a running child holds absolute paths to its brief and evidence. It copies first and deletes the old folder only after the shim and the hook run, so a failed check leaves the project as it was.
+The folders carry the product name: `.omt3/` in each project and `oh-my-t3` in the user config folder. Earlier releases used `.omt/` and `oh-my-t3code`. A rename must not break a project that has not moved yet, so omt still reads an old folder while the new one does not exist. The `omt migrate` command and its hint line were removed.
 
-### Continuation uses T3, not new hooks
+### Continuation uses T3, not hooks
 
-OmO re-prompts the agent with hooks until a plan is done. omt needs no re-prompt: the main thread waits for a child with `delegate_task` in wait mode, or ends its turn and lets T3 wake it when the child ends, as the `next` field of the T3 result says. So omt has no heartbeat and no loop skill. T3's native `/goal` stays available for Claude and Codex threads. The only hook it installs is optional: a Claude Code `UserPromptSubmit` hook that arms ultrawork when the prompt contains the phrase `start ulw` or `start ultrawork`. The bare words do not arm it, because they also appear when the user only asks about ultrawork. It injects a short pointer to the `omt-ulw` skill, the same approach as OmO's Codex edition.
+OmO re-prompts the agent with hooks until a plan is done. omt needs no re-prompt: the main thread waits for a child with `delegate_task` in wait mode, or ends its turn and lets T3 wake it when the child ends, as the `next` field of the T3 result says. So omt has no heartbeat and no loop skill. T3's native `/goal` stays available for Claude and Codex threads. omt installs no hook. An earlier release had an optional Claude Code hook for the phrase `start ulw`; `$omt-ulw` works on every provider, so the hook was removed.
 
 ### Install follows the user's existing layout
 
@@ -193,11 +202,11 @@ The type checker is `tsrs`, the Rust port of the TypeScript 7 compiler that Clou
 
 The npm package holds one JavaScript file that `bun build --target=node` makes, plus the skills. A package that starts with `#!/usr/bin/env bun` fails on a machine with only Node, and most users have Node. So the bundle starts with `#!/usr/bin/env node` and runs on Node 22 or later, or on Bun. Node 20 is past its end of life, so 22 is the minimum. Because the bundle must run on Node, `src/` uses only `node:` built-in modules and no `Bun.*` API. The bundle has no dependencies and no install scripts. A launcher with one optional package per platform, as Biome ships, would run the binary through npm too. It needs one more package for each platform in every release, and the bundle needs none.
 
-The package is also published as `omt3` and, from version `0.5.0`, `oh-my-t3`. The shorter `oh-my-t3` name is easier to remember. All three packages provide the CLI, skills, and hooks. The npm name `omt` belongs to another author. A one-shot runner such as `npx` downloads the package that has the name of the command, so `npx omt` outside a project that installed omt runs that other package. `npx omt3` and `npx oh-my-t3` run omt. The docs never tell users to run `npx omt` outside a project with omt as a dev dependency.
+The package is also published as `omt3` and, from version `0.5.0`, `oh-my-t3`. The shorter `oh-my-t3` name is easier to remember. All three packages provide the CLI and the skills. The npm name `omt` belongs to another author. A one-shot runner such as `npx` downloads the package that has the name of the command, so `npx omt` outside a project that installed omt runs that other package. `npx omt3` and `npx oh-my-t3` run omt. The docs never tell users to run `npx omt` outside a project with omt as a dev dependency.
 
 The GitHub release holds a compiled binary for each POSIX platform: macOS, Linux with glibc, and Linux with musl, on arm64 and x64. The binary holds the skills, and needs neither Node nor Bun. It serves users who install tools with mise, and machines without a JavaScript runtime. mise reads the platform from each archive name and checks `SHA256SUMS`. Windows binaries come later.
 
-A project install from a one-shot runner writes a shim that calls the same runner with the pinned version, such as `npx --yes omt3@0.1.0`. The runner cache is not a stable path, so the shim cannot record it. The pinned version keeps the project on the version that installed it, and a cleared cache does not break the project. The cost is the network: after a cache clean, the next call downloads the package again. With the Claude Code hook, that call runs on each prompt and can pass the hook timeout when the network is down. So the docs point hook users to a global install or a dev dependency.
+A project install from a one-shot runner writes a shim that calls the same runner with the pinned version, such as `npx --yes omt3@0.1.0`. The runner cache is not a stable path, so the shim cannot record it. The pinned version keeps the project on the version that installed it, and a cleared cache does not break the project. The cost is the network: after a cache clean, the next call downloads the package again.
 
 ### Updates run the channel's own command
 
@@ -209,15 +218,15 @@ A project install lives in its own repository, and the user-scope omt had no way
 
 An update shows defaults changes after the skills sync and asks before accepting them. `--yes` accepts both the update and the current defaults. User overrides stay unchanged. See [Defaults change after review](#defaults-change-after-review).
 
-omt used to promise that the CLI never uses the network. An update needs the latest version, so the promise changes, and the new text names each case exactly. The update check is on by default, because a user who does not know about a new release does not install it, and old skills and an old CLI cause errors that are hard to explain. A user turns it off with `"update": "off"` in the user config. Without the key, `CI` and `NO_UPDATE_NOTIFIER` also turn it off, so a CI job or an air-gapped machine sends no request; `NO_UPDATE_NOTIFIER` is the variable that npm tools already read. A project config cannot change the mode, because a cloned repository is text that someone else wrote. The check runs at most once a day, with a 3-second timeout, and only in `omt install` and `omt doctor`, the commands that a person runs to set up or check omt. The hook runs on each prompt, and agents run commands such as `omt brief` and `omt roles` many times per task. A request there would slow each prompt and, when the network is down, could pass the hook timeout. So the hook and the agent commands never use the network. `"apply"` also runs the update, but only at a terminal, where a person sees the output; without one it prints a note. The request goes to the npm `dist-tags` endpoint, which npm's own `dist-tag` command uses and which returns 18 bytes. It sends no cookie, token, or id, so "no telemetry" stays true. The state file records failures too, so an offline machine tries once a day and not on each run.
+omt used to promise that the CLI never uses the network. An update needs the latest version, so the promise changes, and the new text names each case exactly. The update check is on by default, because a user who does not know about a new release does not install it, and old skills and an old CLI cause errors that are hard to explain. A user turns it off with `"update": "off"` in the user config. Without the key, `CI` and `NO_UPDATE_NOTIFIER` also turn it off, so a CI job or an air-gapped machine sends no request; `NO_UPDATE_NOTIFIER` is the variable that npm tools already read. A project config cannot change the mode, because a cloned repository is text that someone else wrote. The check runs at most once a day, with a 3-second timeout, and only in `omt install` and `omt doctor`, the commands that a person runs to set up or check omt. Agents run commands such as `omt brief` and `omt roles` many times per task, and a request there would slow each one. So the agent commands never use the network. `"apply"` also runs the update, but only at a terminal, where a person sees the output; without one it prints a note. The request goes to the npm `dist-tags` endpoint, which npm's own `dist-tag` command uses and which returns 18 bytes. It sends no cookie, token, or id, so "no telemetry" stays true. The state file records failures too, so an offline machine tries once a day and not on each run.
 
-The daily check finds a new release, but it does not find a CLI and skills of different releases. That happens when a user updates the CLI with the package manager and not with `omt update`, so the skills stay old. Then a skill can call a flag that the CLI does not know, and the command fails with a usage error that does not name the cause. So each agent command compares the version in the install manifest with its own version and prints one hint with the sync command. The comparison reads one small local file, so it is cheap enough for every command. It does not run in the hook, which runs on each prompt and only in Claude Code. It does not run in `install`, `update`, or `doctor`, which already sync or report the skills.
+The daily check finds a new release, but it does not find a CLI and skills of different releases. That happens when a user updates the CLI with the package manager and not with `omt update`, so the skills stay old. Then a skill can call a flag that the CLI does not know, and the command fails with a usage error that does not name the cause. So each agent command compares the version in the install manifest with its own version and prints one hint with the sync command. The comparison reads one small local file, so it is cheap enough for every command. It does not run in `install`, `update`, or `doctor`, which already sync or report the skills.
 
 ## What is out of scope
 
 - A T3 fork or a T3 plugin API. oh-my-t3 uses only the surfaces T3 already exposes.
 - A scheduler of omt's own, team mailboxes, memory, or computer use. T3 child threads, worktree threads, and T3 workflows cover the common cases. omt runs no process of its own: `omt plan status` lists the ready units, the open units whose `Depends on` units are done, and the main thread builds them in that order. The durable runs come from T3 workflows (see [Fixed steps can run as T3 workflows](#fixed-steps-can-run-as-t3-workflows)).
-- Hooks for Codex, Cursor, and OpenCode. Codex hooks need per-hook trust. They are a later step.
+- Prompt hooks in any harness. `$omt-ulw` starts a run on every provider.
 - Copied code or prompt text from OmO. Its license (Sustainable Use License 1.0) does not allow that. oh-my-t3 re-implements ideas in its own words. omp and T3 Code are MIT.
 
 ## Credits

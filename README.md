@@ -6,7 +6,7 @@
 
 [Website](https://omt3.dev) · [Install](#install) · [Docs](docs/README.md)
 
-oh-my-t3 adds plans, roles, task briefs, and review loops to the agents that you run in [T3 Code](https://t3.codes). You give the agent a goal, such as `start ulw add OAuth to the API`. The agent reads the code, asks you its open questions, plans, and builds the change in its own thread. Then a child task from the other model family reviews the change, and another child task runs every check.
+oh-my-t3 adds plans, roles, task briefs, and review loops to the agents that you run in [T3 Code](https://t3.codes). You give the agent a goal, such as `$omt-ulw add OAuth to the API`. The agent reads the code, asks you its open questions, plans, and builds the change in its own thread. Then a child task from the other model family reviews the change, and another child task runs every check.
 
 ## Names
 
@@ -42,11 +42,11 @@ Then install omt into your project:
 
 ```sh
 cd /path/to/your-project
-omt install --project --hooks
+omt install --project
 omt doctor --project
 ```
 
-The install lists the files that it will write and asks before it writes them. It hides these files from git. It also checks which harnesses you can run, Claude Code and Codex. When one is missing, the new config gets a `"harnesses"` key that skips the models of the missing harness. `--hooks` adds the `start ulw` phrase to Claude Code. If you use only Codex, leave `--hooks` out. `doctor` must print no `FAIL` line.
+The install lists the files that it will write and asks before it writes them. It hides these files from git. It also checks which harnesses you can run, Claude Code and Codex. When one is missing, the new config gets a `"harnesses"` key that skips the models of the missing harness. `doctor` must print no `FAIL` line.
 
 Restart the T3 agent sessions of the project. A running session does not load new skills.
 
@@ -62,7 +62,7 @@ step by step, run the check at the end of each step, and tell me what to restart
 
 ## Who it is for
 
-Use omt if you use T3 Code and want an agent to plan and finish work that has several steps. With both Claude Code and Codex, a model of one family reviews the work of the other family. You can read the plan, the task count, and each review verdict in files under `.omt3/`.
+Use omt if you use T3 Code and want an agent to plan and finish work that has several steps. With both Claude Code and Codex, a model of one family reviews the work of the other family. You can read the plan in `.omt3/`, and each child task in T3.
 
 Do not use omt in these cases:
 
@@ -87,7 +87,7 @@ In a T3 thread, type:
 $omt-ulw add rate limiting to the public API
 ```
 
-T3 changes `$omt-ulw` to the syntax of each provider, such as `/omt-ulw` in Claude Code. With the Claude Code hook, the phrase `start ulw` works too: `start ulw add rate limiting to the public API`. The hook starts nothing when a message only names ulw or ultrawork.
+T3 changes `$omt-ulw` to the syntax of each provider, such as `/omt-ulw` in Claude Code.
 
 The agent reads the code, asks its open questions in one batch, writes a plan in `.omt3/plans/`, and builds the units itself. Then a model from the other family reviews the whole change and fixes small findings, and a qa task runs every check and device flow. In the default `normal` profile, the reviewer of a large run is the oracle, and it reviews again after each round of fixes.
 
@@ -99,21 +99,19 @@ If you do not know what to do next, or you want to change the setup, type `$omt-
 
 | Skill | Use it when |
 | --- | --- |
-| `omt-ulw` | You want a task built, fixed, or shipped from start to end. The main thread builds, and one review task and one qa task check the work. With the Claude Code hook, the phrase `start ulw` starts it. |
+| `omt-ulw` | You want a task built, fixed, or shipped from start to end. The main thread builds, and one review task and one qa task check the work. |
 | `omt-plan` | You want a reviewed plan before any code changes. For a vague goal, it first finds the edge cases and open questions. |
 | `omt-design` | You want designs or mockups before UI work. |
 | `omt-code-review` | You want a review of uncommitted changes, a branch, a commit, or a pull request. It replaces `omt-review`. |
-| `omt-research` | You need an answer with sources from the repository, library docs, or the web. |
-| `omt-setup` | You want to know what omt can do or what to do next, or you want omt set up, configured, or updated: the harnesses, the defaults, models, roles, or profiles. It asks before each write. |
-| `omt` | You want the list of workflows. |
+| `omt-setup` | You want to know what omt can do, which skill to use, or what to do next, or you want omt set up, configured, or updated: the harnesses, the defaults, models, roles, or profiles. It asks before each write. |
 
-The agent can start the first six skills itself. You start `omt` by name.
+The agent can start each skill itself. For a question with no change, ask it in the thread: T3 answers it, or sends it to a `research` child.
 
-`omt-grill`, `omt-help`, `omt-loop`, `omt-show`, and `omt-swarm` were removed. `omt-plan` runs the stress test of `omt-grill`, and `omt-setup` answers the questions of `omt-help`. `omt install` and `omt update` remove the old folders.
+`omt-grill`, `omt-help`, `omt-loop`, `omt-research`, `omt-show`, `omt-swarm`, and the `omt` router were removed. `omt-plan` runs the stress test of `omt-grill`, and `omt-setup` answers the questions of `omt-help` and lists the workflows. `omt install` and `omt update` remove the old folders. The `omt` folder stays, without a workflow, because it holds the references that the other skills share.
 
 With T3 Workflows on (**Settings → Labs → Workflows**), the review and QA steps of `omt-ulw` and the reviewers of `omt-code-review` can run as durable T3 workflows. Turn it on with `"profiles": { "normal": { "t3Workflow": true } }` in `.omt3/config.jsonc`. `omt install` copies the workflow file into `~/.t3/workflows`. Without the switch, omt runs every step in the thread. See [Run the review and QA steps as T3 workflows](docs/workflows.md#run-the-review-and-qa-steps-as-t3-workflows).
 
-A plan and its ledger stay in `.omt3/` after context compaction and across sessions, so one plan can run for days. A profile in `.omt3/config.jsonc` can change the models, the checks, and the limits. See [Configure roles and profiles](docs/configuration.md), or ask `$omt-setup` to make the change.
+A plan stays in `.omt3/` after context compaction and across sessions, so one plan can run for days. A profile in `.omt3/config.jsonc` can change the models, the checks, and the limits. See [Configure roles and profiles](docs/configuration.md), or ask `$omt-setup` to make the change.
 
 ## Worktree setup
 
@@ -129,8 +127,8 @@ The setup works with Bun and pnpm, and never overwrites a file. Commit the new f
 
 ## How it works
 
-omt has two parts. The skills tell the agent how to plan, build, review, and test. The `omt` CLI does the steps that must give the same result each time: it merges the config, picks a model for each role, writes the task briefs, records each task start and result in the ledger, and commits only the files that a run changed. The CLI has no runtime dependencies and sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor`, unless you set `"update": "off"` in the user config or set `CI` or `NO_UPDATE_NOTIFIER`. `omt update` runs the package manager or mise command of the channel that installed omt.
-T3 gives each agent session tools to start, check, and cancel child tasks on any provider and model. Each child task is a T3 thread, so you can watch it in T3. omt adds roles, model routing, briefs, review loops, and limits. It does not change T3.
+omt has two parts. The skills tell the agent how to plan, build, review, and test. The `omt` CLI does the steps that must give the same result each time: it merges the config, picks a model for each role, writes the task briefs, and commits only the files that a run changed. The CLI has no runtime dependencies and sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor`, unless you set `"update": "off"` in the user config or set `CI` or `NO_UPDATE_NOTIFIER`. `omt update` runs the package manager or mise command of the channel that installed omt.
+T3 gives each agent session tools to start, check, and cancel child tasks on any provider and model. Each child task is a T3 thread, so you can watch it in T3. T3 tracks each child task and wakes the thread when one ends. omt adds roles, model routing, briefs, and review loops. It does not change T3.
 
 Each role, such as `execute` or `review`, has an ordered list of models. If T3 refuses the first model, the agent uses the next one. When both families are available, the reviewer comes from the family that the main thread does not use. `omt roles` shows the model of each role.
 
@@ -141,7 +139,6 @@ The [walkthrough](docs/walkthrough.md) follows two real runs on this repository,
 - Main thread: the T3 thread that runs an omt skill. It writes the plan, builds the units, starts the child tasks, and reads their results.
 - Unit: one part of the plan, with a file scope, a done condition, and a verify command. The main thread builds most units itself.
 - Brief: the full task text that a child task gets.
-- Ledger: `.omt3/ledger.jsonl`, with one line for each task start and each result.
 - Profile: a named set of workflow switches, limits, and role changes. The built-in profiles are `normal` and `prototype`.
 - Oracle: a review of the whole change from the other model family, before it counts as done.
 - LIGHT and HEAVY: the two run sizes. A LIGHT run has one or two units in one area of code. Every other run is HEAVY and gets a reviewed plan.
@@ -149,8 +146,7 @@ The [walkthrough](docs/walkthrough.md) follows two real runs on this repository,
 ## Limits
 
 - The config format and the CLI output can change.
-- A run has no task budget. At most 6 child tasks run at the same time by default (`limits.maxParallel`).
-- The `start ulw` phrase works only in Claude Code. In Codex, type `$omt-ulw`.
+- A run has no task budget, and omt sets no limit on parallel child tasks.
 - Child tasks share the checkout of the parent thread. A unit that an `execute` task builds runs in parallel only when its files do not overlap other edits.
 - If you use Codex child tasks, [set the Codex unload delay](docs/install.md#set-the-codex-unload-delay). Codex 0.163.0 keeps each finished child loaded for 30 minutes by default.
 
