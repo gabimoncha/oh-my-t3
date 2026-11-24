@@ -76,12 +76,12 @@ async function readAllStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function promptLine(question: string): Promise<string> {
+function promptLine(question: string): Promise<string | null> {
   const rl = createInterface({ input: process.stdin, output: process.stderr });
   return new Promise((resolve) => {
     let answered = false;
     rl.on("close", () => {
-      if (!answered) resolve("");
+      if (!answered) resolve(null);
     });
     rl.question(question, (answer) => {
       answered = true;

@@ -17,6 +17,8 @@ const options: UpdateOptions = {
 for (const scenario of [
   { name: "accepts current defaults", isTTY: true, answer: "yes", applied: true },
   { name: "keeps accepted defaults after refusal", isTTY: true, answer: "no", applied: false },
+  // Regression: with Enter meaning yes, closed input (Ctrl-D) read as "" and accepted.
+  { name: "keeps accepted defaults when input closes", isTTY: true, answer: null, applied: false },
   { name: "--yes accepts without another prompt", isTTY: true, yes: true, applied: true },
   { name: "JSON reports changes without a prompt", isTTY: true, json: true, applied: false },
   { name: "no TTY reports changes without writing", isTTY: false, applied: false },
@@ -42,7 +44,7 @@ for (const scenario of [
     const prompts: string[] = [];
     assert.equal(await runUpdate(ctx, { ...options, yes: scenario.yes ?? false, json: scenario.json ?? false }, {
       latest: ctx.version, run, isTTY: scenario.isTTY,
-      prompt: async (question) => { prompts.push(question); return scenario.answer ?? "no"; },
+      prompt: async (question) => { prompts.push(question); return scenario.answer === undefined ? "no" : scenario.answer; },
       fetch: (() => { throw new Error("The defaults review must not use the network"); }) as unknown as typeof fetch,
     }), 0);
     assert.equal(prompts.length, scenario.answer === undefined ? 0 : 1);

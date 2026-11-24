@@ -33,7 +33,7 @@ export interface UpdateSeams {
   run?: RunCommand;
   fetch?: typeof fetch;
   isTTY?: boolean;
-  prompt?: (question: string) => Promise<string>;
+  prompt?: (question: string) => Promise<string | null>;
 }
 
 interface DefaultsResult {
