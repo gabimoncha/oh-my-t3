@@ -53,7 +53,7 @@ test("an unknown path returns the 404 page", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
 });
 
-test("the hero plays ulw, then swarm, then offers Play again", async ({ page }) => {
+test("the hero plays ulw, then code review, then offers Play again", async ({ page }) => {
   await page.goto("/");
   await page.locator(".hero-runs").scrollIntoViewIfNeeded();
   await expect(page.locator(".hero-runs")).toHaveAttribute("data-play", "");
@@ -72,7 +72,8 @@ test("install defaults to Bun, and a one-shot run allows only the project instal
   const scopes = page.getByRole("tablist", { name: "Install scope" });
   await expect(channels.getByRole("tab", { selected: true })).toHaveText("Bun");
   await expect(page.locator("#install")).toContainText("bun add -g oh-my-t3");
-  await expect(page.locator("#install")).toContainText("omt install --hooks");
+  await expect(page.locator("#install")).toContainText("omt install");
+  await expect(page.locator("#install")).not.toContainText("--hooks");
 
   await channels.getByRole("tab", { name: "Bun" }).focus();
   await page.keyboard.press("ArrowRight");
@@ -83,7 +84,7 @@ test("install defaults to Bun, and a one-shot run allows only the project instal
   await expect(scopes.getByRole("tab", { name: "All projects" })).toHaveAttribute("aria-disabled", "true");
   await expect(scopes.getByRole("tab", { selected: true })).toHaveText("One project");
   await expect(page.locator("#install")).toContainText("# in the folder of your project");
-  await expect(page.locator("#install")).toContainText("npx oh-my-t3 install --project --hooks");
+  await expect(page.locator("#install")).toContainText("npx oh-my-t3 install --project");
 });
 
 test("the skill tour moves the pointer by itself and stops on a click", async ({ page }) => {
@@ -95,10 +96,7 @@ test("the skill tour moves the pointer by itself and stops on a click", async ({
     "omt-plan",
     "omt-design",
     "omt-code-review",
-    "omt-research",
     "omt-setup",
-    "omt-swarm",
-    "omt",
   ]);
   await tour.scrollIntoViewIfNeeded();
   await expect(tour).toHaveAttribute("data-play", "");
@@ -106,15 +104,15 @@ test("the skill tour moves the pointer by itself and stops on a click", async ({
   await finishAnimations(page, ".skill-tour");
   await expect(rows.nth(1)).toHaveAttribute("aria-selected", "true");
 
-  await rows.nth(4).click();
-  await expect(rows.nth(4)).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(".skill-stage figcaption")).toContainText("searches the repository");
+  await rows.nth(3).click();
+  await expect(rows.nth(3)).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".skill-stage figcaption")).toContainText("up to 4 reviewers");
   await finishAnimations(page, ".skill-tour");
-  await expect(rows.nth(4)).toHaveAttribute("aria-selected", "true");
+  await expect(rows.nth(3)).toHaveAttribute("aria-selected", "true");
 
   await page.keyboard.press("ArrowDown");
-  await expect(rows.nth(5)).toBeFocused();
-  await expect(rows.nth(5)).toHaveAttribute("aria-selected", "true");
+  await expect(rows.nth(4)).toBeFocused();
+  await expect(rows.nth(4)).toHaveAttribute("aria-selected", "true");
 });
 
 test.describe("with reduced motion", () => {
@@ -123,9 +121,9 @@ test.describe("with reduced motion", () => {
   test("every picture shows its last frame, and nothing moves on by itself", async ({ page }) => {
     await page.goto("/");
     await page.locator(".hero-runs").scrollIntoViewIfNeeded();
-    const swarm = page.locator(".hero-run").nth(1).locator(".hero-art");
-    await expect(swarm).toHaveCSS("opacity", "1");
-    const line = swarm.locator(".m-seg").first();
+    const review = page.locator(".hero-run").nth(1).locator(".hero-art");
+    await expect(review).toHaveCSS("opacity", "1");
+    const line = review.locator(".m-seg").first();
     await expect(line).toHaveCSS("stroke-dashoffset", "0px");
 
     await page.locator(".skill-tour").scrollIntoViewIfNeeded();

@@ -128,10 +128,6 @@ pre {
   line-height: 20px;
 }
 
-.no-ligatures {
-  font-feature-settings: "calt" 0, "dlig" 0, "liga" 0;
-}
-
 .wrap {
   width: 100%;
   max-width: calc(1200px + 2 * var(--pad));
@@ -480,7 +476,7 @@ nav[aria-label="Main"] {
   }
 }
 
-/* The hero: two runs side by side, ulw on the left and swarm on the right. The run that plays has
+/* The hero: two runs side by side, ulw on the left and code review on the right. The run that plays has
    a progress bar (the clock) under its name; when the clock ends, the next run plays. The run that
    waits shows its last frame, dimmed. */
 
@@ -1011,12 +1007,6 @@ html:not(.js) .m-dim {
 .skill-name {
   display: flex;
   flex-direction: column;
-}
-
-.skill-tag {
-  color: var(--text-3);
-  font-size: 12px;
-  line-height: 16px;
 }
 
 .skill-row {

@@ -16,7 +16,6 @@ export type Item =
   | { type: "rail"; d: string }
   | ({ type: "line"; d: string; dur: number; width: number; dash: boolean; tone: Tone } & Timed)
   | ({ type: "station"; x: number; y: number; kind: Kind } & Timed)
-  | ({ type: "end"; x: number; y: number; vertical: boolean; length: number } & Timed)
   | ({ type: "dot"; x: number; y: number; r: number } & Timed)
   | ({ type: "text"; x: number; y: number; lines: string[]; style: TextStyle; size: number; anchor: Anchor } & Timed)
   | ({ type: "verdict"; x: number; y: number; text: string; tone: "closed" | "open" | "steer" } & Timed);
@@ -148,19 +147,6 @@ export class Draw {
 
   station(x: number, y: number, kind: Kind, at: number, dim?: number): number {
     this.items.push({ type: "station", x, y, kind, at, dim });
-    this.reach(at + 240);
-    return at;
-  }
-
-  bar(x: number, y: number, at: number, options: { vertical?: boolean; length?: number } = {}): number {
-    this.items.push({
-      type: "end",
-      x,
-      y,
-      at,
-      vertical: options.vertical ?? true,
-      length: options.length ?? (this.size === "l" ? 44 : 28),
-    });
     this.reach(at + 240);
     return at;
   }
@@ -303,7 +289,7 @@ export function Metro({ scene, className }: { scene: Scene; className?: string }
   const dash = size === "l" ? "24 12" : "16 8";
   const out: ReactNode[] = [];
   const masks: ReactNode[] = [];
-  // Draw order: the review rail, then lines, then stations and ends, then labels on top.
+  // Draw order: the review rail, then lines, then stations, then labels on top.
   const layer = (item: Item) =>
     item.type === "rail" ? 0 : item.type === "line" ? 1 : item.type === "text" || item.type === "verdict" ? 3 : 2;
   const sorted = items.map((item, index) => ({ item, index })).sort((a, b) => layer(a.item) - layer(b.item));
@@ -345,23 +331,6 @@ export function Metro({ scene, className }: { scene: Scene; className?: string }
           </g>,
         );
         break;
-      case "end": {
-        const thick = size === "l" ? 10 : 6;
-        const [bw, bh] = item.vertical ? [thick, item.length] : [item.length, thick];
-        out.push(
-          <rect
-            key={key}
-            className={popClass(item)}
-            style={time(item)}
-            x={item.x - bw / 2}
-            y={item.y - bh / 2}
-            width={bw}
-            height={bh}
-            fill={INK}
-          />,
-        );
-        break;
-      }
       case "dot":
         out.push(
           <circle key={key} className={popClass(item)} style={time(item)} cx={item.x} cy={item.y} r={item.r} fill={INK} />,
