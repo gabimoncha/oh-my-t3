@@ -1,3 +1,6 @@
 #!/bin/sh
-# Runs this checkout's source CLI, so `omt` inside the repo is the code under work.
-exec bun "$(cd "$(dirname "$0")/.." && pwd)/src/cli.ts" "$@"
+# Runs the source CLI of the checkout you are in, so `omt` is the code under work. A shell can keep the PATH of
+# another worktree, so prefer the current checkout when it has this wrapper, else this wrapper's own checkout.
+root="$(git rev-parse --show-toplevel 2>/dev/null)"
+[ -n "$root" ] && [ -x "$root/bin/omt" ] && [ -f "$root/src/cli.ts" ] || root="$(cd "$(dirname "$0")/.." && pwd)"
+exec bun "$root/src/cli.ts" "$@"

@@ -8,7 +8,7 @@ If your user asks you to evaluate, install, or use omt, follow [docs/agents/quic
 
 Clone the repository, then run `mise install` (it installs the Bun version that `mise.toml` pins) and `bun install`. Then run `bun run verify` to check the setup.
 
-Agents in this repo load the current `skills/` through the committed links in `.claude/skills/` and `.agents/skills/`. With mise active, `omt` runs `src/cli.ts` through `bin/omt`, not the released CLI.
+Agents in this repo load the current `skills/` through the committed links in `.claude/skills/` and `.agents/skills/`. With mise active, `omt` runs `src/cli.ts` of the checkout or worktree you are in through `bin/omt`, not the released CLI.
 
 ## Contract
 
