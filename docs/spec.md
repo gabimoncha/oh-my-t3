@@ -2286,12 +2286,12 @@ Git actions. The skills follow the git rules of the user's message and instructi
 - Before the first edit of a run, a skill runs `omt git start --plan <slug>`, or `--run <id>` in a run with no plan file. `omt-ulw` runs it at the start of step 6, `omt-design` run alone at the start of step 2, and `omt-code-review` before the first fix.
 - It commits with `omt git commit -m <message> --plan <slug>`, and adds `--path <path>` for each path when one commit holds only part of the run. It follows the commit conventions of the repo's `AGENTS.md` and its `git log`.
 - On `committed`, it reports the hash. On `ask: <reason>`, a path problem, it asks the owner: for a path that had changes before the run, the owner's yes means `--include <path>`.
-- It pushes and opens a draft PR with T3's `pull_request_create` tool, which links the PR, or returns the branch's open PR. It sets `draft: false` only when the user's message or the user's `AGENTS.md` asks for a PR that is ready for review.
+- It pushes with `git push -u origin HEAD`, then opens a draft PR with T3's `pull_request_create` tool, which links the PR, or returns the branch's open PR. It sets `draft: false` only when the user's message or the user's `AGENTS.md` asks for a PR that is ready for review.
 - A force push always asks the owner.
 - Children never commit, push, or create branches. A run in `plan` interaction mode makes no git action.
 - Every child and every thread of a run stays on the machine of the main thread. A skill passes no `environmentId` to `delegate_task`, `t3_thread_launch`, or `create_threads`. The `.omt3` folder of section 4 is local to one machine, and a brief holds absolute paths of that machine: the evidence folder and the CLI. A child on another machine cannot reach them, and its changes stay in that machine's checkout, because children do not push. When the user asks for work on another machine, the skill tells them to start a separate omt run there. The rule lives in the section "What a child is" of `delegation.md`.
 
-Pull requests. After a skill creates a PR, it calls `watch_pull_request` and ends the turn. On each wake it reads `gh pr checks <number>`. It finds the cause of a failed check in its log, fixes it, commits, and runs `git push`. When every check passed or was skipped, it calls `unwatch_pull_request` and tells the user. The rule lives in the section "Pull requests" of `delegation.md`.
+Pull requests. After a skill creates a PR, it calls `watch_pull_request`, then reads `gh pr checks <number>`. When every check already passed or was skipped, it calls `unwatch_pull_request` and tells the user. Otherwise it ends the turn. On each wake it reads `gh pr checks <number>`. It finds the cause of a failed check in its log, fixes it, commits, and runs `git push`. When every check passed or was skipped, it calls `unwatch_pull_request` and tells the user. The rule lives in the section "Pull requests" of `delegation.md`.
 
 ### 15.2 Skill list
 

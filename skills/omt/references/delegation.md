@@ -84,11 +84,11 @@ Follow the git rules of the user's instruction files. Without a rule, ask the ow
 - Before the first edit of a run, run `omt git start --plan <slug>` (or `--run <id>` with no plan file). It records the files that were already changed, so that a commit takes only the run's own files.
 - Commit with `omt git commit -m "<message>" --plan <slug>`. Add `--path <path>` for each path when one commit holds only part of the run. Follow the commit conventions of the repo's `AGENTS.md` and its `git log`.
 - `committed <sha>` means done: report the hash. `ask: <reason>` means a path problem: ask the owner. For a path that had changes before the run, the owner's yes means `--include <path>`. `skipped:` means the run changed nothing.
-- Push and open a draft PR with T3's `pull_request_create` tool. It links the PR, and returns the open PR when one exists. Set `draft: false` only when the user's message or their `AGENTS.md` asks for a PR that is ready for review.
+- Push the branch with `git push -u origin HEAD`, then open a draft PR with T3's `pull_request_create` tool. T3 releases up to 0.1.11 refuse a branch that was not pushed. The tool links the PR, and returns the open PR when one exists. Set `draft: false` only when the user's message or their `AGENTS.md` asks for a PR that is ready for review.
 
 ## Pull requests
 
-After you create a PR, call `watch_pull_request` and end the turn. On each wake, read the checks with `gh pr checks <number>`. When a check fails, find the cause in its log, fix it, commit, and `git push`. When every check passed or was skipped, call `unwatch_pull_request` and tell the user.
+After you create a PR, call `watch_pull_request`, then run `gh pr checks <number>`. When every check already passed or was skipped, call `unwatch_pull_request` and tell the user: T3 releases up to 0.1.11 send no wake for checks that passed before the watch. Otherwise, end the turn. On each wake, read the checks with `gh pr checks <number>`. When a check fails, find the cause in its log, fix it, commit, and `git push`. When every check passed or was skipped, call `unwatch_pull_request` and tell the user.
 
 ## Verification and devices
 
