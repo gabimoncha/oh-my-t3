@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "bun:test";
-import { requestId } from "../../src/ledger/ledger.ts";
+import { requestId } from "../../src/util/ids.ts";
 import type { BriefJsonOutput } from "../../src/types.ts";
 import { CAPS_FILE, makeProject } from "./shared.ts";
 
@@ -208,29 +208,15 @@ test("brief --json --against puts the other family first and prints the notes to
   });
 });
 
-test("brief --json --against auto takes the unit's worker from the ledger", async () => {
-  const project = makeProject();
-  project.writeOmt(
-    "ledger.jsonl",
-    `${JSON.stringify({ ts: "2026-10-06T00:00:00.000Z", role: "execute", status: "dispatched", plan: "p", unit: "U1", provider: "codex", model: "gpt-6.2-sol" })}\n`,
-  );
-  const { ctx } = await project.runOk(
-    ["brief", "review", "--task", "Check U1.", "--plan", "p", "--unit", "U1", "--against", "auto", "--json"],
-  );
-  const output = parse(ctx.out());
-  assert.equal(output.delegateTask.target.providerInstanceId, "claudeAgent");
-  assert.equal(output.delegateTask.clientRequestId, "omt:p:U1:review:r1:a1");
-  assert.match(ctx.err(), /^note: --against auto: worker codex from the last work dispatch of unit U1$/m);
-});
-
-test("brief --against auto without --plan is a usage error", async () => {
-  const { code, ctx } = await makeProject().run(["brief", "review", "--task", "x", "--against", "auto", "--json"]);
+// The ledger that --against auto read is gone; the caller names the worker's provider.
+test("brief --against auto is a usage error", async () => {
+  const { code, ctx } = await makeProject().run(["brief", "review", "--task", "x", "--plan", "p", "--unit", "U1", "--against", "auto", "--json"]);
   assert.equal(code, 2);
   assert.equal(ctx.out(), "");
-  assert.match(ctx.err(), /--against auto needs --plan <slug>/);
+  assert.match(ctx.err(), /--against auto is no longer supported/);
 });
 
-test("plan, ledger, and brief warn when no .omt3 or .git is above the current folder", async () => {
+test("plan and brief warn when no .omt3 or .git is above the current folder", async () => {
   const project = makeProject();
   const outside = join(project.root, "outside");
   mkdirSync(outside, { recursive: true });

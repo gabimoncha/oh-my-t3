@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "bun:test";
-import type { BriefJsonOutput, LedgerStats, RouteOutput } from "../src/types.ts";
+import type { BriefJsonOutput, RouteOutput } from "../src/types.ts";
 import { childEnv, CLI_PATH, gitEnv, gitRepo, PACKAGE_ROOT, spawnOmt, tempDir } from "./helpers.ts";
 import { contentTree } from "./install/fixture.ts";
 
@@ -34,7 +34,6 @@ test("end to end: install, use every command in a project, then uninstall", () =
     "omt-code-review",
     "omt-design",
     "omt-plan",
-    "omt-research",
     "omt-setup",
     "omt-ulw",
   ]);
@@ -63,20 +62,6 @@ test("end to end: install, use every command in a project, then uninstall", () =
   assert.equal(brief.delegateTask.clientRequestId, "omt:demo:U1:execute:r1:a1");
   assert.equal(brief.delegateTask.title, "execute U1: x");
   assert.equal(brief.delegateTask.mode, "async");
-
-  const added = JSON.parse(
-    ok(["ledger", "add", "--plan", "demo", "--unit", "U1", "--role", "execute", "--status", "dispatched", "--task-id", "task-1"]),
-  );
-  assert.equal(added.taskId, "task-1");
-  const stats = JSON.parse(ok(["ledger", "stats", "--plan", "demo", "--json"])) as LedgerStats;
-  assert.equal(stats.active, 1);
-  assert.equal(stats.canDispatch, true);
-  assert.match(ok(["ledger", "stats", "--plan", "demo"]), /^can dispatch: yes$/m);
-
-  const hook = JSON.parse(ok(["hook", "user-prompt-submit"], JSON.stringify({ prompt: "start ulw add a demo endpoint" })));
-  assert.equal(hook.hookSpecificOutput.hookEventName, "UserPromptSubmit");
-  assert.match(hook.hookSpecificOutput.additionalContext, /omt-ulw/);
-  assert.equal(ok(["hook", "user-prompt-submit"], JSON.stringify({ prompt: "add a demo endpoint" })), "");
 
   assert.match(ok(["uninstall", "--yes"]), /^Removed \d+ paths\.$/m);
   assert.deepEqual(omtEntries(join(home, ".agents", "skills")), []);
@@ -137,8 +122,8 @@ for (const [label, files] of [
     const excludeBefore = readFileSync(join(p.project, ".git", "info", "exclude"), "utf8");
     const treeBefore = Object.keys(contentTree(p.project));
 
-    assert.match(p.omt("install", "--project", "--hooks", "--yes"), /^Applied \d+ changes\.$/m);
-    const written = [".agents/skills/omt-ulw", ".claude/skills/omt-ulw", ".claude/settings.local.json", ".omt3/bin/omt", ".omt3/config.jsonc"];
+    assert.match(p.omt("install", "--project", "--yes"), /^Applied \d+ changes\.$/m);
+    const written = [".agents/skills/omt-ulw", ".claude/skills/omt-ulw", ".omt3/bin/omt", ".omt3/config.jsonc"];
     for (const path of written) {
       assert.ok(existsSync(join(p.project, path)), path);
     }
@@ -154,21 +139,28 @@ for (const [label, files] of [
   });
 }
 
-test("end to end: --project keeps the user's own settings.local.json keys and its mode", () => {
+// An earlier release wrote the omt prompt hook into this file with omt install --project --hooks.
+test("end to end: install --project removes the retired prompt hook and keeps the user's settings.local.json keys and its mode", () => {
   const p = gitProject({ "README.md": "demo\n" });
   const local = join(p.project, ".claude", "settings.local.json");
   mkdirSync(dirname(local));
-  const mine = `${JSON.stringify({ theme: "dark", permissions: { allow: ["Bash(ls)"] } }, null, 2)}\n`;
+  const keys = { theme: "dark", permissions: { allow: ["Bash(ls)"] } };
+  const mine = `${JSON.stringify(keys, null, 2)}\n`;
   writeFileSync(local, mine, { mode: 0o600 });
   chmodSync(local, 0o600);
   const statusBefore = p.git(["status", "--porcelain", "--untracked-files=all"]);
 
-  p.omt("install", "--project", "--hooks", "--yes");
-  const settings = JSON.parse(readFileSync(local, "utf8")) as Record<string, unknown>;
-  assert.equal(settings.theme, "dark");
-  assert.deepEqual(settings.permissions, { allow: ["Bash(ls)"] });
-  assert.match(JSON.stringify(settings.hooks), /# oh-my-t3code/);
+  p.omt("install", "--project", "--yes");
+  assert.equal(readFileSync(local, "utf8"), mine);
+  const shim = join(p.project, ".omt3", "bin", "omt");
+  const hook = { type: "command", command: `"${shim}" hook user-prompt-submit # oh-my-t3code`, timeout: 10 };
+  writeFileSync(local, `${JSON.stringify({ ...keys, hooks: { UserPromptSubmit: [{ hooks: [hook] }] } }, null, 2)}\n`);
+  assert.match(p.omt("doctor", "--project"), /^WARN {2}hooks +the retired omt prompt hook is still in /m);
+
+  assert.match(p.omt("install", "--project", "--yes"), /^ {2}remove {3}Claude UserPromptSubmit in .*settings\.local\.json {2}\(retired\)$/m);
+  assert.equal(readFileSync(local, "utf8"), mine);
   assert.equal(statSync(local).mode & 0o777, 0o600);
+  assert.doesNotMatch(p.omt("doctor", "--project"), /hooks/);
   assert.equal(p.git(["status", "--porcelain", "--untracked-files=all"]), statusBefore);
 
   p.omt("uninstall", "--project", "--yes");

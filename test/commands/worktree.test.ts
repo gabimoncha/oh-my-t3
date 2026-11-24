@@ -16,17 +16,16 @@ function worktreeProject() {
   return { root, project, worktree, run, runOk: ok };
 }
 
-const WARNING = /^warning: .*[/\\]wt[/\\]\.omt3 holds plans or a ledger that omt no longer reads; move them to .*[/\\]project[/\\]\.omt3$/;
+const WARNING = /^warning: .*[/\\]wt[/\\]\.omt3 holds plans that omt no longer reads; move them to .*[/\\]project[/\\]\.omt3$/;
 
-test("init, plan new, and ledger add from a worktree write under the main checkout's .omt3", async () => {
+test("init and plan new from a worktree write under the main checkout's .omt3", async () => {
   const p = worktreeProject();
-  for (const argv of [["init"], ["plan", "new", "w1"], ["ledger", "add", "--plan", "w1", "--role", "explore", "--status", "completed"]]) {
+  for (const argv of [["init"], ["plan", "new", "w1"]]) {
     const { ctx } = await p.runOk(argv);
     assert.doesNotMatch(ctx.err(), /warning/, `${argv.join(" ")} prints no warning`);
   }
   assert.ok(existsSync(join(p.project, ".omt3", "config.jsonc")));
   assert.ok(existsSync(join(p.project, ".omt3", "plans", "w1.md")));
-  assert.match(readFileSync(join(p.project, ".omt3", "ledger.jsonl"), "utf8"), /"plan":"w1"/);
   assert.ok(!existsSync(join(p.worktree, ".omt3")), "the worktree gets no .omt3");
 
   await p.runOk(["plan", "status", "w1"], p.project);
@@ -47,7 +46,6 @@ test("omt paths prints the main checkout's paths from a worktree", async () => {
     omt,
     plans: join(omt, "plans"),
     grills: join(omt, "grills"),
-    ledger: join(omt, "ledger.jsonl"),
     evidence: join(omt, "evidence"),
     config: join(omt, "config.jsonc"),
     shim: join(omt, "bin", "omt"),
@@ -62,20 +60,20 @@ test("omt paths prints text lines, JSON, or one path per flag", async () => {
     omt,
     plans: join(omt, "plans"),
     grills: join(omt, "grills"),
-    ledger: join(omt, "ledger.jsonl"),
     evidence: join(omt, "evidence"),
     config: join(omt, "config.jsonc"),
     shim: join(omt, "bin", "omt"),
   };
   const text = await p.runOk(["paths"], p.project);
   assert.equal(text.ctx.out(), Object.entries(expected).map(([name, path]) => `${name}: ${path}\n`).join(""));
-  for (const flag of ["root", "plans", "grills", "ledger", "evidence", "config", "shim"]) {
+  for (const flag of ["root", "plans", "grills", "evidence", "config", "shim"]) {
     const one = await p.runOk(["paths", `--${flag}`], p.project);
     assert.equal(one.ctx.out(), `${expected[flag]}\n`, flag);
   }
   assert.equal((await p.run(["paths", "--root", "--plans"])).code, 2);
   assert.equal((await p.run(["paths", "--json", "--root"])).code, 2);
   assert.equal((await p.run(["paths", "extra"])).code, 2);
+  assert.equal((await p.run(["paths", "--ledger"])).code, 2, "the ledger is retired");
 });
 
 test("a worktree .omt3 with plans gives one shadowed-state warning and a hint; other state gives none", async () => {
@@ -83,9 +81,10 @@ test("a worktree .omt3 with plans gives one shadowed-state warning and a hint; o
   mkdirSync(join(p.worktree, ".omt3", "plans"), { recursive: true });
   writeFileSync(join(p.worktree, ".omt3", "config.jsonc"), "{}\n");
   mkdirSync(join(p.worktree, ".omt3", "plans", "dir.md"));
-  for (const argv of [["plan", "list"], ["ledger", "list"]]) {
+  writeFileSync(join(p.worktree, ".omt3", "ledger.jsonl"), "{}\n");
+  for (const argv of [["plan", "list"], ["brief", "execute", "--task", "x"]]) {
     const quiet = await p.runOk(argv);
-    assert.equal(quiet.ctx.err(), "", `${argv.join(" ")}: no plans or ledger in the worktree`);
+    assert.equal(quiet.ctx.err(), "", `${argv.join(" ")}: no plans in the worktree`);
   }
   writeFileSync(join(p.worktree, ".omt3", "plans", "x.md"), "# x\n");
   const warned = await p.runOk(["plan", "list"]);

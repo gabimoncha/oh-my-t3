@@ -1,10 +1,9 @@
-export function planTemplate(slug: string, title: string, createdAt: string, options: { light?: boolean; maxParallel?: number; profile?: string } = {}): string {
+export function planTemplate(slug: string, title: string, createdAt: string, options: { light?: boolean; profile?: string } = {}): string {
   const oracle = options.light === true ? "" : "- [ ] F2. The oracle role approves the whole change.\n";
-  const parallel = options.maxParallel === undefined ? "" : ` max-parallel=${options.maxParallel}`;
   const profile = options.profile === undefined ? "" : ` profile=${options.profile}`;
   return `# ${title}
 
-<!-- omt-plan v1 slug=${slug} created=${createdAt}${parallel}${profile} -->
+<!-- omt-plan v1 slug=${slug} created=${createdAt}${profile} -->
 
 ## Summary
 

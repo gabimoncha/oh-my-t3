@@ -34,7 +34,7 @@ async function project(ctx: CliContext, root: string) {
   mkdirSync(join(root, ".git", "info"), { recursive: true });
   const local = { ...ctx, cwd: root };
   await applyInstall(await buildInstallPlan(local, {
-    scope: "project", targets: ["agents", "claude"], hooks: false, force: false,
+    scope: "project", targets: ["agents", "claude"], force: false,
   }), ctx.now());
   await addProject(projectsPath(ctx.env, ctx.homedir), root, ctx.now());
   return local;
@@ -285,13 +285,13 @@ test("update in user scope removes a retired managed skill and its links", async
   const f = fixture();
   writeFile(join(f.packageRoot, "skills", "beta", "SKILL.md"), "Beta.\n");
   const targets = ["agents", "claude"] as ("agents" | "claude")[];
-  await applyInstall(await buildInstallPlan(f.ctx, { targets, hooks: false, force: false }), f.ctx.now());
+  await applyInstall(await buildInstallPlan(f.ctx, { targets, force: false }), f.ctx.now());
   const skill = join(f.ctx.homedir, ".agents/skills/beta");
   const link = join(f.ctx.homedir, ".claude/skills/beta");
   assert.ok(existsSync(skill) && existsSync(link));
   rmSync(join(f.packageRoot, "skills", "beta"), { recursive: true });
 
-  const plan = await buildInstallPlan(f.ctx, { targets, hooks: false, force: false, sync: true });
+  const plan = await buildInstallPlan(f.ctx, { targets, force: false, sync: true });
   assert.equal(plan.skills.find((step) => step.name === "beta")?.action, "remove");
   await applyInstall(plan, f.ctx.now());
   assert.equal(existsSync(skill), false);

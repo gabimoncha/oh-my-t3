@@ -14,7 +14,7 @@ function skillFiles(root: string, relative = ""): string[] {
   }).sort();
 }
 
-test("compiled host binary installs matching skills and hooks, passes doctor, and runs roles through the shim", () => {
+test("compiled host binary installs matching skills, passes doctor, and runs roles through the shim", () => {
   const parent = join(PACKAGE_ROOT, "dist", "test-e2e");
   mkdirSync(parent, { recursive: true });
   const root = mkdtempSync(join(parent, "binary-"));
@@ -35,7 +35,7 @@ test("compiled host binary installs matching skills and hooks, passes doctor, an
   run(process.execPath, [join(PACKAGE_ROOT, "scripts", "build.ts"), "--binary", "--outdir", build], PACKAGE_ROOT, 90_000);
   const binary = join(build, "bin", "omt");
   assert.ok(statSync(binary).isFile(), "the build must write the host binary");
-  run(binary, ["install", "--project", "--hooks", "--yes"]);
+  run(binary, ["install", "--project", "--yes"]);
 
   const bundled = join(PACKAGE_ROOT, "skills");
   const installed = join(project, ".agents", "skills");
@@ -56,7 +56,6 @@ test("compiled host binary installs matching skills and hooks, passes doctor, an
   const doctor = run(shim, ["doctor", "--project"]);
   assert.doesNotMatch(doctor, /^FAIL\b/m);
   assert.match(doctor, /^PASS\s+runtime\s+omt \S+ binary$/m);
-  assert.match(doctor, /^PASS\s+hooks\s/m);
   const roles = run(shim, ["roles"]);
   assert.match(roles, /^ROLE\s+STATUS\s+TARGET\s+ACCESS\s+MODE\s+CROSS$/m);
   assert.match(roles, /^execute\s+unverified\s+/m);

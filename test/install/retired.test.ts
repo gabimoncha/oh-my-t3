@@ -141,7 +141,7 @@ test("install keeps a retired folder whose ownership marker is removed after pla
   const f = makeFixture();
   const { ctx } = await f.runOk(["install", "--yes"]);
   retireBeta(f.packageRoot);
-  const plan = await buildInstallPlan(ctx, { targets: ["agents", "claude"], hooks: false, force: false });
+  const plan = await buildInstallPlan(ctx, { targets: ["agents", "claude"], force: false });
   rmSync(join(f.agents, "beta", ".omt-managed.json"));
 
   await assert.rejects(applyInstall(plan, ctx.now()), /changed after the plan was made/);
@@ -153,7 +153,7 @@ test("install keeps a link replaced after planning retired skill removal", async
   const f = makeFixture();
   const { ctx } = await f.runOk(["install", "--yes"]);
   retireBeta(f.packageRoot);
-  const plan = await buildInstallPlan(ctx, { targets: ["agents", "claude"], hooks: false, force: false });
+  const plan = await buildInstallPlan(ctx, { targets: ["agents", "claude"], force: false });
   const link = join(f.claudeSkills, "beta");
   rmSync(link);
   writeFile(link, "Owner file.\n");
@@ -167,7 +167,7 @@ test("install keeps a folder created after planning dangling link removal", asyn
   const { ctx } = await f.runOk(["install", "--yes"]);
   retireBeta(f.packageRoot);
   rmSync(join(f.agents, "beta"), { recursive: true });
-  const plan = await buildInstallPlan(ctx, { targets: ["agents", "claude"], hooks: false, force: false });
+  const plan = await buildInstallPlan(ctx, { targets: ["agents", "claude"], force: false });
   assert.ok(lstatSync(join(f.claudeSkills, "beta")).isSymbolicLink());
   writeFile(join(f.agents, "beta", "SKILL.md"), "Owner beta.\n");
 

@@ -37,13 +37,8 @@ function defaultConfigPair(env: Env, homedir: string): FolderPair {
   return { current: join(base, CONFIG_DIR_NAME), legacy: join(base, LEGACY_CONFIG_DIR_NAME) };
 }
 
-// Undefined when OMT_CONFIG_DIR names the folder, because then its name is the user's choice.
-export function configDirPair(env: Env, homedir: string): FolderPair | undefined {
-  return envPath(env, "OMT_CONFIG_DIR") === undefined ? defaultConfigPair(env, homedir) : undefined;
-}
-
 // The current folder when it exists, else the legacy folder when it exists, else the current folder.
-// An install that has not run omt migrate keeps reading and writing its legacy folder.
+// An install from an earlier release keeps reading and writing its legacy folder.
 function pick(pair: FolderPair): string {
   if (existsSync(pair.current)) return pair.current;
   return existsSync(pair.legacy) ? pair.legacy : pair.current;
@@ -180,8 +175,8 @@ export function pnpmWorkspacePath(root: string): string {
   return join(root, "pnpm-workspace.yaml");
 }
 
-// A linked worktree whose own .omt3 or .omt holds plans or a ledger that omt no longer reads. `dir` is
-// the first of the two that does.
+// A linked worktree whose own .omt3 or .omt holds plans that omt no longer reads. `dir` is the first of
+// the two that does.
 export function shadowedWorktreeState(cwd: string): { worktree: string; main: string; dir: string } | undefined {
   const worktree = nearestMarker(cwd);
   if (worktree === undefined) return undefined;
@@ -196,16 +191,7 @@ export function shadowedWorktreeState(cwd: string): { worktree: string; main: st
 
 function holdsState(dir: string): boolean {
   try {
-    if (readdirSync(join(dir, "plans"), { withFileTypes: true }).some((entry) => entry.isFile() && entry.name.endsWith(".md"))) return true;
-  } catch {
-    // No plans directory.
-  }
-  return isFile(join(dir, "ledger.jsonl"));
-}
-
-function isFile(path: string): boolean {
-  try {
-    return lstatSync(path).isFile();
+    return readdirSync(join(dir, "plans"), { withFileTypes: true }).some((entry) => entry.isFile() && entry.name.endsWith(".md"));
   } catch {
     return false;
   }
@@ -217,27 +203,6 @@ export function stateDirPair(root: string): FolderPair {
 
 export function omtDir(root: string): string {
   return pick(stateDirPair(root));
-}
-
-// A legacy folder that omt reads now, or that sits beside the current one.
-export interface LegacyUse {
-  current: string;
-  legacy: string;
-  both: boolean; // both folders exist, and omt uses the current one
-}
-
-function legacyUse(pair: FolderPair): LegacyUse | undefined {
-  if (!existsSync(pair.legacy)) return undefined;
-  return { ...pair, both: existsSync(pair.current) };
-}
-
-// The legacy project and user folders that the hint names: for the project root of cwd, and for the
-// user folder unless OMT_CONFIG_DIR names it.
-export function legacyFolders(cwd: string, env: Env, homedir: string): { project?: LegacyUse; global?: LegacyUse } {
-  const project = legacyUse(stateDirPair(findProjectRoot(cwd)));
-  const pair = configDirPair(env, homedir);
-  const global = pair === undefined ? undefined : legacyUse(pair);
-  return { ...(project === undefined ? {} : { project }), ...(global === undefined ? {} : { global }) };
 }
 
 export function projectConfigPath(root: string): string {
@@ -262,10 +227,6 @@ export function grillsDir(root: string): string {
 
 export function grillPath(root: string, slug: string): string {
   return join(grillsDir(root), `${slug}.md`);
-}
-
-export function ledgerPath(root: string): string {
-  return join(omtDir(root), "ledger.jsonl");
 }
 
 export function evidenceDir(root: string): string {

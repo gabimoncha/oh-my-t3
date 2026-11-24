@@ -5,7 +5,7 @@ You install omt in two parts. First, install the `omt` CLI from a package regist
 - The project install puts omt into one repository. It does not change `~/.agents/skills`, `~/.claude`, or your `PATH`. Start here.
 - The global install installs the skills for your user, so every project gets them.
 
-Both modes install the same 7 skills: `omt`, `omt-ulw`, `omt-plan`, `omt-design`, `omt-code-review`, `omt-research`, and `omt-setup`. `omt-setup` answers questions about omt and changes the setup for you. After either install, restart your agent sessions in T3 Code. A running session does not load new skills.
+Both modes install the same 6 skills: `omt-ulw`, `omt-plan`, `omt-design`, `omt-code-review`, `omt-setup`, and `omt`, which holds the references that the others share and is not a workflow. `omt-setup` answers questions about omt and changes the setup for you. After either install, restart your agent sessions in T3 Code. A running session does not load new skills.
 
 If you are a coding agent, follow the [agent quick start](agents/quickstart.md) instead. It has the same project install as steps with checks.
 
@@ -74,7 +74,7 @@ pnpm dlx oh-my-t3 install --project
 
 `omt3` remains a compatible package alias. Project shims from all three packages use the pinned `omt3` package. Outside a project that installed omt, `npx omt` downloads a different npm package named `omt`. Use `npx oh-my-t3` for a one-shot run.
 
-A one-shot run can install only into a project. A global install from a one-shot run is refused, because no `omt` command would stay for the skills and the hook.
+A one-shot run can install only into a project. A global install from a one-shot run is refused, because no `omt` command would stay for the skills.
 
 ### Run the npm package with Bun only
 
@@ -99,11 +99,11 @@ Run the install in the project root. This example uses `omt`. Replace it with th
 
 ```sh
 cd /path/to/your-project
-omt install --project --hooks
+omt install --project
 omt doctor --project
 ```
 
-The install shows its plan first and asks before it writes. Add `--yes` to skip the question. Add `--dry-run` to print the plan and write nothing. `--hooks` adds the Claude Code hook that starts ultrawork on the phrase `start ulw` or `start ultrawork`. Leave it out if you use only Codex.
+The install shows its plan first and asks before it writes. Add `--yes` to skip the question. Add `--dry-run` to print the plan and write nothing.
 
 ### Harness detection
 
@@ -143,7 +143,6 @@ The install writes these paths in the project root:
 | `.claude/skills/<skill>` | A relative symlink to the copy, for Claude Code. |
 | `.omt3/config.jsonc`, `.omt3/plans/` | The project config and the plans directory, as `omt init` creates them. The config gets a `"harnesses"` key when a harness is missing. |
 | `.omt3/bin/omt` | The shim: a shell script that runs the CLI that made the install. The next section lists its forms. |
-| `.claude/settings.local.json` | The ultrawork hook entry, only with `--hooks`. The hook calls `.omt3/bin/omt`. |
 | `.omt3/install.json`, `.omt3/backups/` | The manifest and the backups. |
 
 Agents in the project call the CLI as `.omt3/bin/omt` when `omt` is not on `PATH`.
@@ -166,8 +165,6 @@ For the release binary and the npm package, the shim tries these commands in ord
 3. None. The shim prints `omt: the omt CLI is not installed; see https://github.com/gabimoncha/oh-my-t3#install` and exits 127.
 
 A one-shot shim calls the runner on each call. After the runner's cache is cleared, the next call downloads the package again and needs the network. The install prints a `note:` line that says so.
-
-With `--hooks`, the Claude Code hook calls the shim on each prompt. After a one-shot install, the hook therefore runs the runner on each prompt. If the runner's cache is cleared and the network is down, the hook can pass its 10-second timeout. For a project that uses the hook, a global install or a dev dependency is more reliable.
 
 ### How git stays clean
 
@@ -206,12 +203,6 @@ The files do nothing until T3 saves the script. T3 runs setup scripts from the p
 2. In T3 Project Settings, import Setup from `t3.json`. Keep the scripts that the project inherits.
 3. Check that Setup is the project's setup script, then open a new worktree thread and run `omt worktree check` there.
 
-### When `settings.local.json` shows in git
-
-One file can still show in git. When the repository tracks `.claude/settings.local.json`, `git status` shows it as modified while the hook is installed.
-
-The install edits the file in its own style. It keeps the indentation, and a final newline only when the file had one. It writes the whole file in that indentation, so inline arrays in an indented file become multi-line. When an install changes the layout of the file this way, it first saves the original bytes in `.omt3/backups/`.
-
 ### Commit the setup instead
 
 The install creates `.omt3/.gitignore` only when it is missing, and never edits a file that the repository already has. When an earlier install created the file and nobody edited it, the install adds the new lines to it.
@@ -234,9 +225,9 @@ The install replaces the block of the old path, unless the old path still has it
 
 The uninstall removes the shim. Run later commands with the command of your channel, such as `omt` or `npx oh-my-t3`.
 
-The uninstall removes the skills, the links, the shim, the hook entry, the exclude block, and the manifest. It also removes each file and empty directory that the install created.
+The uninstall removes the skills, the links, the shim, the exclude block, and the manifest. It also removes each file and empty directory that the install created, and the retired Claude prompt hook when an earlier install left it.
 
-The uninstall removes the hook entry from the settings file. When the result equals the backup from the install, the uninstall writes the backup's bytes back and deletes the backup. So the project and `.git/info/exclude` are byte for byte as they were before the install, apart from the plans, the ledger, and the evidence that you added. These stay. When the ledger or the evidence stays, `.omt3/.gitignore` stays too, so git does not show them.
+So the project and `.git/info/exclude` are byte for byte as they were before the install, apart from the plans and the evidence that you added. These stay. When the evidence stays, `.omt3/.gitignore` stays too, so git does not show it.
 
 A path that `install --force` replaced stays in `.omt3/backups/`, and the uninstall does not move it back. Git does not show it there.
 
@@ -244,15 +235,11 @@ The uninstall keeps these files:
 
 - A file that the install created and that you edited.
 - A locally modified skill.
-- A `settings.local.json` that the install created, when other keys are in it, such as the permissions that Claude Code writes there. The exclude block then keeps only the paths that stay.
-
-When you edited `settings.local.json` while omt was installed, the uninstall cannot write the old bytes back. It removes only the omt entry, and the backups stay in `.omt3/backups/`, where git does not see them.
+- A `settings.local.json` that an earlier install created for the hook, when other keys are in it, such as the permissions that Claude Code writes there. The exclude block then keeps only the paths that stay.
 
 Add `--purge` to also remove an edited `.omt3/config.jsonc` that the install created.
 
 While a file that the install created stays, `.omt3/install.json` stays too. The uninstall reduces it to a record of these files and of the skills and links that existed before the install. So a later install or uninstall keeps these files hidden from git and keeps the existing skills and links. The uninstall that removes the last of them also removes this record.
-
-The uninstall removes every omt hook entry. This includes an entry that was already in a tracked `settings.local.json` before you installed, such as the entry of another clone. Git then shows that file as modified.
 
 ## Install for your user
 
@@ -265,14 +252,6 @@ omt install
 ```
 
 `omt install` shows its plan and asks before it writes, as the project install does. The plan includes the [harness detection](#harness-detection) of the project install, and the user config gets the same `"harnesses"` key when a harness is missing.
-
-To start ultrawork with the phrase `start ulw` in Claude Code, also install the hook:
-
-```sh
-omt install --hooks
-```
-
-The hook command in `~/.claude/settings.json` names the CLI that made the install: the binary, or the runtime and `dist/cli.js` of the npm package. When an upgrade moves one of these files, `omt doctor` prints a `FAIL  hooks` line. Run `omt install --hooks` again to write the new paths.
 
 Check the result:
 
@@ -292,13 +271,18 @@ Restart your agent sessions in T3 Code after the install. A running session does
 | `~/.config/oh-my-t3/config.jsonc` | Your config. |
 | `~/.config/oh-my-t3/install.json` | The manifest of what the install added. |
 | `~/.config/oh-my-t3/backups/` | Backups of anything that the install replaced or edited. |
-| `~/.claude/settings.json` | One `UserPromptSubmit` hook entry, only with `--hooks`. Other settings stay unchanged. |
 | `~/.t3/workflows/omt.ts` | The omt T3 workflows, only when the T3 home exists. `T3CODE_WORKFLOWS` or `T3CODE_HOME` moves it. T3 runs it only with T3 Workflows on and the `t3Workflow` profile switch ([Run the review and QA steps as T3 workflows](workflows.md#run-the-review-and-qa-steps-as-t3-workflows)). An install or update keeps the old file while a run of its workflows is unfinished. |
-| `.omt3/` in a project | The project config, plans, ledger, locks, and evidence files. |
+| `.omt3/` in a project | The project config, plans, and evidence files. |
 
 Each installed skill directory holds a `.omt-managed.json` marker. The install never overwrites a path that it does not manage, unless you pass `--force`. With `--force`, it moves the old path to the backups directory first.
 
-When the bundle no longer ships a skill that an earlier install wrote, such as `omt-grill`, `omt-loop`, or `omt-swarm`, `omt install` removes that skill folder and the links to it. The plan shows `remove <name> (no longer shipped)`. The install removes only a folder that its manifest lists and that has the marker. A folder that omt did not install stays. When you edited the retired skill, the install stops. `--force` backs up the folder and removes it. Until a retired skill is gone, `omt doctor` prints `WARN` on its `skills` line: `no longer shipped: <names> in <agents root>; run omt install`.
+When the bundle no longer ships a skill that an earlier install wrote, such as `omt-research` or `omt-swarm`, `omt install` removes that skill folder and the links to it. The plan shows `remove <name> (no longer shipped)`. The install removes only a folder that its manifest lists and that has the marker. A folder that omt did not install stays. When you edited the retired skill, the install stops. `--force` backs up the folder and removes it. Until a retired skill is gone, `omt doctor` prints `WARN` on its `skills` line: `no longer shipped: <names> in <agents root>; run omt install`.
+
+The install and `omt update` also remove what other retired features left, with no question:
+
+- The Claude Code `UserPromptSubmit` hook of an earlier `--hooks` install, from the settings file that it was written to. They drop only that entry, keep the file's style, and back the old file up in `backups/`. They never delete a settings file or an older backup. A settings file that is not valid JSON stays as it is, and a later run removes the entry once you fix it. Until the hook is gone, `omt doctor` prints `WARN` on a `hooks` line.
+- The retired config keys, such as `limits.maxParallel`.
+- In a project, `.omt3/ledger.jsonl` and `.omt3/locks/`, which `omt ledger` and `omt lock` wrote.
 
 ### Remove the global install
 
@@ -306,20 +290,13 @@ When the bundle no longer ships a skill that an earlier install wrote, such as `
 omt uninstall
 ```
 
-`omt uninstall` removes the managed skill copies, the links that point at them, the hook entry, the T3 workflow file, and the manifest. It keeps the workflow file while a run of its workflows is unfinished. It keeps your config. Add `--purge` to remove the config too. It never removes a path that it does not manage. Project `.omt3/` directories stay in place.
+`omt uninstall` removes the managed skill copies, the links that point at them, a retired hook entry, the T3 workflow file, and the manifest. It keeps the workflow file while a run of its workflows is unfinished. It keeps your config. Add `--purge` to remove the config too. It never removes a path that it does not manage. Project `.omt3/` directories stay in place.
 
 `omt uninstall` does not remove the CLI. To remove it, use the command of its channel, such as `mise unuse -g github:gabimoncha/oh-my-t3`, `npm rm -g oh-my-t3`, `pnpm rm -g oh-my-t3`, or `bun rm -g oh-my-t3`.
 
-## Move old folders
+## Old folders
 
-Releases up to 0.6 kept project state in `.omt/` and your user folder in `~/.config/oh-my-t3code` (or `oh-my-t3code` under `XDG_CONFIG_HOME`). The current names are `.omt3/` and `~/.config/oh-my-t3`. omt still reads an old folder and prints one line that tells you to run `omt migrate`:
-
-```sh
-omt migrate --dry-run
-omt migrate
-```
-
-`omt migrate` lists the current project, each project that `omt install --project` recorded, and the user folder, and asks once. For each project, it copies the folder, updates the hook command, the git exclude block, the manifest, and the skills, runs the shim and the hook, and then deletes the old folder. When a check fails, it deletes the copy, and the old folder stays as it was. It skips a project while a delegated task runs there (an open ledger start), and a project whose shim runs an older omt: run `omt update` there first. `OMT_CONFIG_DIR` names its folder itself, so migrate never moves it. Restart the agent sessions of a moved project, because a session that still holds an old path can write to it again. A later `omt migrate` moves such files into `.omt3/`.
+Releases up to 0.6 kept project state in `.omt/` and your user folder in `~/.config/oh-my-t3code` (or `oh-my-t3code` under `XDG_CONFIG_HOME`). The current names are `.omt3/` and `~/.config/oh-my-t3`. omt still reads and writes an old folder while the new one does not exist. `omt migrate` was removed.
 
 ## Update omt
 
@@ -343,7 +320,7 @@ omt update
 
 Each npm update keeps the package name that you installed, `oh-my-t3` or `omt3`. An install of the deprecated `oh-my-t3code` moves to `oh-my-t3`: `omt update` installs `oh-my-t3` and removes `oh-my-t3code`, so one omt stays. All three packages give the same commands, and npm and pnpm refuse two global packages with the same commands. So with npm and pnpm, `omt update` removes `oh-my-t3code` first, and installs it again when the `oh-my-t3` install fails. With Bun and mise, it installs `oh-my-t3` first, and removes `oh-my-t3code` after the new `omt` starts. For a dev dependency, the hint names the remove and add commands, such as `npm uninstall oh-my-t3code, then npm i -D oh-my-t3@<version>`. `--dry-run` and `--check` show each command. Each command installs the exact version that the registry returned. So the mise channels write an exact pin, such as `github:gabimoncha/oh-my-t3@0.3.0`, into your global mise config. A later `omt update` moves that pin. An exact version also skips the 24-hour wait of `minimum_release_age`.
 
-The sync keeps a skill that you edited, and prints `kept <skill>  (<reason>)`. `omt install --force` replaces it. The sync removes a managed skill that the new bundle no longer ships, with its links, as `omt install` does. It keeps an edited one with the reason `locally modified; no longer shipped; omt install --force backs it up and removes it`. A project that runs another omt, such as a dev dependency, gets the command to run in that project. The command shows defaults changes and asks before accepting them. `--yes` also accepts the current defaults. Declining keeps the last accepted defaults. When any skill changed, restart your agent sessions in T3 Code.
+The sync keeps a skill that you edited, and prints `kept <skill>  (<reason>)`. `omt install --force` replaces it. The sync removes a managed skill that the new bundle no longer ships, with its links, as `omt install` does. It keeps an edited one with the reason `locally modified; no longer shipped; omt install --force backs it up and removes it`. It also removes the retired hook, config keys, ledger, and locks, as [the install](#what-the-global-install-writes) does. A project that runs another omt, such as a dev dependency, gets the command to run in that project. The command shows defaults changes and asks before accepting them. `--yes` also accepts the current defaults. Declining keeps the last accepted defaults. When any skill changed, restart your agent sessions in T3 Code.
 
 `--project` updates only the current project. `--skills-only` syncs the skills with the CLI that runs now. It sends no request, so it works without the network.
 

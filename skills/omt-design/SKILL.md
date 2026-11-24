@@ -21,7 +21,7 @@ Done when: you run in `default` mode and you know the drawer, or the user has th
 
 Write down the goal, the users, the platform, the screens and flows, the constraints, and the existing brand, from the code and assets. Ask the owner only what you cannot find, in one batch, with options and your recommendation.
 
-Pick a slug that matches `^[a-z0-9][a-z0-9-]{0,63}$`. The design files go under `docs/design/<slug>/`, and the spec is `docs/design/<slug>.md`. The ledger plan is the plan slug when `omt-plan` or `omt-ulw` called this skill, else `design-<slug>`.
+Pick a slug that matches `^[a-z0-9][a-z0-9-]{0,63}$`. The design files go under `docs/design/<slug>/`, and the spec is `docs/design/<slug>.md`. The `--plan` of each brief is the plan slug when `omt-plan` or `omt-ulw` called this skill, else `design-<slug>`.
 
 Done when: the frame and the slug are in your reply.
 

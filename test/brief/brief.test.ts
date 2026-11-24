@@ -84,7 +84,7 @@ ${EDIT_SCOPED}
 - Other agents may edit other files in this repository at the same time. Leave changes outside your scope alone. Do not commit, push, or create branches.
 - Processes: do not run \`pkill\`, \`killall\`, or another kill by name, because it can stop your own run. Stop only a process that you started, by its PID. Give each command that can run long a time limit, for example \`timeout 900 <command>\`. Close each device or browser session that you or your script opens on every exit path, for example \`trap '<close command>' EXIT\`.
 - Shared files: never break and restore files in the shared checkout, for example to prove that a test can fail. The main thread makes that proof in a private copy.
-- Shared builds: run a command that the task wraps in \`omt lock run\` exactly as written. Retry a failed build or test only when the file is outside your scope and outside the task's named code under test. The file is the one where the error occurs, such as a file with a compile or load error, also when a test in your scope loads it. Wait 60 seconds and run the command once more. When it fails there again, report the command, the outside-scope file, and the message as another unit's state. For a failure in your scope or the named code under test, follow your result block. For \`test\` results, return \`VERDICT: NOT VERIFIED\` for that failure. When \`omt lock run\` exits 75, report the command, the lock name, and its message. Leave the lock to the main thread. For both reports: in \`work\` results, keep the \`STATUS\` that your own work earns and put the report under \`OPEN\`. For \`test\` results, including \`qa\`, return \`VERDICT: INCONCLUSIVE\` and put the report under \`FAILURES\`. For other results, put the report under \`NOTES\`, or before the result block when it has no \`NOTES\`.
+- Shared builds: retry a failed build or test only when the file is outside your scope and outside the task's named code under test. The file is the one where the error occurs, such as a file with a compile or load error, also when a test in your scope loads it. Wait 60 seconds and run the command once more. When it fails there again, report the command, the outside-scope file, and the message as another unit's state: in \`work\` results, keep the \`STATUS\` that your own work earns and put the report under \`OPEN\`. For \`test\` results, including \`qa\`, return \`VERDICT: INCONCLUSIVE\` and put the report under \`FAILURES\`. For other results, put the report under \`NOTES\`, or before the result block when it has no \`NOTES\`. For a failure in your scope or the named code under test, follow your result block. For \`test\` results, return \`VERDICT: NOT VERIFIED\` for that failure.
 - Devices: do not drive a device, Simulator UI, browser, or computer yourself (\`agent-device\`, \`agent-browser\`, computer use, UI flows); only the qa role does that. List each device check with its steps and expected result under \`OPEN\` or \`NOTES\`, or before your result block when it has neither; the main thread sends it to the qa task.
 
 # Done when
@@ -304,16 +304,13 @@ test("renderBrief gives every role its test policy, CLI, and shared-build rules"
     } else {
       assert.equal(tests, "- Tests: write no tests.");
     }
-    assert.match(text, /^- Shared builds: run a command that the task wraps in `omt lock run` exactly as written\./m);
-    assert.match(text, /Retry a failed build or test only when the file is outside your scope and outside the task's named code under test\./);
+    assert.match(text, /^- Shared builds: retry a failed build or test only when the file is outside your scope and outside the task's named code under test\./m);
     assert.match(text, /The file is the one where the error occurs, such as a file with a compile or load error, also when a test in your scope loads it\./);
     assert.match(text, /Wait 60 seconds and run the command once more\./);
-    assert.match(text, /When it fails there again, report the command, the outside-scope file, and the message as another unit's state\./);
+    assert.match(text, /When it fails there again, report the command, the outside-scope file, and the message as another unit's state: in `work` results, keep the `STATUS` that your own work earns and put the report under `OPEN`\./);
     assert.match(text, /For a failure in your scope or the named code under test, follow your result block\./);
     assert.match(text, /For `test` results, return `VERDICT: NOT VERIFIED` for that failure\./);
-    assert.match(text, /When `omt lock run` exits 75, report the command, the lock name, and its message\./);
-    assert.match(text, /Leave the lock to the main thread\./);
-    assert.match(text, /For both reports: in `work` results, keep the `STATUS` that your own work earns and put the report under `OPEN`\./);
+    assert.doesNotMatch(text, /omt lock/);
     assert.match(text, /For `test` results, including `qa`, return `VERDICT: INCONCLUSIVE` and put the report under `FAILURES`\./);
     assert.match(text, /For other results, put the report under `NOTES`, or before the result block when it has no `NOTES`\./);
     assert.match(text, /The main thread makes that proof in a private copy\./);
@@ -458,7 +455,7 @@ test("fast role settings map Opus and print unsupported model notes through each
   }
 });
 
-test("brief --save writes the full brief, records the start, and returns a short task and the ledger done command", async () => {
+test("brief --save writes the full brief and returns a short task", async () => {
   const project = makeProject();
   project.writeOmt("plans/p.md", "<!-- omt-plan v1 slug=p profile=prototype -->\n");
   project.writeOmt("bin/omt", "#!/bin/sh\n");
@@ -478,17 +475,12 @@ test("brief --save writes the full brief, records the start, and returns a short
   assert.match(text, new RegExp(`^- CLI: Run omt as ${command.replaceAll(".", "\\.")}\\.$`, "m"));
   assert.match(text, /^- Tests: write no tests and no failure proofs\./m);
   assert.equal(output.targetKey, "codex/gpt-6.2-sol");
-  assert.equal(output.ledger?.done, `${command} ledger done ${id} --verdict <VERDICT>`);
-  const started = JSON.parse((await project.runOk(["ledger", "list", "--plan", "p", "--json"])).ctx.out()) as { clientRequestId: string; status: string; targetKey: string }[];
-  assert.deepEqual(started.map((entry) => [entry.clientRequestId, entry.status, entry.targetKey]), [[id, "dispatched", "codex/gpt-6.2-sol"]]);
-  const closed = await project.runOk(["ledger", "done", id, "--verdict", "VERIFIED", "--task-id", "task-u4"]);
-  assert.match(closed.ctx.out(), /^closed U4 qa r2 a3\nsettle: /);
-  assert.match((await project.runOk(["ledger", "stats", "--plan", "p"])).ctx.out(), /^active: 0$/m);
+  assert.equal(existsSync(join(project.cwd, ".omt3", "ledger.jsonl")), false);
   assert.equal(existsSync(join(project.cwd, ".omt3", "evidence", "briefs", `.${id}.md.tmp`)), false);
   assert.deepEqual(readdirSync(join(project.cwd, ".omt3", "evidence", "briefs")), [`${id}.md`]);
 });
 
-test("brief --save uses the brief hash without both plan and unit, and records no start", async () => {
+test("brief --save uses the brief hash without both plan and unit", async () => {
   const project = makeProject();
   for (const flags of [[], ["--plan", "p"], ["--unit", "U4"]]) {
     const argv = ["brief", "execute", "--task", "x", "--json", ...flags];
@@ -499,7 +491,6 @@ test("brief --save uses the brief hash without both plan and unit, and records n
     assert.equal(readFileSync(path, "utf8"), full.delegateTask.task);
     assert.ok(output.delegateTask.task.includes(path));
     assert.equal(output.delegateTask.clientRequestId, undefined);
-    assert.equal(output.ledger, undefined);
     assert.match(full.delegateTask.task, /^- CLI: Run omt as omt\.$/m);
   }
 });

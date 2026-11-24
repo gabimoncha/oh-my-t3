@@ -34,7 +34,7 @@ export const ROLE_KEYS: readonly string[] = [
   "chain",
 ];
 export const CANDIDATE_KEYS: readonly string[] = ["provider", "driver", "model", "effort", "fast", "options"];
-export const LIMIT_KEYS: readonly string[] = ["maxParallel", "maxDepth", "maxReviewRounds"];
+export const LIMIT_KEYS: readonly string[] = ["maxDepth", "maxReviewRounds"];
 export const PROFILE_KEYS: readonly string[] = ["description", "extends", "t3Workflow", "workflow", "limits", "roles", "models"];
 export const MODEL_KEYS: readonly string[] = ["fast"];
 export const PRESET_PROFILE_NAMES: readonly string[] = ["normal", "prototype"];
@@ -94,7 +94,6 @@ export const CHAIN_MAX = 10;
 export const HARNESSES_MIN = 1;
 export const HARNESSES_MAX = 10;
 export const LIMIT_RANGES: Readonly<Record<keyof Limits, readonly [number, number]>> = {
-  maxParallel: [1, 32],
   maxDepth: [0, 3],
   maxReviewRounds: [1, 10],
 };

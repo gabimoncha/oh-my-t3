@@ -7,18 +7,22 @@ import { buildInstallPlan, buildUninstallPlan } from "../../src/install/plan.ts"
 import { fakeContext, writeFile } from "../helpers.ts";
 import { makeFixture, snapshot } from "./fixture.ts";
 
-test("apply refuses a project hook changed to an external link after planning", async () => {
+test("apply refuses a retired project hook removal whose settings file became an external link after planning", async () => {
   const f = makeFixture();
   const ctx = fakeContext({ root: f.root, packageRoot: f.packageRoot });
   mkdirSync(join(ctx.cwd, ".git"));
-  const plan = await buildInstallPlan(ctx, { scope: "project", targets: ["agents", "claude"], hooks: true, force: false });
-  assert.ok(plan.hook);
-  mkdirSync(dirname(plan.hook.settingsPath), { recursive: true });
-  symlinkSync(f.settings, plan.hook.settingsPath);
+  const local = join(ctx.cwd, ".claude", "settings.local.json");
+  const settings = `${JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: "omt hook # oh-my-t3code" }] }] } }, null, 2)}\n`;
+  writeFile(local, settings);
+  const plan = await buildInstallPlan(ctx, { scope: "project", targets: ["agents", "claude"], force: false });
+  assert.equal(plan.hooks[0]?.settingsPath, local);
+  writeFile(f.settings, settings);
+  rmSync(local);
+  symlinkSync(f.settings, local);
   const before = snapshot(ctx.cwd);
   await assert.rejects(applyInstall(plan, ctx.now()), /outside the project/);
   assert.deepEqual(snapshot(ctx.cwd), before);
-  assert.ok(!existsSync(f.settings));
+  assert.equal(readFileSync(f.settings, "utf8"), settings);
 });
 
 test("apply refuses a gitignore restore redirected after planning", async () => {
@@ -27,7 +31,7 @@ test("apply refuses a gitignore restore redirected after planning", async () => 
   mkdirSync(join(ctx.cwd, ".git"));
   const ignore = join(ctx.cwd, ".omt3", ".gitignore");
   writeFile(ignore, "mine\n");
-  const install = await buildInstallPlan(ctx, { scope: "project", targets: ["agents"], hooks: false, gitExclude: false, force: false });
+  const install = await buildInstallPlan(ctx, { scope: "project", targets: ["agents"], gitExclude: false, force: false });
   await applyInstall(install, ctx.now());
   const uninstall = await buildUninstallPlan(ctx, { scope: "project", purge: false });
   assert.ok(uninstall.project?.gitignore);

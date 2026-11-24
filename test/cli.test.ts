@@ -16,9 +16,18 @@ const COMMAND_NAMES = [
   "brief",
   "plan",
   "profile",
-  "ledger",
-  "hook",
 ];
+
+// These commands are gone; an old skill that still calls one gets the unknown-command usage error.
+const RETIRED_COMMANDS = ["ledger", "lock", "hook", "migrate"];
+
+test("the retired ledger, lock, hook, and migrate commands are unknown and exit 2", async () => {
+  for (const name of RETIRED_COMMANDS) {
+    const ctx = fakeContext({ root: tempDir() });
+    assert.equal(await main([name], ctx), 2, name);
+    assert.match(ctx.err(), new RegExp(`unknown command "${name}"`), name);
+  }
+});
 
 function runCli(args: string[]) {
   const root = tempDir();

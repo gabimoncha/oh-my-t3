@@ -31,13 +31,13 @@ test("nested set keeps line and block comments and treats arrays as leaves", () 
      over lines */
   "profiles": {
     "prototype": { // profile
-      "limits": { "maxParallel": /* before */ 2 /* after */ },
+      "limits": { "maxReviewRounds": /* before */ 2 /* after */ },
     },
   },
 }
 `;
-  check(input, ["profiles", "prototype", "limits", "maxParallel"], 3,
-    { profiles: { prototype: { limits: { maxParallel: 3 } } } }, input.replace("2 /* after */", "3 /* after */"));
+  check(input, ["profiles", "prototype", "limits", "maxReviewRounds"], 3,
+    { profiles: { prototype: { limits: { maxReviewRounds: 3 } } } }, input.replace("2 /* after */", "3 /* after */"));
   for (const leaf of ["null", "false", '"old"', '["old", /* inside */ "value"]']) {
     check(`{ "roles": { "execute": ${leaf} } }`, ["roles", "execute", "fast"], true,
       { roles: { execute: { fast: true } } }, '{ "roles": { "execute": {"fast":true} } }',
@@ -110,9 +110,22 @@ test("removal keeps comments and removes the required comma and whole lines", ()
     '{\n  "a": {\n     // keep\n    "y": 2\n  }\n}');
 });
 
+// The retired-key cleanup removes keys such as limits.maxParallel; a note between the key and the colon was lost.
+test("removal keeps a comment between the key and the colon", () => {
+  check('{\n  "limits": {\n    "maxParallel" /* why */ : 2,\n    "maxDepth": 2\n  }\n}\n', ["limits", "maxParallel"], undefined,
+    { limits: { maxDepth: 2 } }, '{\n  "limits": {\n    /* why */\n    "maxDepth": 2\n  }\n}\n');
+  check('{ "limits": { "maxDepth": 2, "maxParallel" /* why */ : 2 } }', ["limits", "maxParallel"], undefined,
+    { limits: { maxDepth: 2 } }, '{ "limits": { "maxDepth": 2 /* why */  } }');
+  check('{\n  "limits": {\n    "maxParallel" // why\n      : 2,\n    "maxDepth": 2\n  }\n}\n', ["limits", "maxParallel"], undefined,
+    { limits: { maxDepth: 2 } }, '{\n  "limits": {\n    // why\n    "maxDepth": 2\n  }\n}\n');
+  // A line comment moved out of a CRLF file gets the file's own line ending.
+  check('{\r\n  "limits": { "maxParallel" // why\r\n : 2, "maxDepth": 2 }\r\n}\r\n', ["limits", "maxParallel"], undefined,
+    { limits: { maxDepth: 2 } }, '{\r\n  "limits": { // why\r\n "maxDepth": 2 }\r\n}\r\n');
+});
+
 test("upward removal stops at members, comments, and root keys", () => {
-  const note = '{\n  "profiles": {\n    "prototype": { // note\n      "limits": { "maxParallel": 3 } }\n  }\n}\n';
-  check(note, ["profiles", "prototype", "limits", "maxParallel"], undefined, { profiles: { prototype: {} } },
+  const note = '{\n  "profiles": {\n    "prototype": { // note\n      "limits": { "maxReviewRounds": 3 } }\n  }\n}\n';
+  check(note, ["profiles", "prototype", "limits", "maxReviewRounds"], undefined, { profiles: { prototype: {} } },
     '{\n  "profiles": {\n    "prototype": { // note\n       }\n  }\n}\n');
   check('{\n  "p": {\n    "x": {\n      "limits": {"k": 3}\n    },\n    "keep": true\n  }\n}', ["p", "x", "limits", "k"], undefined,
     { p: { keep: true } }, '{\n  "p": {\n    "keep": true\n  }\n}');

@@ -1,4 +1,4 @@
-import { evidenceDir, findProjectRoot, grillsDir, ledgerPath, omtDir, plansDir, projectConfigPath, projectShimPath } from "../paths.ts";
+import { evidenceDir, findProjectRoot, grillsDir, omtDir, plansDir, projectConfigPath, projectShimPath } from "../paths.ts";
 import type { CommandRun } from "../types.ts";
 import { parseArgs } from "../util/args.ts";
 import { usageError } from "../util/errors.ts";
@@ -6,28 +6,27 @@ import { formatJson } from "../util/output.ts";
 
 export const summary = "Print the absolute paths of the project's state folder.";
 
-export const usage = `Usage: omt paths [--json] [--root|--omt|--plans|--grills|--ledger|--evidence|--config|--shim]
+export const usage = `Usage: omt paths [--json] [--root|--omt|--plans|--grills|--evidence|--config|--shim]
 
-Print the project root, the state folder, plans, grills, ledger, evidence,
-project config, and shim paths, one "name: path" line each. From a linked git
+Print the project root, the state folder, plans, grills, evidence, project
+config, and shim paths, one "name: path" line each. From a linked git
 worktree, the paths are in the main checkout. The state folder is .omt3, or
-.omt in a project that has not run omt migrate.
+.omt in a project from an earlier release.
 
 Options:
   --json      print an object with the keys root, omt, plans, grills,
-              ledger, evidence, config, and shim
+              evidence, config, and shim
   --root      print only the project root
   --omt       print only the state folder
   --plans     print only the plans directory
   --grills    print only the grills directory
-  --ledger    print only the ledger file
   --evidence  print only the evidence directory
   --config    print only the project config file
   --shim      print only the project shim
   -h, --help  print this help
 `;
 
-const SINGLE = ["root", "omt", "plans", "grills", "ledger", "evidence", "config", "shim"] as const;
+const SINGLE = ["root", "omt", "plans", "grills", "evidence", "config", "shim"] as const;
 
 export const run: CommandRun = async (ctx) => {
   const { values } = parseArgs(ctx.argv, {
@@ -36,7 +35,6 @@ export const run: CommandRun = async (ctx) => {
     omt: { type: "boolean" },
     plans: { type: "boolean" },
     grills: { type: "boolean" },
-    ledger: { type: "boolean" },
     evidence: { type: "boolean" },
     config: { type: "boolean" },
     shim: { type: "boolean" },
@@ -50,7 +48,6 @@ export const run: CommandRun = async (ctx) => {
     omt: omtDir(root),
     plans: plansDir(root),
     grills: grillsDir(root),
-    ledger: ledgerPath(root),
     evidence: evidenceDir(root),
     config: projectConfigPath(root),
     shim: projectShimPath(root),

@@ -15,8 +15,8 @@ This page is the reference for the code, the skills, and the tests. [`design.md`
 - Strict TypeScript: `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `erasableSyntaxOnly`.
 - Formatting: 2-space indentation, double quotes, semicolons, trailing commas in multi-line literals.
 - Comments: only for a non-obvious reason that the code cannot show.
-- File writes: atomic, except the ledger and lock metadata (section 5.10). Write a temp file in the same directory, then rename. Create parent directories as needed. When the target exists, the temp file gets the target's mode before the rename, so a 0600 file stays 0600. Each ledger entry is one `appendFile` call, so concurrent appends do not overwrite each other.
-- When the target of a write is an authorized symlink, write next to its real path (`fs.realpath`) and rename onto the real path, so the symlink stays a symlink. Project plan mutations and project installer writes must resolve inside the project root. Resolve existing ancestors and dangling links before this check. Git exclude files follow Git's storage location and are exempt from this containment rule. Ledger and lock files reject symlinks below the selected checkout or Git storage root. They open the leaf with `O_NOFOLLOW`, then verify that the descriptor is a regular file with one hard link and matches the directory entry before any content change.
+- File writes: atomic. Write a temp file in the same directory, then rename. Create parent directories as needed. When the target exists, the temp file gets the target's mode before the rename, so a 0600 file stays 0600.
+- When the target of a write is an authorized symlink, write next to its real path (`fs.realpath`) and rename onto the real path, so the symlink stays a symlink. Project plan mutations and project installer writes must resolve inside the project root. Resolve existing ancestors and dangling links before this check. Git exclude files follow Git's storage location and are exempt from this containment rule.
 - The CLI sends no telemetry. It contacts the npm registry only when you run `omt update`, or once a day in `omt install` and `omt doctor`, unless you set `"update": "off"` in the user config or set `CI` or `NO_UPDATE_NOTIFIER`. `omt update` runs the package manager or mise command of the channel that installed omt. Build scripts may download Bun cross-compile runtimes. The generated worktree setup runner (section 5.11) starts a package manager too, when T3 runs it.
 
 `package.json` scripts:
@@ -55,22 +55,17 @@ src/
   routing/               capabilities.ts, effort.ts, resolve.ts, format.ts, family.ts
   brief/                 templates.ts, render.ts
   plan/                  template.ts, parse.ts
-  ledger/                ledger.ts
   profile/               resolve.ts
-  lock/                  lock.ts
   git/                   exec.ts, start.ts, commit.ts (section 5.15)
   install/               skills.ts, links.ts, claudeHook.ts, manifest.ts, plan.ts, apply.ts, doctor.ts, confirm.ts, fsops.ts, project.ts, harness.ts (section 5.13), projects.ts (section 14.8)
   update/                channel.ts, check.ts, sync.ts, flow.ts (section 5.14)
-  migrate/               hint.ts (the legacy-folder hint, section 4), migrate.ts and offer.ts (section 5.16)
-  hooks/                 userPromptSubmit.ts
   worktree/              runner.ts, runnerText.ts, check.ts, setup.ts (section 5.11)
   commands/              one file per command, each exports `run: CommandRun`
-                         profile.ts and lock.ts add profile and lock commands
+                         profile.ts adds the profile command
                          worktree.ts adds the worktree command
                          detect.ts adds harness detection (section 5.13)
                          update.ts adds the update command (section 5.14)
                          git.ts adds the git command (section 5.15)
-                         migrate.ts adds the migrate command (section 5.16)
                          shared.ts holds the helpers that commands share and exports no `run`
 scripts/
   build-schema.ts        writes schema/omt.schema.json from src/config/schema.ts
@@ -83,8 +78,8 @@ templates/
   worktree-setup.mjs     the standalone worktree setup runner (section 5.11)
   worktree-setup.d.mts   its types for src/worktree/runner.ts
 skills/
-  omt/                   router skill and shared references
-  omt-ulw/ omt-plan/ omt-design/ omt-code-review/ omt-research/ omt-setup/
+  omt/                   shared references (a stub SKILL.md, not a workflow)
+  omt-ulw/ omt-plan/ omt-design/ omt-code-review/ omt-setup/
 workflows/
   omt.ts                 the T3 workflows omt-ulw and omt-code-review (section 14.9)
 test/
@@ -93,7 +88,6 @@ test/
   fixtures/              capabilities.json, capabilities-live.json, capabilities-compact.json
   config/profiles.test.ts profile validation and merging
   profile/               resolve.test.ts, profile.test.ts
-  lock/                  lock.test.ts
   git-commit.test.ts      omt git start and commit, with a fake gh that must get no call
   routing/fast.test.ts    fast option mapping and precedence
   skills/                common.test.ts (frontmatter and links), contract.test.ts (safety rules), budget.test.ts (word budgets and removed strings), personas.test.ts, shared.ts
@@ -139,7 +133,6 @@ export interface RoleConfig {
 }
 
 export interface Limits {
-  maxParallel: number;
   maxDepth: number;
   maxReviewRounds: number;
 }
@@ -350,37 +343,7 @@ export interface BriefJsonOutput {
     clientRequestId?: string; // present when --plan and --unit are given
   };
   fallbacks: ResolvedTarget[]; // not a delegate_task field; the targets after this one, in order
-  targetKey: string; // the chosen target, such as codex/gpt-6.2-astra; --tried takes it in plan mode
-  ledger?: { done: string }; // present when --save --json with --plan and --unit recorded the start
-}
-
-export type LedgerStatus = "dispatched" | "completed" | "failed" | "cancelled" | "interrupted" | "verified" | "rejected"; // every status except "dispatched" is terminal
-
-export interface LedgerEntry {
-  ts: string; // ISO timestamp from ctx.now()
-  role: string;
-  status: LedgerStatus;
-  plan?: string;
-  unit?: string;
-  round?: number;
-  attempt?: number;
-  taskId?: string;
-  clientRequestId?: string;
-  provider?: string;
-  model?: string;
-  verdict?: string; // first word or words of the result block, for example "DONE", "APPROVE", "NOT VERIFIED"
-  note?: string;
-  targetKey?: string; // dispatched entries from omt brief --save: the target that the brief chose
-}
-
-export interface LedgerStats {
-  plan?: string;
-  dispatched: number; // entries with status "dispatched"
-  active: number; // dispatched entries that no terminal entry closes (section 5.6)
-  terminal: number; // entries with a terminal status
-  limits: { maxParallel: number }; // from the effective config; with a plan limit, maxParallel is the lower of the two (section 5.6)
-  planMaxParallel?: number; // the plan header max-parallel; set only when the plan has one
-  canDispatch: boolean; // active < maxParallel; a run has no task budget
+  targetKey: string; // the chosen target, such as codex/gpt-6.2-astra; the caller passes it to --tried for the next fallback
 }
 
 export type T3DriverStatus = "enabled" | "disabled" | "unknown";
@@ -451,7 +414,6 @@ export class OmtError extends Error {
 | Function | Result |
 | --- | --- |
 | `configDir(env, homedir)` | `$OMT_CONFIG_DIR`; else the pair `<base>/oh-my-t3` and `<base>/oh-my-t3code`, where `<base>` is `$XDG_CONFIG_HOME`, else `<home>/.config`: the current name when it exists, else the legacy name when it exists, else the current name |
-| `configDirPair(env, homedir)` | `{ current: <base>/oh-my-t3, legacy: <base>/oh-my-t3code }`; `undefined` when `$OMT_CONFIG_DIR` is set |
 | `userConfigPath(env, homedir)` | `<configDir>/config.jsonc` |
 | `manifestPath(env, homedir)` | `<configDir>/install.json` |
 | `updateStatePath(env, homedir)` | `<configDir>/update-check.json`, the state of the update check (section 5.14) |
@@ -460,17 +422,15 @@ export class OmtError extends Error {
 | `mainCheckoutOf(root)` | the main checkout of a linked worktree. When `<root>/.git` is a file whose first line is `gitdir: <path>`, it resolves `<path>` against `root`, reads `<gitdir>/commondir` (relative or absolute, resolved against `<gitdir>`), and returns `dirname(<common dir>)` when `basename(<common dir>)` is `.git` and the repository is not bare; `undefined` for a normal checkout (`.git` is a directory), a submodule, a bare or unknown layout, or any read error. It reads `core.bare` in the plain form that git writes: the repository is bare when the `[core]` section of `<common dir>/config` sets `bare` to true (`true`, `yes`, `on`, `1`, or no value). Hand-edited forms, such as quoted values, repeated keys, or an entry on the section line, are not supported. A missing `config` counts as not bare. So a bare repository stored at `<repo>/.git` gives `undefined` |
 | `findProjectRoot(cwd)` | the nearest ancestor of `cwd` (or `cwd` itself) that contains `.omt3`, `.omt`, or `.git` (a directory or a file); when that directory has a `.git` file and `mainCheckoutOf` returns a main checkout, the main checkout, whether or not it has `.omt3` yet; `cwd` when none exists |
 | `findCheckoutRoot(cwd)` | the nearest ancestor of `cwd` (or `cwd` itself) that contains `.git` (a directory or a file); `undefined` when none exists. Unlike `findProjectRoot`, a linked worktree stays itself, because worktree setup files belong to the checkout's branch |
-| `shadowedWorktreeState(cwd)` | `{ worktree, main, dir }` when the directory that `findProjectRoot` stops at is a linked worktree whose own `.omt3` or `.omt` (checked in this order; `dir` is the first that matches) has a `plans` folder with a regular file whose name ends in `.md`, or a regular `ledger.jsonl`; else `undefined` |
+| `shadowedWorktreeState(cwd)` | `{ worktree, main, dir }` when the directory that `findProjectRoot` stops at is a linked worktree whose own `.omt3` or `.omt` (checked in this order; `dir` is the first that matches) has a `plans` folder with a regular file whose name ends in `.md`; else `undefined` |
 | `stateDirPair(root)` | `{ current: <root>/.omt3, legacy: <root>/.omt }` |
 | `omtDir(root)` | `<root>/.omt3` when it exists, else `<root>/.omt` when it exists, else `<root>/.omt3`. Every project path below builds on it |
-| `legacyFolders(cwd, env, homedir)` | `{ project?, global? }`: for the project root of `cwd` and for the `configDirPair`, a `{ current, legacy, both }` when the legacy folder exists; `both` is true when the current folder exists too |
 | `projectConfigPath(root)` | `<root>/.omt3/config.jsonc` |
 | `projectRolesDir(root)` | `<root>/.omt3/roles` |
 | `plansDir(root)` | `<root>/.omt3/plans` |
 | `planPath(root, slug)` | `<root>/.omt3/plans/<slug>.md` |
 | `grillsDir(root)` | `<root>/.omt3/grills` |
 | `grillPath(root, slug)` | `<root>/.omt3/grills/<slug>.md` |
-| `ledgerPath(root)` | `<root>/.omt3/ledger.jsonl` |
 | `evidenceDir(root)` | `<root>/.omt3/evidence` |
 | `projectManifestPath(root)` | `<root>/.omt3/install.json` |
 | `projectShimPath(root)` | `<root>/.omt3/bin/omt` |
@@ -486,27 +446,27 @@ export class OmtError extends Error {
 | `worktreeRunnerPath(root)` | `<root>/.t3/omt-worktree-setup.mjs` |
 | `pnpmWorkspacePath(root)` | `<root>/pnpm-workspace.yaml` |
 
-`mainCheckoutOf`, `findProjectRoot`, `findCheckoutRoot`, `shadowedWorktreeState`, `configDir`, `omtDir` and the paths built on them, and `legacyFolders` are the only functions that read the file system. None of them starts a `git` process.
+`mainCheckoutOf`, `findProjectRoot`, `findCheckoutRoot`, `shadowedWorktreeState`, `configDir`, and `omtDir` and the paths built on them are the only functions that read the file system. None of them starts a `git` process.
 
-All worktrees of one repository share one `.omt3` in the main checkout. It holds the config, the plans, the ledger, the evidence, and the shim. So a build thread in one worktree finds the plan that a planning thread wrote in another. A worktree's own `.omt3` never wins. Git writes `gitdir:` as a real path. `findProjectRoot` rebuilds the main checkout under the nearest ancestor of the worktree whose real path holds it, so a cwd in a worktree and a cwd in the main checkout give the same root string, such as `/var/...` and not `/private/var/...`.
+All worktrees of one repository share one `.omt3` in the main checkout. It holds the config, the plans, the evidence, and the shim. So a build thread in one worktree finds the plan that a planning thread wrote in another. A worktree's own `.omt3` never wins. Git writes `gitdir:` as a real path. `findProjectRoot` rebuilds the main checkout under the nearest ancestor of the worktree whose real path holds it, so a cwd in a worktree and a cwd in the main checkout give the same root string, such as `/var/...` and not `/private/var/...`.
 
-Shadowed state. Before `plan`, `ledger`, `brief`, `route`, and `init` run, the CLI calls `shadowedWorktreeState(cwd)`. When it returns a value, the CLI prints two lines to stderr: `warning: <dir> holds plans or a ledger that omt no longer reads; move them to <omtDir(main)>`, then `hint: if git tracks them, untrack them with "git rm --cached" and commit; <basename of omtDir(main)>/.gitignore keeps plans out of git`. It moves no file. A worktree copy of a plan usually comes from a commit of the main copy, so the hint names the fix.
+Shadowed state. Before `plan`, `brief`, `route`, and `init` run, the CLI calls `shadowedWorktreeState(cwd)`. When it returns a value, the CLI prints two lines to stderr: `warning: <dir> holds plans that omt no longer reads; move them to <omtDir(main)>`, then `hint: if git tracks them, untrack them with "git rm --cached" and commit; <basename of omtDir(main)>/.gitignore keeps plans out of git`. It moves no file. A worktree copy of a plan usually comes from a commit of the main copy, so the hint names the fix.
 
-No project. Before `plan`, `profile`, `ledger`, `brief`, and `lock` run, the CLI looks for a `.omt3`, `.omt`, or `.git` entry in the current directory and its parents. When it finds none, it prints one line to stderr: `warning: no .omt3, .omt, or .git found above <cwd>; omt uses it as the project root. Run omt from the project or worktree folder.` The command still runs.
+No project. Before `plan`, `profile`, and `brief` run, the CLI looks for a `.omt3`, `.omt`, or `.git` entry in the current directory and its parents. When it finds none, it prints one line to stderr: `warning: no .omt3, .omt, or .git found above <cwd>; omt uses it as the project root. Run omt from the project or worktree folder.` The command still runs.
 
-Legacy folders. Releases before the rename kept project state in `.omt/` and the user folder in `oh-my-t3code`. While only the legacy folder exists, `omtDir` and `configDir` return it, so omt reads and writes it as before. Before every command except `hook`, `update`, and `migrate` (and help and version, which return earlier), the CLI calls `legacyFolders` and, when it finds one or both, prints one line to stderr: `hint: <phrase>[; <phrase>]; run "omt migrate" to move it` (`them` for two). The phrase is `omt reads the old folder <legacy>`, or `the old folder <legacy> sits beside <current>` when both exist. `omt doctor` reports the same text as a `WARN` line with the id `folders`. `omt migrate` (section 5.16) moves the folders.
+Legacy folders. Releases before the rename kept project state in `.omt/` and the user folder in `oh-my-t3code`. While only the legacy folder exists, `omtDir` and `configDir` return it, so omt reads and writes it as before. omt prints no hint about it and has no command that moves it; the earlier `omt migrate` and its hint were removed.
 
-Version skew. Before every command except `hook`, `install`, `uninstall`, `update`, `migrate`, and `doctor` (and help and version, which return earlier), the CLI calls `versionSkewHint(ctx)` in `src/update/skew.ts`. It reads the `version` of `projectManifestPath(findProjectRoot(cwd))`. When that file is absent, it reads the `version` of `manifestPath()`. When the version differs from `ctx.version`, the CLI prints one line to stderr: `hint: the <user|project> skills come from omt <installed>, and this omt is <version>; run "<command>" to sync them`. `<command>` is `omt update --skills-only`, or `omt update --skills-only --project` for the project manifest. The check reads only local files and sends no request. It prints nothing in a source run (`ctx.build` is `source`), when no manifest exists, or when the first manifest that it finds cannot be read, is not valid JSON, or has no string `version`. The hint never changes the exit code.
+Version skew. Before every command except `install`, `uninstall`, `update`, and `doctor` (and help and version, which return earlier), the CLI calls `versionSkewHint(ctx)` in `src/update/skew.ts`. It reads the `version` of `projectManifestPath(findProjectRoot(cwd))`. When that file is absent, it reads the `version` of `manifestPath()`. When the version differs from `ctx.version`, the CLI prints one line to stderr: `hint: the <user|project> skills come from omt <installed>, and this omt is <version>; run "<command>" to sync them`. `<command>` is `omt update --skills-only`, or `omt update --skills-only --project` for the project manifest. The check reads only local files and sends no request. It prints nothing in a source run (`ctx.build` is `source`), when no manifest exists, or when the first manifest that it finds cannot be read, is not valid JSON, or has no string `version`. The hint never changes the exit code.
 
 ## 5. CLI
 
-Exit codes: 0 for success, 1 for a failure (bad config, a failed check, a conflict, a missing file), 2 for a usage error (unknown command, unknown flag, missing argument). `omt lock run` also returns the command's exit code, or 75 for a busy lock. `omt lock run` and `omt lock list` also return the lock tool's exit code when it is neither 0 nor 75. Every command accepts `--help`, prints its usage, and exits 0. `omt --version` prints the version. `omt` with no command or with `--help` prints the command list, which ends with a `help [<command>]` row. `omt help` prints the same text as `omt --help`, and `omt help <command>` prints the same text as `omt <command> --help`. Both exit 0, and so do `omt help --help` and `omt help -h`, which print the command list. `omt help` with a name that is not a command, such as `omt help nope`, fails with `unknown command "<name>"` and exit 2. `help` itself is not in the command registry, so `omt help help` fails the same way. A second argument fails with `unexpected argument "<arg>"` and exit 2.
+Exit codes: 0 for success, 1 for a failure (bad config, a failed check, a conflict, a missing file), 2 for a usage error (unknown command, unknown flag, missing argument). Every command accepts `--help`, prints its usage, and exits 0. `omt --version` prints the version. `omt` with no command or with `--help` prints the command list, which ends with a `help [<command>]` row. `omt help` prints the same text as `omt --help`, and `omt help <command>` prints the same text as `omt <command> --help`. Both exit 0, and so do `omt help --help` and `omt help -h`, which print the command list. `omt help` with a name that is not a command, such as `omt help nope`, fails with `unknown command "<name>"` and exit 2. `help` itself is not in the command registry, so `omt help help` fails the same way. A second argument fails with `unexpected argument "<arg>"` and exit 2.
 
 Argument parsing uses `node:util` `parseArgs` with `strict: true` and `allowPositionals: true`, wrapped in `src/util/args.ts`. A parse error becomes an `OmtError` with exit code 2.
 
 | Command | Synopsis |
 | --- | --- |
-| `install` | `omt install [--project [--no-git-exclude]] [--targets <list>] [--hooks] [--capabilities <file>] [--yes] [--dry-run] [--force]` |
+| `install` | `omt install [--project [--no-git-exclude]] [--targets <list>] [--capabilities <file>] [--yes] [--dry-run] [--force]` |
 | `uninstall` | `omt uninstall [--project] [--yes] [--dry-run] [--purge] [--force]` |
 | `update` | `omt update [--check] [--dry-run] [--yes] [--skills-only] [--project] [--json]` (section 5.14) |
 | `doctor` | `omt doctor [--project] [--capabilities <file>] [--yes] [--dry-run] [--json]` |
@@ -514,16 +474,15 @@ Argument parsing uses `node:util` `parseArgs` with `strict: true` and `allowPosi
 | `config` | `omt config [show \| explain \| path \| validate \| init] [--json] [--defaults] [--force]`, `omt config explain [--profile <name>] [--json]` |
 | `detect` | `omt detect [--capabilities <file>] [--json] [--write] [--user \| --project] [--dry-run] [--yes]` |
 | `roles` | `omt roles [--capabilities <file>] [--role <name>]... [--plan <slug>] [--profile <name>] [--json]` |
-| `route` | `omt route <role> [--capabilities <file>] [--against <provider\|driver\|auto>] [--plan <slug>] [--profile <name>] [--unit <id>]` |
+| `route` | `omt route <role> [--capabilities <file>] [--against <provider\|driver>] [--plan <slug>] [--profile <name>]` |
 | `brief` | `omt brief <role> (--task <text> \| --task-file <file>) [options]` |
-| `plan` | `omt plan new <slug> [--title <text>] [--light] [--max-parallel <n>] [--profile <name>] [--force]`, `omt plan profile <slug> <name\|none>`, `omt plan mark <slug> <id> <done\|open\|blocked>`, `omt plan limit <slug> <n\|none>`, `omt plan status [<slug>] [--json]`, `omt plan list [--json]` |
-| `ledger` | `omt ledger done <requestId\|taskId> [--verdict <word>] [--status <status>] [--task-id <id>] [--note <text>]`, `omt ledger settle-check`, `omt ledger add [options]`, `omt ledger list [--plan <slug>] [--json]`, `omt ledger stats [--plan <slug>] [--json]`, `omt ledger request-id --plan <slug> --unit <id> --role <role> [--round <n>] [--attempt <n>]` |
+| `plan` | `omt plan new <slug> [--title <text>] [--light] [--profile <name>] [--force]`, `omt plan profile <slug> <name\|none>`, `omt plan mark <slug> <id> <done\|open\|blocked>`, `omt plan status [<slug>] [--json]`, `omt plan list [--json]` |
 | `profile` | `omt profile list [--json]`, `omt profile show [<name>] [--plan <slug>] [--profile <name>] [--json]` |
-| `lock` | `omt lock run <name> [--wait <seconds>] -- <command> [args...]`, `omt lock list` |
-| `paths` | `omt paths [--json] [--root \| --plans \| --grills \| --ledger \| --evidence \| --config \| --shim]` |
+| `paths` | `omt paths [--json] [--root \| --omt \| --plans \| --grills \| --evidence \| --config \| --shim]` |
 | `worktree` | `omt worktree [check] [--json]`, `omt worktree setup [--dry-run] [--yes]` |
 | `git` | `omt git start (--plan <slug> \| --run <id>) [--force]`, `omt git commit -m <message> (--plan <slug> \| --run <id>) [options]` (section 5.15) |
-| `hook` | `omt hook user-prompt-submit` |
+
+The commands `hook`, `ledger`, `lock`, and `migrate` were removed. They are unknown commands now (exit 2).
 
 In every flag that takes a file, `-` means standard input.
 
@@ -646,17 +605,7 @@ A footer line says either `verified against orchestrator_capabilities` or `unver
 
 An unknown role is an error (exit 1) that lists the known roles. A `resolved` or `unverified` role exits 0. An `unavailable` role prints the JSON with `delegateTask` absent and exits 1.
 
-`--against <value>` names the worker whose change the task reviews. The value is a provider instance id, a driver kind, or `auto`. The value must match `^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`, else it is a usage error (exit 2). Section 8.3 defines the reorder and its notes. `--plan` also selects the plan header's profile. `--profile` overrides the selected profile (section 6.7). Both `roles` and `route` accept these flags. They accept a `--plan` id with no plan file and use the config profile unless `--profile` is given. `--unit` filters worker selection for `--against auto`. The ids follow section 5.6.
-
-`--against auto` reads `.omt3/ledger.jsonl` in the project root. It needs `--plan`; without it the command is a usage error (exit 2). A role without `crossFamily: true` does not read the ledger. Otherwise the CLI picks the worker with `pickWorker` (section 8.3):
-
-- A worker entry has status `dispatched`, the given plan, a `provider`, and a role whose `result` in the effective config is `work` or `plan`. Entries of unknown roles are skipped. An entry without a `provider` is skipped. An entry whose `provider` is set but is not a non-empty string is skipped with `warning: skipped a ledger entry with an invalid provider <value> (role <role>, unit <unit or none>, ts <ts>)` on stderr.
-- With `--unit`, when the unit has worker entries, the worker is the provider of the last one in file order. The note is `--against auto: worker <provider> from the last work dispatch of unit <id>`.
-- Otherwise, for each unit, take its last worker entry. Entries without a unit count as one unit. The worker is the provider of most of these last entries. On a tie, it is the tied provider with the latest of these last entries in the file. An earlier entry that a later entry of the same unit replaces does not count for the tie. The note is `--against auto: worker <provider> from the provider of most units in plan <slug>`.
-- When the plan has no worker entry, the chain keeps its configured order, and the note is `--against auto: no worker dispatch with a provider in plan <slug>; the configured order applies`.
-- A malformed ledger line prints `warning: <path>:<line>: skipped a malformed ledger line` to stderr.
-
-The `--against auto` note comes before the cross-family notes.
+`--against <value>` names the worker whose change the task reviews. The value is a provider instance id or a driver kind. The value must match `^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`, else it is a usage error (exit 2). The value `auto` is a usage error that says `--against auto is no longer supported`, with the hint to pass the worker's provider instance id or driver kind; it read the worker from the removed ledger. Section 8.3 defines the reorder and its notes. `--plan` also selects the plan header's profile. `--profile` overrides the selected profile (section 6.7). Both `roles` and `route` accept these flags. They accept a `--plan` id with no plan file and use the config profile unless `--profile` is given. `route` has no `--unit` flag.
 
 ### 5.4 `omt brief`
 
@@ -679,11 +628,11 @@ Options:
 | `--attempt <n>` | attempt number within the round, default 1 |
 | `--title <text>` | thread title for `--json` output |
 | `--capabilities <file>` | used with `--json` to resolve the target |
-| `--against <provider\|driver\|auto>` | the worker whose change the task reviews, used with `--json` (section 5.3) |
+| `--against <provider\|driver>` | the worker whose change the task reviews, used with `--json` (section 5.3) |
 | `--json` | print a ready `delegate_task` payload instead of the brief text |
-| `--save` | save the full brief to evidence; with `--json`, return a short task that names the saved file; with `--json`, `--plan`, and `--unit`, also check the parallel limit and record the start |
-| `--fallback` | with `--json`: use the first target in the resolved order that this plan, unit, role, and round have not tried |
-| `--tried <key>` | with `--fallback` and no recorded start: a target key that was tried already; repeatable |
+| `--save` | save the full brief to evidence; with `--json`, return a short task that names the saved file |
+| `--fallback` | with `--json` and `--attempt`: use the first target in the resolved order whose key is not in `--tried` |
+| `--tried <key>` | with `--fallback`: the `targetKey` of a target that was tried already; repeatable |
 | `--strict` | with `--against`: exit 1 when the chosen target is in the `--against` worker's family, and leave every target of that family out of `fallbacks` |
 | `--workflow` | the child is a T3 workflow agent (section 14.9): an edit role commits in its own worktree, `qa` and read-only roles commit nothing, and the final message asks for structured output, not the result block; the plan-mode line drops its result-block sentence |
 
@@ -724,59 +673,35 @@ The pointer has no fixed length cap of its own. The path length determines its l
 
 Every `--json` output adds `targetKey`, the key of the chosen target: `<providerInstanceId>/<model>`, or `driver:<driverKind>/<model>` for a target that names only a driver. The resolved order is the routing order after the `--against` reorder (section 8.3), with one more target after each driver-only target: the same candidate with `providerInstanceId` set to the driver. `fallbacks` holds the targets after the chosen one.
 
-Start record. With `--save --json`, `--plan`, and `--unit`, the command holds an exclusive lock, `.omt3/locks/ledger.lock`, made with `open(path, "wx")`. The lock file holds the process id and a random token. The command retries for up to 5 seconds of wall-clock time; a held lock exits 75. A lock file counts as stale only when it is older than 30 seconds and its process is gone; then it is removed. On exit, the command removes the lock only when it still holds its own token. Under the lock it runs these steps in order:
-
-1. Resend. Without `--fallback`, when an open start (section 5.6) has the same `clientRequestId`, it saves the brief, prints the output with the recorded target, and records nothing. It makes no limit check. When a start with that `clientRequestId` exists but is closed, the command exits 1 with `<id> already ran and is closed` and the hint to pass `--attempt <n+1>` or the next `--round`, because T3 returns the earlier task for a reused `clientRequestId`.
-2. Fallback. With `--fallback`, the tried keys are the `targetKey` values of the dispatched entries of the same plan, unit, role, and round, and the attempt is the highest of their attempts plus 1. With no such entry, the command exits 1. Each open start of them gets a `failed` entry with the note `superseded by attempt <n>`. `--attempt` and `--tried` are usage errors with this form.
-3. Strict. With `--strict` and a cross-family role, a chosen target in the family of the `--against` worker exits 1 with `no <role> target outside <family> is left`.
-4. Limit. `active` is the number of open starts of the plan, after step 2. The limit is the profile's `limits.maxParallel`, lowered by a plan header `max-parallel`. When `active` reaches the limit, the command prints `omt: limit: <active> of <max> children are active; run this command again after one ends` to stderr, writes nothing, and exits 75.
-5. It appends the `failed` entries of step 2, saves the brief, and appends one `dispatched` entry with plan, unit, role, round, attempt, `clientRequestId`, `provider`, `model`, and `targetKey`, and no `taskId`.
-
-The output then adds `ledger.done`, a shell command:
-
-```text
-<cli> ledger done <clientRequestId> --verdict <VERDICT>
-```
-
-Without `--save`, or without `--plan` or `--unit`, the command writes no ledger entry and makes no limit check. `--fallback` then needs `--attempt`, and takes the tried keys from `--tried`. With no untried target left, the command exits 1 with `no fallback left for <role>; tried: <keys>`. `--fallback` and `--strict` need `--json`, `--tried` needs `--fallback`, and `--strict` needs `--against`; each is a usage error otherwise. An unavailable JSON route saves no brief. The full rendered brief still has the 120,000-character limit before a save.
+Fallback. omt keeps no record of the dispatches: T3 tracks the child tasks. The caller keeps the `targetKey` of each target that failed, and runs the same command with `--fallback`, the next `--attempt`, and one `--tried <targetKey>` for each failed target. The command picks the first target in the resolved order whose key is not in `--tried`. With no untried target left, it exits 1 with `no fallback left for <role>; tried: <keys>`. `--fallback` without `--attempt` is a usage error. With `--strict` and a cross-family role, a chosen target in the family of the `--against` worker exits 1 with `no <role> target outside <family> is left`. `--fallback` and `--strict` need `--json`, `--tried` needs `--fallback`, and `--strict` needs `--against`; each is a usage error otherwise. An unavailable JSON route saves no brief. The full rendered brief still has the 120,000-character limit before a save.
 
 ### 5.5 `omt plan`
 
-- `new <slug>` writes `.omt3/plans/<slug>.md` from the template in section 12. A slug matches `^[a-z0-9][a-z0-9-]{0,63}$`. An existing file is an error unless `--force` is given. `--light` leaves the `F2` oracle line out. `--max-parallel <n>` writes the `max-parallel=<n>` header key (section 12.2). An integer outside 1 to 32 is a usage error (exit 2). `--profile <name>` validates the selected profile and adds `profile=<name>` after the limit keys. Without that flag, `new` validates the config profile but writes no profile key. It prints the path.
+- `new <slug>` writes `.omt3/plans/<slug>.md` from the template in section 12. A slug matches `^[a-z0-9][a-z0-9-]{0,63}$`. An existing file is an error unless `--force` is given. `--light` leaves the `F2` oracle line out. `--profile <name>` validates the selected profile and adds `profile=<name>` to the header. Without that flag, `new` validates the config profile but writes no profile key. It prints the path.
 - `profile <slug> <name|none>` changes only the plan header. A name sets `profile=<name>` and prints `set profile=<name> for <slug>`. `none` removes the override and prints `removed the profile of <slug>`. It validates the resulting selection, keeps other header keys, and writes atomically. A missing plan or header exits 1. An unknown profile exits 2 and lists known profiles. The `--profile` flag applies only to `new`; other plan subcommands reject it with exit 2.
 - Each plan mutation resolves the destination, including dangling links and existing parent links, and refuses a destination outside the project root. Links to files inside the project remain supported.
 - `mark <slug> <id> <done|open|blocked>` sets the checkbox of the column-zero item line for `<id>` (such as `U3`, `D1`, or `F2`) to `x`, a space, or `~`. It appends `- <ISO timestamp> <id> -> <state>` to the end of the file (the `## Log` section is last), writes atomically, prints `marked <id> <state>`, and exits 0. A missing plan or id exits 1. A bad state exits 2.
-- `limit <slug> <n|none>` changes the header comment of an existing plan. The value sets the `max-parallel` key to `<n>`, or removes it with `none`. Without a value, it exits 2. It changes only the header comment (section 12.2), not a later omt-plan comment in the body, keeps the other keys, and writes atomically. It prints `set max-parallel=<n> for <slug>` or `removed the max-parallel limit of <slug>`. A missing plan exits 1. A value that is not `none` or an integer from 1 to 32 exits 2.
-- The task budget was removed. `--tasks` (with any subcommand, `limit` included) and `--max-tasks` (with `new`) are usage errors (exit 2). The message says `--tasks is no longer supported: the task budget was removed` (or `--max-tasks`). The command changes no file.
-- `status [<slug>]` parses one plan and prints its counts, the next open unit, and the ready units (section 12.2). The first line has the absolute path of the plan file, so a skill can hash and edit the shared plan from any worktree. The next line is `profile: <effective name>`. When the plan has `maxParallel`, it prints `max parallel: <n>` after the `final` line. The line after `next:` is `ready: <id>, <id>` with the ids of the `ready` units in file order, or `ready: none`. Then it prints one `warning: <text>` line for each header warning, then one for each dependency warning (section 12.2). A header with a `max-tasks` key gives the header warning `the max-tasks header key is no longer used; remove it`. The key has no effect. `--json` adds the same texts in a `warnings` array. Without a slug it uses the most recently modified plan. `--json` prints the parsed `PlanStatus` with an added `path` and the effective `profile` name.
+- The parallel limit was removed with the ledger: `limit` is an unknown subcommand and `--max-parallel` an unknown flag (exit 2).
+- The task budget was removed. `--tasks` (with any subcommand) and `--max-tasks` (with `new`) are usage errors (exit 2). The message says `--tasks is no longer supported: the task budget was removed` (or `--max-tasks`). The command changes no file.
+- `status [<slug>]` parses one plan and prints its counts, the next open unit, and the ready units (section 12.2). The first line has the absolute path of the plan file, so a skill can hash and edit the shared plan from any worktree. The next line is `profile: <effective name>`. The line after `next:` is `ready: <id>, <id>` with the ids of the `ready` units in file order, or `ready: none`. Then it prints one `warning: <text>` line for each header warning, then one for each dependency warning (section 12.2). A header with a `max-tasks` or `max-parallel` key gives the header warning `the <key> header key is no longer used; remove it`. The key has no effect. `--json` adds the same texts in a `warnings` array. Without a slug it uses the most recently modified plan. `--json` prints the parsed `PlanStatus` with an added `path` and the effective `profile` name.
 - `list` prints one line per plan: slug, unit counts, and the next open unit. `--json` prints an array of `PlanStatus` items, each with an added `path`, so each item also has `ready`. Unlike `status`, `list` keeps the stored optional profile name without resolving it.
 - `list` and `status` skip a `*.md` entry whose `stat` fails with ENOENT, such as a dangling symlink.
 
-### 5.6 `omt ledger`
+### 5.6 Removed: `omt ledger`
 
-- `add` appends one `LedgerEntry` (section 3) as one JSON line to `.omt3/ledger.jsonl`, with one `appendFile` call. Required flags: `--role` and `--status`. `--role` accepts any name, not only config roles. Optional flags: `--plan`, `--unit`, `--round`, `--attempt`, `--task-id`, `--client-request-id`, `--provider`, `--model`, `--verdict`, `--note`. `--round` and `--attempt` are positive integers. `--status dispatched` needs `--task-id` or `--unit`, else exit 2. A `dispatched` entry without `--task-id` is still appended, and the command prints `warning: this dispatched entry has no --task-id; result matching needs it` to stderr. It prints the entry as JSON. A terminal entry that closes no dispatched entry is still appended; the command then prints `omt: no dispatched entry matches; nothing was closed` to stderr and exits 0.
-- In every subcommand, `--plan` must match the plan slug regex (section 5.5) and `--unit` must match `^[A-Za-z0-9._-]{1,64}$`; a mismatch is a usage error.
-- Terminal statuses are `completed`, `failed`, `cancelled`, `interrupted`, `verified`, and `rejected`. A terminal entry T closes a dispatched entry D by the first rule that applies: (1) when both have a `clientRequestId`, only an equal one closes; (2) otherwise, when T has a `taskId`, only an equal `taskId` closes; (3) otherwise, both need a `unit`, and T and D must have the same `plan`, `unit`, `role`, `round` (default 1), and `attempt` (default 1). A terminal entry with neither `taskId` nor `unit` nor a matching `clientRequestId` closes nothing. `closes()` and the index in `ledgerStats()` apply the same rules. An open start is a dispatched entry that no terminal entry closes. `active` counts dispatched entries that no terminal entry closes, in any order. Statistics index terminal task IDs and fallback identities once. Optional identity and display text fields must be strings, except `provider`, which routing checks with its existing warning. Round and attempt values must be positive safe integers.
-- Table output caps each displayed cell at 120 characters with a final ellipsis and stops at 1,000,000 characters plus a truncation notice. `--json` keeps full values.
-- `list` prints a table with the columns `TIME` (HH:MM:SS of `ts`, in UTC), `PLAN`, `UNIT`, `ROLE`, `ROUND`, `STATUS`, `VERDICT`, `TASK` (the last 12 characters of `taskId`). It filters by `--plan` when given. `--json` prints an array of entries. A malformed line is skipped with a warning on stderr.
-- `stats` loads the config, applies the plan header's profile or the config profile, and prints a `LedgerStats` (section 3). Text mode prints one line per field: `plan` (with `--plan`), `profile` (the effective name), `dispatched`, `active`, `terminal`, `max parallel`, and `can dispatch: yes` or `can dispatch: no`. `canDispatch` is `active < maxParallel`. A run has no task budget, so the number of dispatched entries never stops a dispatch. `--json` prints the object. The command has no `--profile` flag. Its JSON has no `profile` field. The skills do not read it to dispatch: `omt brief --save --json` checks the limit itself (section 5.4).
-- With `--plan <slug>`, when `.omt3/plans/<slug>.md` exists and its header has `max-parallel` (section 12.2), the effective `maxParallel` is the lower of the profile-applied config value and the plan value. `limits.maxParallel` holds the effective value, `planMaxParallel` holds the plan value, and `canDispatch` uses the effective value. Text mode then prints `max parallel: <effective> (plan <n>, config <m>)`. Without a plan file, the config selects the profile. Without a plan limit, the profile-applied config limits apply.
-- A plan header `max-tasks` key and a config `limits.maxTasksPerRun` have no effect on `stats`. The config key gives the retired-key warning on stderr (section 6.2).
-- `request-id` prints the canonical `clientRequestId` (section 10).
-- `done <id>` closes the latest open start whose `clientRequestId` or `taskId` is `<id>`. Options: `--verdict`, `--status` (`completed`, the default, `failed`, `cancelled`, or `interrupted`; another value exits 2), `--task-id`, and `--note`. It appends a terminal entry with the start's `plan`, `unit`, `role`, `round`, `attempt`, `clientRequestId`, `provider`, and `model`. With no open start, it exits 1 with `no open child matches <id>` and writes nothing. It prints `closed <unit> <role> r<round> a<attempt>`, then the `settle:` line of `settle-check`.
-- `settle-check` prints `settle: no (linked worktree)` when the nearest checkout is a linked worktree (`mainCheckoutOf`, section 4), else `settle: allowed`. It writes nothing. T3 runs the project's settle script in a settled thread's worktree, and a child that shares a linked worktree has that worktree.
+The ledger (`.omt3/ledger.jsonl` and `omt ledger`) was removed. T3 tracks each child task (`task_status`, `task_cancel`, and a wake when a child ends), and a T3 workflow run keeps its own journal. `omt brief` takes the tried targets from the caller (section 5.4). `omt install` and `omt update` delete an old `.omt3/ledger.jsonl` (section 14.3).
 
-### 5.7 `omt hook user-prompt-submit`
+### 5.7 Removed: `omt hook user-prompt-submit`
 
-See section 13. The help text says that the command prints additional context that loads the omt-ulw skill when the prompt asks for ultrawork.
+The Claude Code prompt hook was removed (section 13).
 
 ### 5.8 `omt paths`
 
 Prints the absolute paths of the project state, resolved through `findProjectRoot`. So from a linked worktree it prints the paths in the main checkout.
 
-- Without a flag it prints one `name: path` line for each path. The order is `root` (the project root), `omt` (`omtDir`), `plans` (`plansDir`), `grills` (`grillsDir`), `ledger` (`ledgerPath`), `evidence` (`evidenceDir`), `config` (`projectConfigPath`), and `shim` (`projectShimPath`).
+- Without a flag it prints one `name: path` line for each path. The order is `root` (the project root), `omt` (`omtDir`), `plans` (`plansDir`), `grills` (`grillsDir`), `evidence` (`evidenceDir`), `config` (`projectConfigPath`), and `shim` (`projectShimPath`).
 - `--json` prints an object with the same keys.
-- One of `--root`, `--omt`, `--plans`, `--grills`, `--ledger`, `--evidence`, `--config`, or `--shim` prints only that path and a newline, for use as `$(omt paths --evidence)`.
+- One of `--root`, `--omt`, `--plans`, `--grills`, `--evidence`, `--config`, or `--shim` prints only that path and a newline, for use as `$(omt paths --evidence)`.
 - Two path flags, a path flag with `--json`, or a positional argument is a usage error (exit 2).
 - The command creates no path. Root resolution can read the worktree metadata from section 4.
 
@@ -788,27 +713,9 @@ Prints the absolute paths of the project state, resolved through `findProjectRoo
 - `show --plan <slug>` requires the plan file, even with an explicit name. A missing file exits 1 with `plan_not_found`. An unknown profile exits 2 and lists known names. A cycle or a chain deeper than eight profiles exits 1 and names the chain.
 - Profile role-merge issues go to stderr. Valid fields still appear in the output.
 
-### 5.10 `omt lock`
+### 5.10 Removed: `omt lock`
 
-`omt lock run <name> [--wait <seconds>] -- <command> [args...]` runs the command with inherited stdio and returns its exit code. The command runs in the caller's cwd and environment. A command killed by a signal returns 128 plus the signal number. The wrapper forwards SIGINT and SIGTERM to the command and waits for it to exit.
-
-- A lock name matches `^[a-z0-9][a-z0-9._-]{0,63}$`. `--wait` is a non-negative safe integer in seconds, default 900. A missing `--`, command, or valid name exits 2.
-- The CLI prefers `flock` on `PATH`, then `lockf`. It opens `<lock folder>/<name>.lock` for append and read with the state-file checks from section 1, then gives the open file to the tool as fd 3. The tool command is `flock -E 75 -w <seconds> 3` or `lockf -s -t <seconds> 3`.
-- When `flock` or `lockf` exits with a code other than 0 or 75, the CLI returns that code. It prints `omt: <tool> exited with code <n>` to stderr. This applies to both `omt lock run` and `omt lock list`.
-- It first tries with zero seconds. When busy, it prints `waiting for lock <name> (pid <n>: <command>)` to stderr, then waits up to `--wait`. Missing holder data gives `pid unknown: unknown command`. A timeout exits 75 with `omt: lock <name> is busy`.
-- After acquisition, it truncates the same open file and writes one JSON line with `pid`, `command`, and `startedAt`. `pid` is the wrapper PID. After command start, it rewrites the line with `childPid` too. The lock file is never replaced or deleted. This preserves the inode that the kernel locks.
-- The command receives the locked open file as fd 3. The kernel holds the lock while any process keeps that open file. It can outlive a killed wrapper. A descendant that closes fd 3 or does not inherit it is covered only while another holder remains. Node's default `spawn` stdio does not pass fd 3. The workflow uses locks for commands whose subprocesses end before the command ends. Long-running servers, watchers, and daemons run outside the lock, with a serial plan (section 15.2).
-- With neither tool on `PATH`, it prints `warning: no flock or lockf on PATH; running <command> without a lock`. It runs the command without a lock and returns its exit code. This path creates no lock folder.
-
-`src/lock/lock.ts` finds the lock folder through Git when possible. `<project path>` is the project root's path relative to the Git top level.
-
-1. When `git worktree list --porcelain` names the main checkout, use `<main checkout>/<project path>/.omt3/locks/`.
-2. When the first worktree path is the Git common directory itself, use `<git common dir>/omt/locks/<project path>/`. This covers a repository with a separate Git directory.
-3. When Git cannot identify a main checkout, use `<project root>/.omt3/locks/`.
-
-Each lock folder gets a `.gitignore` with `*`. `omt init` also adds `locks/` to `.omt3/.gitignore`. Worktrees of the same project therefore use the same lock files without new Git changes.
-
-`omt lock list` opens each regular `*.lock` file in name order and tries a zero-second lock on that new open file. It prints `<file> free` or `<file> held <holder JSON>`. Missing holder data leaves out the JSON. An absent lock folder gives no output and exits 0. With an existing folder and neither lock tool, it exits 1 with `no flock or lockf on PATH; cannot list locks`. There is no clear or takeover command.
+`omt lock` was removed. Parallel work that shares build state runs in worktrees, as the T3 workflow agents do, and a plan runs the units that use one shared resource one at a time (section 15.2). `omt install` and `omt update` delete an old `.omt3/locks/` folder (section 14.3). Lock files that an earlier release wrote under `<git common dir>/omt/locks/` stay; they are empty files that git does not track.
 
 ### 5.11 `omt worktree`
 
@@ -918,7 +825,13 @@ The runner sets no global configuration and no store or cache path, so the user'
 
 `planDefaults(ctx, scope, target?)` reads the scope's install manifest and config. It returns the file snapshots, the target defaults, `changes: DefaultsChange[]`, `firstReview`, and `changed`. Changes use `diffDefaults` with user and project layers to mark overrides. With an old manifest that has no snapshot, the first review lists the current role choices. With no install manifest, it plans no write.
 
-`cleanRetired(ctx, scope, { dryRun })` removes what an earlier release left and this release ignores. It runs with no prompt, because these things have no effect. `reviewDefaults` calls it first, so `omt doctor` and `omt update` run it, and `omt install` calls it after it applies a plan. It removes each key in the scope's config that `validateLayer` drops with a `no longer used` warning (`retiredKeyPaths` in `src/config/validate.ts`), such as `defaults`, `roles.guardrail`, or `profiles.normal.workflow.review.guardrails`. It uses `setJsoncValue`, so comments and other settings stay. A removal also removes each object that it empties, unless that object holds a comment or is a top-level key. In the project scope, it also deletes `.omt3/guardrails.md` when the file holds only white space. A `guardrails.md` with text stays. It prints `removed the retired keys from <config>: <paths>` and `removed the empty <file>; the guardrails step is retired`, or `would remove` with `--dry-run`, which writes nothing.
+`cleanRetired(ctx, scope, { dryRun })` removes what an earlier release left and this release ignores. It runs with no prompt, because these things have no effect. `reviewDefaults` calls it first, so `omt doctor` and `omt update` run it, and `omt install` calls it after it applies a plan. It removes each key in the scope's config that `validateLayer` drops with a `no longer used` warning (`retiredKeyPaths` in `src/config/validate.ts`), such as `defaults`, `roles.guardrail`, or `profiles.normal.workflow.review.guardrails`. It uses `setJsoncValue`, so comments and other settings stay. A removal also removes each object that it empties, unless that object holds a comment or is a top-level key. In the project scope it also removes the state of retired features, and deletes nothing recursively:
+- `.omt3/guardrails.md` when it is a regular file that holds only white space. One with text stays.
+- `.omt3/ledger.jsonl` when it is a regular file or a symlink. A link is unlinked itself, never its target.
+- In `.omt3/locks/`, each regular file named `<name>.lock` or `.gitignore`, which `omt lock` and the ledger wrote; then `rmdir` the folder, which stays when anything else is left. A symlink at `locks` is unlinked itself.
+- When `.omt3` itself is a symlink, none of these: it prints `skipped the retired files in <folder>: it is a symlink; remove ledger.jsonl and locks/ there by hand`.
+
+Removing a key keeps a comment between the key and its colon, with the file's line ending. It prints `removed the retired keys from <config>: <paths>`, `removed the empty <file>; the guardrails step is retired`, `removed <file>; the ledger is retired`, and `removed the lock files in <folder>; omt lock is retired`, or `would remove` with `--dry-run`, which writes nothing.
 
 `applyDefaults` checks that the manifest still matches the reviewed text. A difference fails with `defaults_changed` and writes nothing. It saves `{ version: 1, cliVersion, config }` as `acceptedDefaults` in the existing manifest, preserving the other properties. It never writes the config. Writes use the existing symlink and project-path checks and atomic file helpers.
 
@@ -968,7 +881,7 @@ Usage: omt update [--check] [--dry-run] [--yes] [--skills-only] [--project] [--j
 
 `--check` with `--dry-run`, `--yes`, `--skills-only`, or `--project` is a usage error (exit 2). `--json` without `--check`, `--dry-run`, or `--yes` is a usage error (exit 2) too.
 
-Migration offer. After a run that exits 0, the `update` command (not the auto-apply of `install` and `doctor`) plans `omt migrate` (section 5.16). When a target would move, it prints the list after `Old omt folders:` and asks `Move them now? [y/N] ` on a terminal without `--check`, `--dry-run`, `--yes`, or `--json`; a yes applies it as `omt migrate` does, and the exit code is that of the migration. Otherwise it prints `hint: old omt folders remain (<legacy paths>); run "omt migrate" to move them` to stderr. A `--skills-only` run makes no offer, because it is the child of another update. The first update from a release before the rename runs the old flow, so its offer comes with the next `omt update`.
+Retired features. The skills sync of each scope runs the install planner, so it removes what retired features left, as `omt install` does (section 14.3): skills that the bundle no longer ships, such as `omt-research`, with their links; the Claude prompt hook (section 14.4); and, through the defaults review, the retired config keys and the project's `.omt3/ledger.jsonl` and `.omt3/locks/`. The update makes no offer to move old folders; `omt migrate` was removed (section 5.16).
 
 Apply boundary. `--check` and `--dry-run` write no file: no state file, no project list, no shim, no skill, no manifest, and no config. Every other path shows its plan first, and writes only after `confirmApply` (`src/install/confirm.ts`) or `--yes`. This applies also when the CLI is current or the channel gives a hint. A plan with no change other than manifest versions skips the question, as `omt install` does.
 
@@ -1100,7 +1013,7 @@ Ownership. A `keep` step changes no ownership. The project `existing` lists are 
 
 Markers. The sync rewrites no marker of an `unchanged` skill. A marker records the version that wrote the files, and every check compares hashes. A scope with no change writes only its manifest (version and timestamp), as `omt install` does, and asks no question.
 
-Options. The manifest of each scope gives the install options: `targets` is `agents`, plus `claude` or `gemini` when the manifest records a link in that root. `hooks` is true when the manifest records a hook. `gitExclude` is false when `project.gitExcludeOff` is true.
+Options. The manifest of each scope gives the install options: `targets` is `agents`, plus `claude` or `gemini` when the manifest records a link in that root. `gitExclude` is false when `project.gitExcludeOff` is true.
 
 Targets. `planSync(ctx, channel, { projectOnly, runners: "delegate" | "skip", targetVersion, run? })` in `src/update/sync.ts` returns one entry per target, and `applySync(ctx, entries)` applies the entries that have changes. `targetVersion` is the version that rule 6 pins. `run` is the `RunCommand` of rule 6; when it is absent, the sync spawns the command itself. Each entry holds `header` and `result` (a `ScopeResult`, below), plus one of these: `plan` (an install plan that this process applies), `runner` (the shim of rule 6), or `gone` (rule 1). `current` marks the current project. The user scope is a target when the running channel is `npm-global`, `pnpm-global`, `bun-global`, `mise-github`, `mise-npm`, `source`, or `binary`, and the user manifest exists. Then each recorded project and the current project are targets. On the apply path, the sync adds the current project to the project list when `<root>/.omt3/install.json` exists (section 14.8). `projectOnly` limits the run to the current project.
 
@@ -1147,7 +1060,7 @@ The `repin` action needs a managed runner shim to rewrite. When the project has 
 
 When the latest version equals the current one, or the action is a hint, the command prints `omt <current> is the latest` or the hint. Then it shows the sync plan of the running CLI (`runners: "delegate"`, with the current version as the target version), confirms, applies, and runs steps 7 and 8 with the running CLI as `<new cli>`.
 
-`--skills-only` shows the sync plan of the running CLI (`runners: "skip"`), confirms, and applies. It sends no request and starts no child process. Then it reviews the current defaults through the same flow. Internal skill-sync children get `OMT_UPDATE_DEFER_DEFAULTS=1`, so the parent alone shows the diff and asks for defaults approval. Runner sync children receive the same flag.
+`--skills-only` shows the sync plan of the running CLI (`runners: "skip"`), confirms, and applies. It sends no request and starts no child process. Then it reviews the current defaults through the same flow. Internal skill-sync children get `OMT_UPDATE_DEFER_DEFAULTS=1`, so the parent alone shows the diff and asks for defaults approval. Runner sync children receive the same flag. A child with the flag still runs `cleanRetired` (section 5.12) for each scope it synced, because an older parent does not know what this release retired. `config show --defaults` and the `acceptedDefaults` snapshot of every manifest write also hold `limits.maxParallel: 6` (`withUpdaterLimits`), because the v0.7.1 parent rejects defaults without it; later releases drop the key with a warning.
 
 Exit codes: 0 for success. 1 for a registry failure (not with `--skills-only`), a failed command, a version mismatch, a refused confirmation, or any failed scope. 2 for a usage error.
 
@@ -1160,7 +1073,7 @@ Daily check in install and doctor. `effectiveUpdateMode(mode, env)` in `src/upda
 - With `apply`, after the command's own output, when the daily result is outdated, `ctx.isTTY` is true, and `applyAttempted` is false, the command first calls `recordApplyAttempt(latest)`. Then it runs the update flow with `yes: true` and the `latest` of the daily result, so the flow sends no second request. From `omt doctor --project` and `omt install --project`, the flow runs with `project: true`, so the channel of the project's shim decides. From the other forms, it runs with `project: false`. It also accepts the current defaults. Without a TTY, or after an earlier attempt for the same version, the command prints only the note. A failed automatic update prints `warning: the automatic update failed: <reason>` and keeps the command's own exit code. The recorded attempt stops a retry until a newer version appears.
 - `omt doctor --json` keeps stdout as the one JSON report of section 14.7. All output of the automatic update, child output included, goes to stderr.
 
-No other command calls `dailyCheck`. The hook and the agent commands (`brief`, `route`, `ledger`, `plan`, `roles`, `profile`, `lock`, and `paths`) never contact the network.
+No other command calls `dailyCheck`. The agent commands (`brief`, `route`, `plan`, `roles`, `profile`, and `paths`) never contact the network.
 
 ### 5.15 `omt git`
 
@@ -1192,31 +1105,9 @@ It writes the start record `<git dir>/omt/start-<id>.json`, where `<git dir>` is
 6. Check: `git --literal-pathspecs commit --dry-run --porcelain -z --only -- <selected>`. A path that the commit would take and that is not selected gives `ask: the commit would also take <path>`. On that refusal, or on a failure of step 6 or 7, it runs `git reset -q -- <the new files of step 5>`, so that the index is as it was.
 7. Commit: `git --literal-pathspecs commit --only -m <message> -- <selected>`, in the top folder, with the repo's hooks. It prints `committed <short sha>: <n> files`, then one `left: <path>` line for each path of the start record that `git status` still reports.
 
-### 5.16 `omt migrate`
+### 5.16 Removed: `omt migrate`
 
-```text
-Usage: omt migrate [--yes] [--dry-run]
-```
-
-`omt migrate` moves the legacy folders of section 4 to their current names: `<root>/.omt` to `<root>/.omt3`, and `<base>/oh-my-t3code` to `<base>/oh-my-t3`. `src/commands/migrate.ts` parses the flags; the code is in `src/migrate/migrate.ts`.
-
-Targets, in order, without repeats (by real path): the project root of `findProjectRoot(cwd)` (the main checkout of a linked worktree, or the folder of a parent `.omt` when no `.git` comes first), each root in `projects.json`, then the user folder from `configDirPair`. A project is a target when its `.omt` exists; the user folder when `configDirPair` is defined and its legacy folder exists. With `$OMT_CONFIG_DIR` set, the user folder is never a target.
-
-The command prints `omt migrate:` and one line per target: `  move   <kind> <legacy> -> <current>`, `  merge  <kind> <legacy> -> <current>: <work>`, or `  skip   <kind> <legacy>: <reason>`, with `note:` lines below. Then it asks once (`confirmApply`, section 14.5). `--dry-run` stops after the list. No target prints `Nothing to migrate.` After the apply, one line per target: `moved`, `merged`, `skipped`, or `failed`, the folders, and a note. Exit 1 when a target failed or the confirmation was refused, else 0.
-
-Skips. A project is skipped when:
-
-- its ledger in either folder has an open start (`openStarts`, section 5.6). The reason lists the ids and names `omt ledger done <id> --status cancelled`. Plans never block: a plan file holds no path. A child that runs holds its brief and evidence paths, and each such child has an open start.
-- the folder that stays holds `install.json`, and `readProjectShim` finds no managed shim, or `shimRunsHere` (section 5.14, the rule that sync uses) is false: an older CLI cannot read `.omt3`. The reason names the shim and `update --project there`.
-- both folders exist and an install-owned file differs (`install.json`, `bin/`, `backups/`; for the user folder `install.json` and `backups/`).
-
-The user folder is skipped while `<legacy>/projects.json.lock` exists. A `<root>/.gitignore` that names `.omt` gets a note; omt never edits it.
-
-Move of a project. Save the text of `.claude/settings.local.json` and of the git exclude file (`findGitExclude`). Copy `.omt` to `.omt3` with modes and symlinks. When it holds `install.json`: replace the prefix `<root>/.omt/` (and the recorded root's spelling of it) with `<root>/.omt3/` in every string of `.omt3/install.json`; run `planHere` and `applyInstall` for the project, which write the hook command, the exclude block, the skills, and the manifest again; then run `<root>/.omt3/bin/omt --version`, and, when `settings.local.json` holds the managed hook, run its command with `/bin/sh -c` and the input `{"prompt":"start ulw"}`, which must exit 0 and print `hookSpecificOutput`. Then delete `.omt`. On any failure, delete `.omt3` and write the saved text back; `.omt` is untouched, and the skill copies stay at this version.
-
-Merge (both folders exist). A legacy file is included when the current folder has the same relative path with the same bytes (a symlink: the same target). `locks/` is not compared, nor the user folder's `update-check.json` and `projects.json.lock`. `ledger.jsonl` lines that the current ledger lacks are appended in their order. `projects.json` roots that the current list lacks are added with their `addedAt`. A file only in the legacy folder moves in. A file that differs asks on a terminal: `<rel> differs: keep the copy in <current> (k) or take the copy in <legacy> (t)? [k/t] `; without a terminal the target is skipped and nothing changes. When the current folder holds `install.json`, the project sync and the checks run first on a saved copy (`<current>-rollback-<hex>`); a failure restores it and the saved text, and both folders stay. Then the moves, appends, and chosen copies are written, the data files are compared again, and the legacy folder is deleted when every one is included.
-
-Move of the user folder. `rename` the legacy folder, then replace its prefix in the strings of `install.json`. A failure renames it back. It moves last, because the project targets come from its `projects.json`.
+`omt migrate` and the old-folder hint were removed. omt still reads and writes a legacy folder while the current one does not exist (section 4).
 
 ## 6. Config
 
@@ -1257,8 +1148,8 @@ A missing file is not an error. Each file is JSONC (section 7). Profile selectio
   - `effort`: a value from the effort ladder.
   - `fast`: a boolean.
   - `options`: an object whose values are strings or booleans.
-- Allowed limit keys and integer ranges: `maxParallel` 1 to 32, `maxDepth` 0 to 3, `maxReviewRounds` 1 to 10. An invalid limit is dropped with an error.
-- Retired keys and roles. omt ignores these keys: `workflow.build.verify`, `workflow.build.checkpoint`, `workflow.build.stallMinutes`, `workflow.review.guardrails`, and the whole `workflow.git` group in any profile, `limits.maxTasksPerRun` at root or in a profile, and the roles `verify`, `quick`, `deep`, `plan`, `grill`, and `guardrail` at root or in a profile. A layer that sets one still loads. Validation drops the key, whatever its value, and adds one warning for each key: `<path> is no longer used; remove it`, for example `profiles.normal.workflow.build.checkpoint is no longer used; remove it`. A retired key or role therefore has no effect on the effective config. `RETIRED_BUILD_KEYS`, `RETIRED_REVIEW_KEYS`, `RETIRED_WORKFLOW_GROUPS`, `RETIRED_LIMIT_KEYS`, and `RETIRED_ROLES` in `src/config/defaults.ts` hold the lists.
+- Allowed limit keys and integer ranges: `maxDepth` 0 to 3, `maxReviewRounds` 1 to 10. An invalid limit is dropped with an error.
+- Retired keys and roles. omt ignores these keys: `workflow.build.verify`, `workflow.build.checkpoint`, `workflow.build.stallMinutes`, `workflow.review.guardrails`, and the whole `workflow.git` group in any profile, `limits.maxTasksPerRun` and `limits.maxParallel` at root or in a profile, and the roles `verify`, `quick`, `deep`, `plan`, `grill`, and `guardrail` at root or in a profile. A layer that sets one still loads. Validation drops the key, whatever its value, and adds one warning for each key: `<path> is no longer used; remove it`, for example `profiles.normal.workflow.build.checkpoint is no longer used; remove it`. A retired key or role therefore has no effect on the effective config. `RETIRED_BUILD_KEYS`, `RETIRED_REVIEW_KEYS`, `RETIRED_WORKFLOW_GROUPS`, `RETIRED_LIMIT_KEYS`, and `RETIRED_ROLES` in `src/config/defaults.ts` hold the lists.
 - Retired profiles. `RETIRED_PROFILES` in `src/config/defaults.ts` lists `pr-review`, because `normal` now runs all PR review steps. A layer that declares `profiles.pr-review`, with any value including `null`, gets the warning `profiles.pr-review is no longer used; remove it`, and validation drops the declaration. A root `profile` or a profile `extends` that names a retired profile gets the warning `profile "pr-review" is no longer used; normal runs the PR steps`, and validation replaces the name with `normal`.
 - `profile` and each profile name match the role-name pattern. A profile value is `null` or an object. Allowed fields are `description`, `extends`, `workflow`, `limits`, `roles`, and `models`. `visuals` is an unknown profile field, so it is an error.
 - Profile `description` is a non-empty string of at most 300 Unicode code points. An invalid description drops the whole profile override. Other invalid profile fields are dropped individually. `extends` matches the profile-name pattern.
@@ -1344,7 +1235,7 @@ Role descriptions (shown to agents in `omt roles` and in skills):
 - `design`: Design screens and flows in Paper, and write a design spec that UI units cite.
 - `ui`: Implement one UI unit from its design spec or task requirements, inside its scope.
 
-Default limits: `maxParallel` 6, `maxDepth` 1, `maxReviewRounds` 4.
+Default limits: `maxDepth` 1, `maxReviewRounds` 4.
 
 Default profile: `normal`. Default models: `{ "gpt-6.2-sol": { "fast": true }, "gpt-6.2-astra": { "fast": true } }`. Both are the Codex models of the default chains. No default role or candidate sets `fast`.
 
@@ -1447,7 +1338,7 @@ Remove, with `value` `undefined`:
 
 - A path that does not exist returns the text unchanged.
 - It removes every occurrence of the last key in its object, and the comma that each one needs: its own comma, or for the last property the comma before it. It removes the whole line when the property is alone on that line. It keeps every comment outside the removed property, also a comment after the removed value. A comment between the removed key and its value is part of the property and goes with it.
-- When the removal leaves an object at depth 2 or more with no member and no comment between its braces, it removes that object's member too, and repeats upward. It stops at the first object that keeps a member or a comment, and it never removes a top-level key. For example, removing `profiles.prototype.limits.maxParallel` from `"prototype": { // note` + `"limits": { "maxParallel": 3 } }` removes `limits` and keeps `prototype` and `// note`.
+- When the removal leaves an object at depth 2 or more with no member and no comment between its braces, it removes that object's member too, and repeats upward. It stops at the first object that keeps a member or a comment, and it never removes a top-level key. For example, removing `profiles.prototype.limits.maxDepth` from `"prototype": { // note` + `"limits": { "maxDepth": 2 } }` removes `limits` and keeps `prototype` and `// note`.
 
 Errors:
 
@@ -1492,7 +1383,7 @@ Any other driver, or an unknown driver, returns no options and the note `effort 
 
 ### 8.3 Resolving a role
 
-`resolveRole(name, role, caps?, options?)` walks the chain and builds one `CandidateAttempt` per candidate. `options` is `{ models?: Record<string, ModelConfig>; against?: string; notes?: string[]; drivers?: Map<string, string>; harnesses?: string[] }`. `notes` are role-level notes that go first, such as the `--against auto` note (section 5.3). `drivers` maps a provider instance id to a driver kind for the family rule below. The command layer passes `configuredDrivers(config.roles)` and the effective `config.models`.
+`resolveRole(name, role, caps?, options?)` walks the chain and builds one `CandidateAttempt` per candidate. `options` is `{ models?: Record<string, ModelConfig>; against?: string; notes?: string[]; drivers?: Map<string, string>; harnesses?: string[] }`. `notes` are role-level notes that go first. `drivers` maps a provider instance id to a driver kind for the family rule below. The command layer passes `configuredDrivers(config.roles)` and the effective `config.models`.
 
 Harness filter. `omt roles`, `omt route`, `omt brief`, and the doctor `roles` check pass the effective `config.harnesses`; `harnessOptions(harnesses, roles)` builds `{ harnesses, drivers: configuredDrivers(roles) }`, or `{}` when the key is unset. When `options.harnesses` is set, a candidate whose driver kind is known and not in the list is a failed attempt with the reason `harness <driver> is not enabled (harnesses: <list joined with ", ">); run omt detect`, before any other check. The driver kind is known when the candidate names a registered provider (its `driverKind`), sets `driver`, or names a provider instance that `drivers` maps. A candidate whose driver kind is unknown stays. The role is `unavailable` when no candidate is left.
 
@@ -1524,8 +1415,6 @@ Cross-family order. The pure functions live in `src/routing/family.ts`.
 - When `options.against` is set and the role does not have `crossFamily: true`, the order does not change, and the note is `role <name> is not cross-family; --against has no effect`.
 - Without `options.against`, the configured order applies.
 - `CandidateAttempt.index` keeps the configured position, so every `candidate <n>` label uses the configured candidate number. `attempts` and `fallbacks` are in the order tried.
-
-`pickWorker(entries, roles, plan, unit?, warn?)` returns `{ provider, from: "unit" | "plan" }` or `undefined`, with the rules of section 5.3. `warn` gets one message for each worker entry whose `provider` is set but is not a non-empty string. The command layer reads the ledger file, passes the entries, and prints each message as a `warning:` line on stderr.
 
 Without capabilities, every candidate is ok. The target uses `providerInstanceId: candidate.provider` when present, else `driverKind: candidate.driver`. The default candidates set `provider`, so they give `providerInstanceId` targets (section 6.4). Effort goes through the driver table, using `candidate.driver`, or `candidate.provider` when no driver is given.
 
@@ -1658,7 +1547,7 @@ Every brief has these constraint lines:
 - `Tests:` for `execute`, `ui`, and `writing` forbids new test files, new test cases, and failure proofs. It permits an existing-test update only when the change breaks that test, with a note under `NOTES`.
 - `Tests:` for `qa` is `Tests: write no tests and no failure proofs. Run the commands in Verify and the task's device flows, and report each command with its exit code and log path.` The main thread writes the planned tests and, with `build.failureProofs: on`, the failure proofs.
 - `Tests:` for `review` and `oracle` makes a missing test a finding only when the plan or task names that test. Other roles get `Tests: write no tests.`
-- `Shared builds:` requires the exact lock-wrapped command from the task. Retry a failed build or test only when the file is outside your scope and outside the task's named code under test. The file is the one where the error occurs, such as a file with a compile or load error, also when a test in your scope loads it. Wait 60 seconds and run the command once more. When it fails there again, report the command, the outside-scope file, and the message as another unit's state. For a failure in your scope or the named code under test, follow your result block. For `test` results, return `VERDICT: NOT VERIFIED` for that failure. When `omt lock run` exits 75, report the command, the lock name, and its message. Leave the lock to the main thread. For both reports: in `work` results, keep the `STATUS` that your own work earns and put the report under `OPEN`. For `test` results, including `qa`, return `VERDICT: INCONCLUSIVE` and put the report under `FAILURES`. For other results, put the report under `NOTES`, or before the result block when it has no `NOTES`.
+- `Shared builds:` retries a failed build or test only when the file is outside your scope and outside the task's named code under test. The file is the one where the error occurs, such as a file with a compile or load error, also when a test in your scope loads it. Wait 60 seconds and run the command once more. When it fails there again, report the command, the outside-scope file, and the message as another unit's state: in `work` results, keep the `STATUS` that your own work earns and put the report under `OPEN`. For `test` results, including `qa`, return `VERDICT: INCONCLUSIVE` and put the report under `FAILURES`. For other results, put the report under `NOTES`, or before the result block when it has no `NOTES`. For a failure in your scope or the named code under test, follow your result block. For `test` results, return `VERDICT: NOT VERIFIED` for that failure.
 
 Device line, the last constraint line, for every role except `qa`:
 
@@ -1671,7 +1560,7 @@ Device line, the last constraint line, for every role except `qa`:
 T3 derives the child thread id from this value. So:
 
 - Reuse an id only to resend the same payload after a lost response. T3 then returns the existing task instead of starting a second one.
-- Increase the attempt when you send the same round again to a fallback candidate, or again after a child failed. `omt brief --fallback` picks the attempt from the ledger (section 5.4).
+- Increase the attempt when you send the same round again to a fallback candidate, or again after a child failed. The caller passes the attempt to `omt brief --fallback --attempt <n>` (section 5.4).
 - Increase the round for each new review or fix round.
 
 ## 11. Result contracts
@@ -1799,13 +1688,13 @@ An empty section means no new tests.
 - <ISO timestamp> plan created
 ```
 
-`--light` leaves out the `F2` line. `Role: main` means that the main thread builds the unit. `ui` marks a unit that implements a design or changes UI, and `execute` marks a unit that goes to a child as an independent track. The parser does not read the role. The `## Summary`, `## Research`, and `## Tests` sections are in both forms. `--max-parallel <n>` adds ` max-parallel=<n>` before the `-->` of the header comment. `--profile <name>` adds ` profile=<name>` after the limit keys. `omt plan mark` appends its log lines after the last line.
+`--light` leaves out the `F2` line. `Role: main` means that the main thread builds the unit. `ui` marks a unit that implements a design or changes UI, and `execute` marks a unit that goes to a child as an independent track. The parser does not read the role. The `## Summary`, `## Research`, and `## Tests` sections are in both forms. `--profile <name>` adds ` profile=<name>` before the `-->` of the header comment. `omt plan mark` appends its log lines after the last line.
 
 ### 12.2 Grammar and status
 
 Checkbox lines start at column zero and match `^- \[( |x|X|~)\] (U|D|F)(\d+)\. (.*)$`. A space means open, `x` or `X` means done, and `~` means blocked.
 
-The header comment is the first line of the file that is only an `<!-- omt-plan v1 ... -->` comment; the template writes it as line 3. The parser reads `slug`, `profile`, and `max-parallel` only from this header, so an example header that the body quotes later does not change them. The header comment `<!-- omt-plan v1 slug=<slug> created=<ISO timestamp> -->` can have an optional `max-parallel=<n>` key. `<n>` is an integer from 1 to 32, the same range as `limits.maxParallel`. The parser ignores a missing or invalid numeric limit. A `max-tasks` key, the task budget of older releases, has no effect. `headerWarnings(markdown)` returns `the max-tasks header key is no longer used; remove it` for a header that has it, and an empty array otherwise. The parser returns the `profile` text without validation. Commands resolve that name against config. The parser does not read the `## Research` or `## Tests` section.
+The header comment is the first line of the file that is only an `<!-- omt-plan v1 ... -->` comment; the template writes it as line 3. The parser reads `slug` and `profile` only from this header, so an example header that the body quotes later does not change them. The header comment is `<!-- omt-plan v1 slug=<slug> created=<ISO timestamp> -->`, with an optional `profile=<name>` key. A `max-tasks` key (the task budget) or a `max-parallel` key (the parallel limit) of older releases has no effect. `headerWarnings(markdown)` returns `the <key> header key is no longer used; remove it` for each of them that the header has, and an empty array otherwise. The parser returns the `profile` text without validation. Commands resolve that name against config. The parser does not read the `## Research` or `## Tests` section.
 
 `parsePlan(markdown)` returns:
 
@@ -1815,7 +1704,6 @@ interface PlanStatus {
   title: string;
   slug?: string;
   profile?: string; // the header profile key; status replaces it with the effective name
-  maxParallel?: number; // the header max-parallel key, when it is valid
   items: PlanItem[];
   counts: Record<"U" | "D" | "F", { open: number; done: number; blocked: number; total: number }>;
   next?: PlanItem; // the first open U item in file order
@@ -1848,32 +1736,9 @@ ready: U4, U6
 
 A unit that waits on such a dependency never becomes ready, so the warnings tell the main thread why `ready` is empty.
 
-## 13. Claude Code ultrawork hook
+## 13. Removed: Claude Code ultrawork hook
 
-`omt hook user-prompt-submit` reads the hook input JSON from stdin and looks at its `prompt` string.
-
-Detection (`detectUltrawork(prompt)`). The start checks in rules 1 to 3 ignore leading whitespace.
-
-1. Return false when the prompt contains `<!-- omt-brief` or starts with `Act as the `. Both mark a delegated child's brief. T3 loads user settings in child sessions too, so without this rule a brief that mentions ultrawork would start a nested loop.
-2. Return false when the prompt starts with `/omt-ulw`. The skill is already loading.
-3. Return false when the prompt starts with `<task-notification>` or `Delegated task `. Claude Code sends the result of a background task to the session as a prompt that starts with the tag, and T3 sends the result of a finished child task as a new turn that starts with `Delegated task `. Neither holds a user request. The tag or the words later in a prompt do not skip it.
-4. Remove fenced code blocks, inline code spans, lines that start with `>`, and text inside double quotes.
-5. Match the phrase `start ulw` or `start ultrawork`, case-insensitive: the word `start`, one or more spaces or tabs, then `ulw` or `ultrawork`. `start` has no letter, digit, `_`, `-`, `/`, or `$` directly before it, and the keyword has none of these directly after it. So `restart ulw`, `starting ulw`, and `start ulw-mode` do not match, and `start ulw: fix the login` does. The bare words do not match, because they also appear when the user only asks about ultrawork. `/omt-ulw` and `$omt-ulw` load the skill directly and need no match.
-6. Skip a match that is negated. A match is negated when one of the words `no`, `not`, `never`, `without`, `dont`, `don't`, or `don’t` (case-insensitive) comes before its word `start` on the same line, with at most two other words between them. The negator is a whole word. It has no letter, digit, or `_` directly before it, so `know` and `cannot` do not negate. A word is a run of letters, digits, `'`, and `’`. Only spaces or tabs separate the negator, the words, and the match, so a comma, a period, a non-breaking space, or a line break ends the window. Return true at the first match that is not negated, so `no start ulw here, but start ultrawork this` matches. The window is wide on purpose. A missed match costs less than a false one, because the agent can still load omt-ulw from its skill description, but a false match tells it to run the loop against the user's words. The cost is that `don't forget to start ulw` stays silent.
-
-On a match the command prints one line of JSON and exits 0:
-
-```json
-{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"<pointer>"}}
-```
-
-The pointer text is at most 1,000 characters. It gives the build contract. Its text is:
-
-```text
-omt ultrawork is on for this request. Load the omt-ulw skill before anything else and follow its steps in order, from step 0. You explore, ask question batches, plan, and build in this thread. One review child and one QA child check the work. Done needs evidence: report done only after the checks ran and passed, and quote their output.
-```
-
-On no match, on empty input, or on invalid JSON, the command prints nothing and exits 0. It ignores arguments after the hook name and never exits non-zero. Only `omt hook` with no hook name or an unknown one is a usage error.
+Earlier releases added, with `omt install --hooks`, a Claude Code `UserPromptSubmit` hook that ran `omt hook user-prompt-submit` and loaded `omt-ulw` on the phrase `start ulw`. The hook, the `--hooks` flag, and `omt hook` were removed: `$omt-ulw` works on every provider. `omt install`, `omt update`, and `omt uninstall` remove a hook entry that an earlier install wrote (section 14.4).
 
 ## 14. Install, uninstall, and doctor
 
@@ -1881,7 +1746,7 @@ On no match, on empty input, or on invalid JSON, the command prints nothing and 
 
 The bundled skills are the directories in `<packageRoot>/skills/` that contain `SKILL.md`. A missing `skills/` directory gives no bundled skills. In binary mode, `<packageRoot>/skills` is the embedded directory (section 5). The install copies a skill with `readdir`, `readFile`, and `writeFile`, not `fs.cp`, so that it can read the embedded directory. The copy keeps a symlink as a link and keeps the permission bits of each file.
 
-Every install writes every bundled skill. The retired opt-in skill `omt-swarm` and its `--with` flag are gone; an older manifest's `optIn` field is ignored and dropped on the next write.
+Every install writes every bundled skill. The retired opt-in skill `omt-swarm` and its `--with` flag are gone; an older manifest's `optIn` field is ignored and dropped on the next write. `omt-research` is retired too. The `omt` folder holds a stub `SKILL.md` with `disable-model-invocation: true` and `user-invocable: false`; it is not a workflow, and it ships because the other skills and the CLI read its `references/`.
 
 ### 14.2 Install plan
 
@@ -1889,7 +1754,7 @@ Every install writes every bundled skill. The retired opt-in skill `omt-swarm` a
 
 The plan first checks where the CLI runs from, because the install records that path. It reads `cliPath` and its real path:
 
-- A one-shot runner cache, matched from the cache root: an npx cache (`<npm cache>/_npx/<hash>/node_modules/`), a pnpm dlx cache (`<pnpm cache>/dlx/<hash>/<id>/node_modules/`, where the cache folder is named `pnpm`, or `pnpm-cache` on Windows, and pnpm 8 has no `<id>`; with a custom `cache-dir` of any name, a `dlx/<hash>/<id>/node_modules/` path counts only when `npm_config_user_agent` starts with `pnpm/`, which pnpm dlx sets, and `dlx/<hash>/pkg` is a symlink that resolves to `dlx/<hash>/<id>`, which pnpm dlx writes for each cache entry; `pnpm exec` sets the same user agent, so the user agent alone does not show a dlx cache), or a bunx cache (`<temp>/bunx-<uid>-<package>/node_modules/`, or `<bun install cache>/.bunx-<uid>/<package>@<version>/node_modules/` from Bun 1.4.4). An older pnpm runs dlx from `<temp>/dlx-<pid>/node_modules/`, which counts as a one-shot cache too. A `_npx`, `dlx`, or `bunx-` directory at another place, such as `<temp>/project/fixtures/dlx-123/`, or `<temp>/project/dlx/x/node_modules/` without the pnpm user agent or without the `pkg` symlink, is no cache. A project install from a one-shot cache writes the runner shim of section 14.8. A user install from it is refused, because it would leave no `omt` command for the skills and the hook.
+- A one-shot runner cache, matched from the cache root: an npx cache (`<npm cache>/_npx/<hash>/node_modules/`), a pnpm dlx cache (`<pnpm cache>/dlx/<hash>/<id>/node_modules/`, where the cache folder is named `pnpm`, or `pnpm-cache` on Windows, and pnpm 8 has no `<id>`; with a custom `cache-dir` of any name, a `dlx/<hash>/<id>/node_modules/` path counts only when `npm_config_user_agent` starts with `pnpm/`, which pnpm dlx sets, and `dlx/<hash>/pkg` is a symlink that resolves to `dlx/<hash>/<id>`, which pnpm dlx writes for each cache entry; `pnpm exec` sets the same user agent, so the user agent alone does not show a dlx cache), or a bunx cache (`<temp>/bunx-<uid>-<package>/node_modules/`, or `<bun install cache>/.bunx-<uid>/<package>@<version>/node_modules/` from Bun 1.4.4). An older pnpm runs dlx from `<temp>/dlx-<pid>/node_modules/`, which counts as a one-shot cache too. A `_npx`, `dlx`, or `bunx-` directory at another place, such as `<temp>/project/fixtures/dlx-123/`, or `<temp>/project/dlx/x/node_modules/` without the pnpm user agent or without the `pkg` symlink, is no cache. A project install from a one-shot cache writes the runner shim of section 14.8. A user install from it is refused, because it would leave no `omt` command for the skills.
 - Any other path inside the temp directory (`os.tmpdir()` or its real path): every install is refused, because such a path can disappear.
 
 The one-shot check runs first, because the bunx cache is inside the temp directory. A refusal exits 1. It prints `refusing the user install: the omt CLI runs from ...` or `refusing --project: the omt CLI runs from ...` with the path, and a hint that names `npm i -g oh-my-t3`, `pnpm add -g oh-my-t3`, `bun add -g oh-my-t3`, `mise use -g github:gabimoncha/oh-my-t3`, and `npx oh-my-t3 install --project`.
@@ -1905,9 +1770,9 @@ Links for the selected skills go to `skillRoots().claude/<name>`, and to `skillR
 
 The user config is `create` when absent, else `unchanged`.
 
-The plan also holds a harness step. The install runs `detectHarnesses` (section 5.13), with the file of `--capabilities` when given. When the config step is `create`, a default driver is missing, and at least one driver is detected, the starter gets `"harnesses": [<recommended>]`, inserted after the `defaults` line with `setTopLevelValue`. When the config exists, the install never edits it. When its effective `harnesses` (unset means both default drivers) differ from `recommended` and a driver is detected, the step holds the hint `run omt detect --write`. The Claude hook, only with `--hooks`, is `create`, `update`, or `unchanged` (section 14.4).
+The plan also holds a harness step. The install runs `detectHarnesses` (section 5.13), with the file of `--capabilities` when given. When the config step is `create`, a default driver is missing, and at least one driver is detected, the starter gets `"harnesses": [<recommended>]`, inserted after the `defaults` line with `setTopLevelValue`. When the config exists, the install never edits it. When its effective `harnesses` (unset means both default drivers) differ from `recommended` and a driver is detected, the step holds the hint `run omt detect --write`. The plan holds a `remove` hook step for each settings file that still holds the retired Claude hook (section 14.4).
 
-Retired skills. A retired skill is a skill that an earlier install of the scope wrote and that the bundle no longer ships, such as `omt-swarm`. A name counts only when all of these hold: the scope's manifest `skillsRoot` resolves to the current agents root, its `skills` list names it, `<agents root>/<name>` is a managed directory (the check that the uninstall makes, section 14.6), and in project scope `project.existing.skills` does not name it. A folder that the manifest does not list, or that has no marker, is the user's, and the plan never touches it. Reinstall preserves `project.existing` entries for skills and links absent from the new plan, so a later uninstall still keeps them. For each retired skill the plan holds a skill step `remove` with the reason `(no longer shipped)`. When the hash of its files differs from the marker hash, the step is `conflict` with `(locally modified)`, as for a bundled skill, and `--force` makes it `replace`. The plan also holds a link step `remove`, with the same reason, for each link at `<link root>/<name>`, in every link root of the scope, that is a symlink resolving to the retired folder, except a link that `project.existing.links` names. Recorded links are checked too, including links under a previous `CLAUDE_CONFIG_DIR`. When a recorded retired folder is already missing, remove only recorded symlinks that still point to that folder. Keep a link that now points elsewhere. A link to a skill that stays (a `conflict` or `keep`) gets no step. The plan output and `--dry-run` show these lines with the other actions, for example `remove   omt-loop  (no longer shipped)`.
+Retired skills. A retired skill is a skill that an earlier install of the scope wrote and that the bundle no longer ships, such as `omt-swarm` or `omt-research`. A name counts only when all of these hold: the scope's manifest `skillsRoot` resolves to the current agents root, its `skills` list names it, `<agents root>/<name>` is a managed directory (the check that the uninstall makes, section 14.6), and in project scope `project.existing.skills` does not name it. A folder that the manifest does not list, or that has no marker, is the user's, and the plan never touches it. Reinstall preserves `project.existing` entries for skills and links absent from the new plan, so a later uninstall still keeps them. For each retired skill the plan holds a skill step `remove` with the reason `(no longer shipped)`. When the hash of its files differs from the marker hash, the step is `conflict` with `(locally modified)`, as for a bundled skill, and `--force` makes it `replace`. The plan also holds a link step `remove`, with the same reason, for each link at `<link root>/<name>`, in every link root of the scope, that is a symlink resolving to the retired folder, except a link that `project.existing.links` names. Recorded links are checked too, including links under a previous `CLAUDE_CONFIG_DIR`. When a recorded retired folder is already missing, remove only recorded symlinks that still point to that folder. Keep a link that now points elsewhere. A link to a skill that stays (a `conflict` or `keep`) gets no step. The plan output and `--dry-run` show these lines with the other actions, for example `remove   omt-loop  (no longer shipped)`.
 
 `--targets` is a comma-separated subset of `agents`, `claude`, and `gemini`. `agents` is always included. The default is `agents,claude`, plus `gemini` when `<home>/.gemini` exists.
 
@@ -1923,7 +1788,7 @@ Before removal, the apply checks that each link still has its planned target. Af
 
 ### 14.3 Install flow
 
-1. Print the plan, grouped by skills, links, config, and hooks. One line per action, such as `create   omt-ulw`. After the config action, a `Harnesses (T3 settings and PATH):` or `Harnesses (capabilities):` section prints one indented line per driver (section 5.13). When the starter gets a `harnesses` key, it prints `the starter config gets "harnesses": <value>` and the effect lines. With no driver detected, it prints `no harness detected; sign in to Claude Code or Codex, then run omt detect`. With the hint of section 14.2, it prints `the config's harnesses differ from the recommendation <value or "(no key)">; run omt detect --write`. This section comes before the confirmation prompt.
+1. Print the plan, grouped by skills, links, config, and, when a retired hook is left, hooks. One line per action, such as `create   omt-ulw`. After the config action, a `Harnesses (T3 settings and PATH):` or `Harnesses (capabilities):` section prints one indented line per driver (section 5.13). When the starter gets a `harnesses` key, it prints `the starter config gets "harnesses": <value>` and the effect lines. With no driver detected, it prints `no harness detected; sign in to Claude Code or Codex, then run omt detect`. With the hint of section 14.2, it prints `the config's harnesses differ from the recommendation <value or "(no key)">; run omt detect --write`. This section comes before the confirmation prompt.
 2. With any `conflict` and no `--force`, print a hint that names `--force` and exit 1. With `--force`, mark each conflict as `replace` in the plan.
 3. With `--dry-run`, stop here and exit 0. Nothing is written. When every action is `unchanged`, skip the prompt in step 4.
 4. Without `--yes`: when `isTTY` is true, ask `Apply this plan? [y/N] ` and continue only on `y` or `yes`. Any other answer prints `Nothing was changed.` and exits 1. When it is false, print `Re-run with --yes to apply.` and exit 1. Nothing is written in either case.
@@ -1932,44 +1797,24 @@ Before removal, the apply checks that each link still has its planned target. Af
    - For each `create`, `update`, or `replace` copy, build the new directory at `<parent of the agents root>/.omt-tmp-<random>`, write the marker into it, then move it into place. For an existing target, first rename it to `<parent of the agents root>/.omt-old-<random>`, then rename the new directory in, then delete the old one. Temp directories never sit inside a skill root. When the delete of a scratch directory fails, the run stops with an error that names the directory.
    - When a swap fails, delete the temp directory and move the old directory back, so the installed skill stays in place.
    - Before the skill copies, check and remove each retired skill, then remove that skill's links. If a skill check fails, its links stay in place. A `remove` skill is renamed to `<parent of the agents root>/.omt-old-<random>`, then deleted. When its files no longer have the hash that the plan read, it moves back and the run stops. A `replace` retired skill moves to `<configDir>/backups/<stamp>/agents/<name>` and gets no new copy.
-   - Create the links, write the starter user config, add the hook, and write the manifest.
+   - Create the links, write the starter user config, remove the retired hook (section 14.4), and write the manifest. The manifest then records no hook.
+   - Run `cleanRetired` (section 5.12): the retired config keys, and in a project `.omt3/ledger.jsonl` and `.omt3/locks/`.
 6. Print a summary and the next steps: restart agent sessions in T3 so they load the new skills, then try `$omt-ulw <task>`.
 
 With `--project`, right after the plan in step 1, the install prints one line about the current checkout's worktree setup, `Worktree setup: <status> <message>`, from the `summary` of section 5.11. It prints it also with `--dry-run`. The line has no indent, so it is not a plan action. It changes no exit code.
 
 A second run on an unchanged system shows only `unchanged` actions and writes nothing except the manifest timestamp.
 
-### 14.4 Claude hook entry
+### 14.4 Retired Claude hook entry
 
-In user scope, the hook command runs the CLI with the runtime that runs it now:
+Earlier releases wrote, with `--hooks`, one entry under `hooks.UserPromptSubmit` of `claudeSettingsPath()` (user scope) or `<root>/.claude/settings.local.json` (project scope). Its command ended with the signature comment `# oh-my-t3code`, which marks the entry as managed. omt no longer writes it. `omt install`, `omt update` (through its sync), and `omt uninstall` plan a `remove` step for each settings file that holds a signed entry: the scope's settings file and each settings path that the manifest records. The removal rules are those of section 14.6:
 
-```text
-"<runtimePath>" "<cliPath>" hook user-prompt-submit # oh-my-t3code
-```
+- Remove each signed entry, and a group, the event key, or `hooks` only when that removal left it empty. Keep every other key and entry. Write the file in its own style: the indentation of its first indented line (2 spaces, 4 spaces, or a tab), compact JSON compact, a final newline only when the old file had one, and CRLF line ends kept. A file that is not valid JSON stops `omt uninstall` before any change. `omt install` and the sync skip it, print a `keep` line, and keep its manifest records, so a later run removes the entry once the file parses.
+- Each real file gets one step, also when records name it through an alias.
+- Always back up the old file, with mode 0600, to `<configDir>/backups/<stamp>/claude-settings.json` (in project scope `.omt3/backups/<stamp>/`), then write onto the real path, so a symlink stays a symlink.
+- Never delete a settings file, also one that an earlier install created, and never read, restore, or delete the install-time backup that a record names. The `created` and `backup` fields of old records are ignored.
 
-In binary mode, the binary runs by itself:
-
-```text
-"<cliPath>" hook user-prompt-submit # oh-my-t3code
-```
-
-In project scope, the command calls the shim instead, so one file holds the runtime and CLI paths:
-
-```text
-"<root>/.omt3/bin/omt" hook user-prompt-submit # oh-my-t3code
-```
-
-The trailing comment is the signature that marks the entry as managed. The check of section 14.2 refuses an install that would record a path that can disappear.
-
-The installer edits `claudeSettingsPath()`:
-
-1. A missing file counts as `{}`. A file that is not valid JSON is an error, and the installer changes nothing.
-2. Under `hooks.UserPromptSubmit`, add `{ "hooks": [{ "type": "command", "command": "<command>", "timeout": 10 }] }`. When an entry with the signature exists, replace its command instead.
-3. Keep every other key and entry unchanged. Serialize an existing file in its own style: detect the indentation from the first indented line (2 spaces, 4 spaces, or a tab), and keep compact JSON compact. The write serializes the whole file in that indentation, so a mixed layout, such as inline arrays in an indented file, becomes fully indented. An empty object such as `{}` shows no style and gets 2-space indentation. Keep a final newline only when the old file had one, and keep CRLF line ends. A new file gets 2-space indentation and a final newline.
-4. When the new content equals the old content, write nothing. This is the `unchanged` case.
-5. Otherwise back up the old file, with mode 0600, to `<configDir>/backups/<YYYYMMDDHHmmss>/claude-settings.json`, then write. A missing file needs no backup. When this write adds the entry to an existing file (the `create` action), the manifest hook records the backup as `backup`. An `update` backup is not recorded there, because it holds an older omt entry. In project scope an `update` makes no backup when the file is in the layout that omt writes, that is, when serializing the parsed file in its detected style gives its exact bytes. Then the rewrite changes only the command of the omt entry. A file in any other layout gets the backup, so its original bytes stay recoverable. A settings path that is a dangling symlink counts as a missing file, and the write creates the link's target. The new `settings.json` keeps the mode of the old one. When `settings.json` is a symlink, write next to its real path and rename onto the real path, so the symlink stays in place.
-
-Verify the hook schema against the current Claude Code hooks documentation before you write this code.
+After a run of `omt install` or the sync, the manifest records no hook, except the kept records of a file that is not valid JSON. A run that fails before the removal keeps the previous hook records in the provisional manifest.
 
 ### 14.5 Manifest
 
@@ -1984,14 +1829,15 @@ Verify the hook schema against the current Claude Code hooks documentation befor
   "skills": ["omt", "omt-ulw"],
   "links": [{ "path": "<link path>", "target": "<relative target>" }],
   "config": { "path": "<user config path>", "created": true },
-  "hooks": [{ "kind": "claude-user-prompt-submit", "settingsPath": "<path>", "command": "<command>", "created": true, "backup": "<path>" }],
+  // an earlier release could list { "kind": "claude-user-prompt-submit", "settingsPath", "command", "created", "backup" } in hooks
+  "hooks": [],
   "backups": ["<path>"]
 }
 ```
 
 A new install records `acceptedDefaults: { version: 1, cliVersion, config: DEFAULT_CONFIG }`. A later install preserves the previous accepted snapshot. An older manifest without a snapshot stays without one until the user reviews defaults.
 
-A new install merges into an existing manifest. After the merge, `skills` keeps only the names that the plan keeps: a bundled skill, or a retired skill that stays (a `keep` step). So the record drops a removed retired skill, and a recorded name that is no longer shipped and is no longer managed (its folder is gone or has no marker). `links` drops each removed link, and each link whose name `skills` no longer lists. `created` is present, and true, when an install created the settings file. A later run keeps it. `backup` is the install-time backup of the settings file (section 14.4). A later run keeps the old value when it records none.
+A new install merges into an existing manifest. After the merge, `skills` keeps only the names that the plan keeps: a bundled skill, or a retired skill that stays (a `keep` step). So the record drops a removed retired skill, and a recorded name that is no longer shipped and is no longer managed (its folder is gone or has no marker). `links` drops each removed link, and each link whose name `skills` no longer lists. `hooks` is empty after this release writes the manifest. A manifest of an earlier release can still list the retired hook: `created` is present, and true, when an install created the settings file, and `backup` is the install-time backup of the settings file. The removal of section 14.4 reads both.
 
 ### 14.6 Uninstall
 
@@ -1999,8 +1845,7 @@ A new install merges into an existing manifest. After the merge, `skills` keeps 
 
 - Remove each link in the Claude and Gemini roots that is a symlink resolving to a managed directory, except a link to a kept skill.
 - Remove each managed skill directory in the agents root. In project scope, a skill or link that was in place before the install stays (section 14.8). A locally modified skill (its hash differs from the marker hash) is planned as `keep` with `(locally modified)` and stays in place. With `--force`, it is moved to `<configDir>/backups/<stamp>/agents/<name>` instead.
-- Remove each hook entry with the signature, with the same style, backup, and symlink rules as section 14.4. When the manifest says that an install created the settings file, and removing the entry leaves `{}`, delete the file without a backup. When the settings path is a symlink, delete the link's target, which the install created, and keep the link.
-- Exact restore: when the manifest hook has a `backup`, and the JSON left after removing the entry deep-equals the parsed backup, write the backup's bytes back exactly and make no new backup. Then delete that backup, and remove its stamp directory and `backups/` when they become empty. Otherwise write the edited JSON in the file's own style, after a new backup.
+- Remove each retired hook entry with the signature, by the rules of section 14.4.
 - Keep the user config unless `--purge` is given. `--purge` also removes the config directory when it is then empty.
 - Remove the manifest.
 
@@ -2021,7 +1866,7 @@ Then doctor runs these checks and prints one line per check, such as `PASS  conf
 | `harnesses` | the config sets no `harnesses` key: `claudeAgent, codex`; or the key holds both | | | a restricted harness list: `<list> only; <effects>`; effects follow the selected role chains as in section 5.13, so a single family reports `cross-family review: the same family reviews` |
 | `skills` | every bundled skill (section 14.1) is installed, managed, and current, and no retired skill is left | missing, outdated, or locally modified skills; a retired skill (section 14.2) that is still in place, as `no longer shipped: <names> in <agents root>; run omt install` | the CLI has no bundled skills (section 14.1) | |
 | `links` | every Claude link of a selected skill resolves to its canonical directory | a missing link | a broken or conflicting link | |
-| `hooks` | the manifest hook is present in the Claude settings, and the paths in its command exist | the manifest hook is missing from the settings | a path in the hook's command does not exist | no hook installed; suggest `omt install --hooks` |
+| `hooks` | | only while a settings file (the scope's, or one that the manifest records) still holds the retired hook: `the retired omt prompt hook is still in <paths>; run omt update to remove it`. No line otherwise | | |
 | `path` | an executable `omt` exists in a `PATH` directory | none found; the message says that skills need the CLI, and names the install channels of section 14.2 | | |
 | `t3` | `t3SettingsPath()` exists | it does not exist | | |
 | `homes` | every T3 `claudeAgent` instance that sets `config.homePath` has the skills linked in `<homePath>/skills` | an instance with a `homePath` that lacks the skills; a settings file that cannot be read or is not valid JSON | | no instance sets a `homePath` |
@@ -2039,7 +1884,7 @@ With `--project`, doctor checks the project scope (section 14.8). It runs `runti
 
 In project scope, every install hint names the running CLI, because `omt` may not be on `PATH` and the shim may be broken. The hint is `"<cliPath>" install --project` in binary mode, `node "<cliPath>" install --project` or `bun "<cliPath>" install --project` in bundle mode, after the runtime that runs the bundle (`runtimeName`), so the hint works with no `node` on `PATH` under Bun, and `bun "<cliPath>" install --project` in source mode. When the CLI runs from a one-shot cache, as it does through a runner shim, the hint is `npx --yes omt3@<version> install --project`, or the `pnpm dlx` or `bunx` form of the shim.
 
-The `hooks` check reads the settings paths from the manifest. With no manifest hook, it looks for a signed entry in `claudeSettingsPath()`. The `homes` check reads `providerInstances` from `t3SettingsPath()` and never writes it. It looks at instances whose `driver` is `claudeAgent`, expands a leading `~`, and accepts a link or a managed copy for each skill. The `roles` check is left out without `--capabilities`. `checkDefaults(loaded)` in `src/install/doctor.ts` builds the `defaults` check, and `checkHarnesses(loaded)` builds the `harnesses` check from the effective `config.harnesses`. After `omt install` applies a plan, it loads the config and prints `note: defaults <message>` when that check is `INFO`. The status set is `PASS`, `WARN`, `FAIL`, and `INFO`. `--json` prints `{ "ok": boolean, "checks": [{ "id", "status", "message" }] }`, where `ok` is false when any check fails. The exit code is 1 when any check fails.
+The `hooks` check looks for a signed entry in the scope's settings file and in each settings path that the manifest records. A settings file that is not valid JSON counts as holding none. The `homes` check reads `providerInstances` from `t3SettingsPath()` and never writes it. It looks at instances whose `driver` is `claudeAgent`, expands a leading `~`, and accepts a link or a managed copy for each skill. The `roles` check is left out without `--capabilities`. `checkDefaults(loaded)` in `src/install/doctor.ts` builds the `defaults` check, and `checkHarnesses(loaded)` builds the `harnesses` check from the effective `config.harnesses`. After `omt install` applies a plan, it loads the config and prints `note: defaults <message>` when that check is `INFO`. The status set is `PASS`, `WARN`, `FAIL`, and `INFO`. `--json` prints `{ "ok": boolean, "checks": [{ "id", "status", "message" }] }`, where `ok` is false when any check fails. The exit code is 1 when any check fails.
 
 ### 14.8 Project scope
 
@@ -2051,7 +1896,7 @@ The `hooks` check reads the settings paths from the manifest. With no manifest h
 | Claude links | `<claudeConfigDir>/skills/<name>` | `<root>/.claude/skills/<name>`, relative link `../../.agents/skills/<name>` |
 | Gemini links | optional | none |
 | Config | `<configDir>/config.jsonc` (user starter) | `<root>/.omt3/config.jsonc` (project starter), plus `.omt3/plans/` |
-| Hook (`--hooks`) | `<claudeConfigDir>/settings.json` | `<root>/.claude/settings.local.json` |
+| Retired hook (removed, section 14.4) | `<claudeConfigDir>/settings.json` | `<root>/.claude/settings.local.json` |
 | Backups | `<configDir>/backups/<stamp>/...` | `<root>/.omt3/backups/<stamp>/...` |
 | Manifest | `<configDir>/install.json` | `<root>/.omt3/install.json` |
 | CLI shim | none | `<root>/.omt3/bin/omt` |
@@ -2065,7 +1910,7 @@ Shim inspection rejects text over 65,536 characters. Channel detection rejects C
 
 The shim is `<root>/.omt3/bin/omt`, with mode 0755. Its second line is the signature. Its body depends on the run mode of the CLI that installs it (section 5).
 
-In source mode, the shim runs the recorded `src/cli.ts` with the recorded Bun. When that Bun is gone, it uses `bun` on `PATH`, so a Bun upgrade does not break the shim or the project hook:
+In source mode, the shim runs the recorded `src/cli.ts` with the recorded Bun. When that Bun is gone, it uses `bun` on `PATH`, so a Bun upgrade does not break the shim:
 
 ```sh
 #!/bin/sh
@@ -2172,7 +2017,7 @@ The block runs from a BEGIN marker of the root to the next END marker of the roo
 
 The block always lists each skill copy and each link that the manifest records, except the existing ones, the scratch directories `/.agents/.omt-*/` of section 14.3, then `/.omt3/bin/`, `/.omt3/install.json`, and `/.omt3/backups/`. It also lists each file that an install created: `/.omt3/config.jsonc`, `/.omt3/.gitignore`, and `/.claude/settings.local.json`. It lists no directory that only holds those entries, such as `/.omt3/` or `/.omt3/plans/`, because git never shows an empty directory. So a new file in `.omt3/` of another worktree shows in git. A plan in `.omt3/plans/` does not, because `.omt3/.gitignore` holds `plans/`.
 
-So after `install --project`, with or without `--hooks`, `git status --porcelain` shows nothing new. The one exception is a `settings.local.json` that the repository tracks: it shows as modified while the hook is installed. The manifest records what an install created, so a later run keeps the same block.
+So after `install --project`, `git status --porcelain` shows nothing new. A `settings.local.json` that the repository tracks shows as modified when the install removes a retired hook entry from it. The manifest records what an install created, so a later run keeps the same block.
 
 Git applies the common exclude file to every worktree, with each entry anchored at that worktree's top level. So the block of one worktree also hides the same paths in the other worktrees, such as a `.omt3/config.jsonc` that the user creates there. In a repository with worktrees, the plan marks the step `(shared by all worktrees)`. A repository has one project install, in the main checkout. Because `findProjectRoot` resolves a linked worktree to its main checkout (section 4), `install`, `uninstall`, and `doctor` with `--project` in a worktree act on the main checkout. A second install from another worktree is an idempotent rerun. The skill folders stay in the main checkout, so a harness finds them in a worktree only if it reads the skill folders of the main checkout.
 
@@ -2217,18 +2062,18 @@ Every command reads a project manifest relative to the current root. Each record
 
 - It removes the shim when it carries the signature, and the manifest.
 - It keeps each existing skill and link (see above). It removes only the links whose real target is a directory in `<root>/.agents/skills`, so a link to the user install, such as `<root>/.claude/skills/x -> ~/.agents/skills/x`, stays.
-- It removes the hook entry from `settings.local.json`, with the exact-restore rule of section 14.6. When an install created that file and only `{}` is left, it deletes the file without a backup.
+- It removes a retired hook entry from `settings.local.json`, by the rules of section 14.4.
 - It rewrites the root's exclude block with only the paths that stay: each kept skill and its kept link (not an existing one), each kept file that an install created, an edited config that an install created, a `settings.local.json` that an install created and that stays because other keys are left in it (Claude Code writes permissions there), and the manifest when it stays. It removes the block when nothing stays, with the exact-bytes rule above, and it removes stale blocks.
-- It removes each file in the manifest `files` list while its SHA-256 equals the recorded hash. A created `.omt3/.gitignore` that was edited stays, with `keep (edited after the install)`. A created `.omt3/.gitignore` also stays while `.omt3/ledger.jsonl` or `.omt3/evidence/` exists, with `keep (keeps the ledger and evidence that stay out of git)`, and the reduced block hides it.
+- It removes each file in the manifest `files` list while its SHA-256 equals the recorded hash. A created `.omt3/.gitignore` that was edited stays, with `keep (edited after the install)`. A created `.omt3/.gitignore` also stays while `.omt3/evidence/`, or a `.omt3/ledger.jsonl` of an earlier release that no update removed, exists, with `keep (keeps the ledger and evidence that stay out of git)`, and the reduced block hides it.
 - With `gitignoreRestore`, it writes the old `.omt3/.gitignore` back while the file still has the recorded hash, with `update (removes the lines that the install added)`. A created `.omt3/config.jsonc` that was edited stays with `keep (edited after the install; add --purge to remove it)`, and `--purge` removes it. A config that no install created stays, with `keep (not created by omt install)`, also with `--purge`.
 - It removes `.omt3/backups/.gitignore` when an install created it, it still holds what the install wrote, and it is the last file in `.omt3/backups/`.
 - Then it removes each directory in the manifest `dirs` list when it is empty, in this order: `.omt3/bin/`, `.omt3/backups/`, `.omt3/plans/`, `.agents/skills/`, `.agents/`, `.claude/skills/`, `.claude/`, `.omt3/`. It never removes a directory that an install did not create, even an empty `.omt3/bin/` or `.omt3/backups/`.
-- It never removes the plans, the ledger, the evidence, or a backup other than the install-time backup that an exact restore wrote back.
+- It never removes the plans, the evidence, or a backup.
 - When it keeps a locally modified skill, it keeps the manifest too, with `keep (a locally modified skill is kept)`, so that a later `uninstall --project --force` still knows the created directories.
 - When a file that an install created stays (a kept `.omt3/.gitignore`, an edited created config, or a created `settings.local.json` with other keys left in it), it rewrites the manifest as a reduced manifest, with `keep (records the created files that stay)`. The reduced manifest lists no skill, link, hook, or backup. Its `files` lists the kept created files, `config` stays only for a kept created config, `settingsCreated` is true only while that settings file stays, and `omtDirCreated`, `gitExclude`, `excludeFile`, `existing`, and `dirs` stay as recorded. So a later install still counts these files as created and keeps their block entries, and a later uninstall keeps the same reduced block and every existing skill and link. When no created file stays, the uninstall removes the reduced manifest and the block. When the repository's exclude file holds no block of the root, as after a `--no-git-exclude` install, no block can hide a reduced manifest, so the uninstall removes the manifest. The kept files then count as the user's.
-- It removes every hook entry that has the omt signature (section 14.6), also one that was in the settings file before the install, such as a tracked `settings.local.json` that holds the entry of another clone. Such a file shows as modified in git after the uninstall.
+- It removes every retired hook entry that has the omt signature (section 14.4), also one that was in the settings file before the install, such as a tracked `settings.local.json` that holds the entry of another clone. Such a file shows as modified in git after the uninstall.
 
-So the project tree after `uninstall --project`, and the exclude file, are byte for byte as before the install, apart from data that the user created meanwhile (plans, ledger, evidence), what keeps that data out of git (`.omt3/.gitignore` and a reduced block), the reduced manifest that records the created files that stay, the exception for an omt entry that was in the settings file before the install, and an existing skill that the install updated. A file that the user edited stays, with its block entry. A backup that the uninstall could not restore exactly stays in `.omt3/backups/`, hidden from git by its `.gitignore`. A path that `install --force` replaced stays in `.omt3/backups/<stamp>/` too, and the uninstall does not move it back. Git does not show it there, so a replaced path that git showed before the install is gone from `git status`.
+So the project tree after `uninstall --project`, and the exclude file, are byte for byte as before the install, apart from data that the user created meanwhile (plans, evidence), what keeps that data out of git (`.omt3/.gitignore` and a reduced block), the reduced manifest that records the created files that stay, the exception for an omt entry that was in the settings file before the install, and an existing skill that the install updated. A file that the user edited stays, with its block entry. A backup that the uninstall could not restore exactly stays in `.omt3/backups/`, hidden from git by its `.gitignore`. A path that `install --force` replaced stays in `.omt3/backups/<stamp>/` too, and the uninstall does not move it back. Git does not show it there, so a replaced path that git showed before the install is gone from `git status`.
 
 Project list. `omt install --project` adds the root to `projectsPath()` (section 4) after a successful apply, also when it prints `Everything is up to date.`, and never with `--dry-run` or after a refusal. `omt uninstall --project` removes the root after an applied uninstall. `omt update` reads the list to sync each project (section 5.14). On its apply path, it adds the current root when `<root>/.omt3/install.json` exists, and removes each root whose folder or project manifest is gone. `src/install/projects.ts` exports `readProjects(path)`, `addProject(path, root, now)`, and `removeProjects(path, roots)`. The file is `{ "version": 1, "projects": [{ "root": "<root>", "addedAt": "<ISO timestamp>" }] }`, written with `writeFileAtomic`. `addProject` dedupes roots by real path. An absent file is an empty list. A file that is not valid JSON is the `projects_invalid` error, with a hint to delete the file.
 
@@ -2272,13 +2117,13 @@ Wake-up. T3 does not wake the thread that started a run. So the last step of eac
     allow_implicit_invocation: false
   ```
 
-- The skills need the CLI. They call it as the first one of these that exists: `omt` on `PATH`; `.omt3/bin/omt` in the project root, which `omt install --project` creates; in a linked worktree, the shim of the main checkout, `"$(git rev-parse --path-format=absolute --git-common-dir)/../.omt3/bin/omt"`. When none exists, a skill points to `docs/agents/quickstart.md` and stops. The skills have no manual path for routing, briefs, or the ledger. The rule lives in the section "The CLI" of `skills/omt/references/delegation.md`. A shim from a one-shot run calls its runner (`npx`, `pnpm dlx`, or `bunx`) with the pinned version, and the runner needs the network again after its cache is cleared. Skills never call a runner themselves.
-- The `omt` router lists the workflow skills and names no CLI table: it says to run `omt help` and `omt help <command>`.
+- The skills need the CLI. They call it as the first one of these that exists: `omt` on `PATH`; `.omt3/bin/omt` in the project root, which `omt install --project` creates; in a linked worktree, the shim of the main checkout, `"$(git rev-parse --path-format=absolute --git-common-dir)/../.omt3/bin/omt"`. When none exists, a skill points to `docs/agents/quickstart.md` and stops. The skills have no manual path for routing or briefs. The rule lives in the section "The CLI" of `skills/omt/references/delegation.md`. A shim from a one-shot run calls its runner (`npx`, `pnpm dlx`, or `bunx`) with the pinned version, and the runner needs the network again after its cache is cleared. Skills never call a runner themselves.
+- No skill is a router. `omt-setup` lists the workflow skills and says which one to use. The `omt` folder holds only the shared references and a stub `SKILL.md` that is not a workflow.
 - Skills name T3 tools by their base names (`delegate_task`, `task_status`). The section "Delegation in T3" of `delegation.md` says that harnesses may add a prefix, such as `mcp__t3-code__delegate_task`.
 - Shared reference lives in `skills/omt/references/`. Other skills link to it with relative paths such as `../omt/references/delegation.md`.
 - Every relative link in a skill must resolve to a file in the repository. A test checks this.
 - Write for agents. Front-load the trigger words in each description. Give each step a completion criterion. State the target behavior instead of a ban where possible.
-- On git actions, reply style, tests, and model choice, the user's own instructions win over omt defaults: the user's message first, then the user's `AGENTS.md` or `CLAUDE.md`. omt owns the workflow steps. The rule lives in the section "User instructions win" of `delegation.md`, and the router repeats it.
+- On git actions, reply style, tests, and model choice, the user's own instructions win over omt defaults: the user's message first, then the user's `AGENTS.md` or `CLAUDE.md`. omt owns the workflow steps. The rule lives in the section "User instructions win" of `delegation.md`.
 - Word budgets. `test/skills/budget.test.ts` holds a word target for each skill file and each reference folder. A file may exceed its target by 10%, and all files in `skills/` together have at most 16,000 words. No skill file contains `gh pr checks ... --watch`, `ready PR`, `omt ultrawork:`, `t3_thread_configuration`, `ledger.dispatched`, `omt ledger add`, `shasum`, or `t3_thread_wait`. `test/skills/contract.test.ts` checks a short list of safety rules, one phrase each, in the file that owns the rule.
 
 Git actions. The skills follow the git rules of the user's message and instruction files. Without a rule, a skill asks the owner before it commits or pushes to the default branch, pushes to a repo that is not the user's, or merges a PR. The rules live in the section "Git actions" of `delegation.md`:
@@ -2297,53 +2142,52 @@ Pull requests. After a skill creates a PR, it calls `watch_pull_request`, then r
 
 | Skill | Invocation | Purpose |
 | --- | --- | --- |
-| `omt` | user | Router. Lists the workflow skills and when to use each, and links the shared references. |
-| `omt-ulw` | model | Ultrawork build flow in 13 steps: mode and branch check, question or goal, explore, frame, ask question batches, plan, design check, build in the main thread, one review child, the fix diff and fixes, one QA child, failed-check fixes, ship and report. Trigger words: start ulw, start ultrawork, ulw, build or fix with subagents in T3. |
+| `omt` | none | Not a workflow. A stub `SKILL.md` (`disable-model-invocation: true`, `user-invocable: false`) that ships the shared references of section 15.3. |
+| `omt-ulw` | model | Ultrawork build flow in 13 steps: mode and branch check, question or goal, explore, frame, ask question batches, plan, design check, build in the main thread, one review child, the fix diff and fixes, one QA child, failed-check fixes, ship and report. Trigger words: ulw, ultrawork, build or fix with subagents in T3. |
 | `omt-plan` | model | Plan only, also when `omt-ulw` calls it: explore in the main thread, ask owner question batches, an optional stress test of the goal, write the plan and the approved test list with `## Summary` last, review by `plan.review` with 1 `plan-review` child and at most 2 rounds, and show the summary. Trigger words include stress-test and edge cases. |
 | `omt-design` | model | Draw `design.variants` variants per screen with the `design.tool` tool, in the main thread or in 1 routed `design` child, show screenshots by screen, apply owner steering until approval, write `docs/design/<slug>.md` in the main thread, and build the screens on request. |
 | `omt-code-review` | model | Review uncommitted changes, a branch, a commit, or a PR with report-only children: 1 reviewer for a small diff, or 2 to 4 grouped reviewers and 1 oracle for a large diff. The main thread merges the findings and makes every approved fix. PRs use the steps in section 15.4. |
-| `omt-research` | model | A cited answer: the main thread answers a narrow question itself, and a broad question gets 2 to 4 parallel read-only children whose claims the main thread checks. |
-| `omt-setup` | model | Help and setup. Answers questions about omt from the output of read commands, and sets up, configures, or updates omt through the CLI: the doctor check, the harnesses, defaults review, worktree setup, profile and role edits, and an update. It shows each command or edit first, runs `--dry-run` where the command has it, and passes `--yes` only after the user agrees. |
+| `omt-setup` | model | Help and setup. Lists the workflow skills and says which one to use. Answers questions about omt from the output of read commands, and sets up, configures, or updates omt through the CLI: the doctor check, the harnesses, defaults review, worktree setup, profile and role edits, and an update. It shows each command or edit first, runs `--dry-run` where the command has it, and passes `--yes` only after the user agrees. |
 
-`omt-grill` and `omt-help` are retired. The stress test of `omt-plan` step 2a replaces `omt-grill`, and step 3 of `omt-setup` replaces `omt-help`. The `grill` role and the `grill` result kind are retired (section 6.2). `omt paths --grills` and the `grills/` line of `.omt3/.gitignore` stay, so that old grill files stay readable. The `guardrail` role, the `guardrail` result kind, and `review.guardrails` are retired too (section 6.2). The `guardrails.md` line of `.omt3/.gitignore` stays, so that an old proposal file does not show in git. `cleanRetired` removes the retired keys from the config and deletes an empty `guardrails.md` (section 5.12). `omt doctor --project` reports a `guardrails.md` with text as `leftovers` (section 14.7).
+`omt-research` and the `omt` router are retired: `omt-ulw` step 1 answers a question in the thread or sends it to one `research` child, and `omt-setup` lists the workflows. `omt install` and `omt update` remove an installed `omt-research` as a skill that is no longer shipped (section 14.2). `omt-grill` and `omt-help` are retired. The stress test of `omt-plan` step 2a replaces `omt-grill`, and step 3 of `omt-setup` replaces `omt-help`. The `grill` role and the `grill` result kind are retired (section 6.2). `omt paths --grills` and the `grills/` line of `.omt3/.gitignore` stay, so that old grill files stay readable. The `guardrail` role, the `guardrail` result kind, and `review.guardrails` are retired too (section 6.2). The `guardrails.md` line of `.omt3/.gitignore` stays, so that an old proposal file does not show in git. `cleanRetired` removes the retired keys from the config and deletes an empty `guardrails.md` (section 5.12). `omt doctor --project` reports a `guardrails.md` with text as `leftovers` (section 14.7).
 
 Rules that the skills must carry:
 
 Dispatch and waiting (sections "Dispatching a child" and "Waiting" of `delegation.md`):
 
-- A dispatch takes three calls. The main thread runs `omt brief <role> --task-file - --title <title> --plan <slug> --unit <id> --save --json` with the flags that the step needs, calls `delegate_task` with `delegateTask` unchanged, and after the result runs the printed `ledger.done` command with the first word of the result block as `--verdict`. It adds `--status failed` when the run failed or gave no result block. `omt brief` checks the parallel limit and records the start (section 5.4). Exit 75 means that the limit is reached: the main thread waits for a child to end, then runs the command again. Before a plan file exists, each `omt brief` passes the run's `--profile <name>`. No skill writes a ledger entry by hand.
-- In `plan` interaction mode, a skill leaves out `--save`, records nothing, runs no `omt ledger done`, and keeps at most `limits.maxParallel` children at once itself.
+- A dispatch takes two calls. The main thread runs `omt brief <role> --task-file - --title <title> --plan <slug> --unit <id> --save --json` with the flags that the step needs, keeps the printed `targetKey`, and calls `delegate_task` with `delegateTask` unchanged. After the result, it settles the child. Before a plan file exists, each `omt brief` passes the run's `--profile <name>`. T3 tracks the children; no skill records them.
+- In `plan` interaction mode, a skill leaves out `--save`.
 - The main thread uses `mode: "wait"` when its next step needs the result. Otherwise it dispatches with `mode: "async"` and follows the `next` field of the T3 result: T3 wakes the thread when a child ends, and the wake names the task. It reads each result with `task_status`. A wake about a task that it already read needs no action. No skill polls, sleeps, watches, starts a heartbeat, or calls `schedule_task` to wait. A turn ends for the owner (a question batch, a plan approval, or the report) or to wait for a child.
 - A cross-family review passes `--against <main thread driver> --strict`, with the driver from the `modelSelection` of step 0. When the command exits 1, only the main thread's family is left: the skill stops and tells the user that no reviewer from the other family can run. `omt-ulw` step 8, `omt-plan` with `plan.review: two-families`, and the groups of `omt-code-review` with `review.families: both` pass `--strict`. The other cross-family dispatches pass `--against` without `--strict`, and fall back to the same family.
 
 Failures (section "Failure codes" of `delegation.md`):
 
-- On `provider_unavailable`, `model_unavailable`, or an `invalid_request` about `target.options`, the skill runs the same `omt brief` command with `--fallback`, and in `plan` mode with `--fallback --tried <targetKey> --attempt <n+1>`, then calls `delegate_task` with the new payload. When the command exits 1, it tells the user which targets failed. The CLI picks the next untried target, which covers the driver-only retry of section 5.4.
+- On `provider_unavailable`, `model_unavailable`, or an `invalid_request` about `target.options`, the skill runs the same `omt brief` command with `--fallback --attempt <n+1>` and one `--tried <targetKey>` for each target that failed, then calls `delegate_task` with the new payload. When the command exits 1, it tells the user which targets failed. The CLI picks the next untried target, which covers the driver-only retry of section 5.4.
 - Another `invalid_request` gets one fix of the arguments, then a report. `runtime_mode_escalation_denied`, `interaction_mode_escalation_denied`, and `capability_denied` are stop codes: report the role and the modes, and do not fall back. On `parent_not_active`, the call waits for the next active turn. On `task_not_found`, `thread_not_found`, or `run_not_found`, the skill looks for the child with `t3_thread_list` and `includeSubagents: true`, then corrects the id or dispatches again with `--fallback`. On `orchestration_error`, it looks for the child the same way, then calls `delegate_task` once more with the same payload.
-- A failed child run, with a provider error in `summary`, is a failed attempt: `omt ledger done <id> --status failed`, then a dispatch with `--fallback`. When `summary` is `Child task completed without an assistant result.`, the main thread reads the child with `t3_thread_read`, view `messages`, before it dispatches again.
+- A failed child run, with a provider error in `summary`, is a failed attempt: a dispatch with `--fallback`, as above. When `summary` is `Child task completed without an assistant result.`, the main thread reads the child with `t3_thread_read`, view `messages`, before it dispatches again.
 
 Settling children (section "Releasing children" of `delegation.md`):
 
-- The main thread settles a child when `omt ledger done` prints `settle: allowed`, and `task_status` shows a terminal status, `hasPendingChildRuns: false`, and `hasPendingQuestion: false`. In `plan` mode, `omt ledger settle-check` prints the same line. `settle: no (linked worktree)` means that the run settles no child, because T3 runs the project's settle script in a settled thread's worktree and a non-isolated child shares the main thread's worktree.
+- The main thread settles a child after it reads the child's result, when `task_status` shows a terminal status, `hasPendingChildRuns: false`, and `hasPendingQuestion: false`. In a linked worktree, the run settles no child, because T3 runs the project's settle script in a settled thread's worktree and a non-isolated child shares the main thread's worktree.
 - It calls `t3_thread_organize` with `action: "settle"` and the child's `childThreadId`, never the `taskId`. A settle error never stops the run and never triggers a failure action.
 - It never settles its own thread, a top-level thread, or a thread that another run started, and never archives a thread.
 - When `limits.maxDepth` is above 1, children settle their own children (the `Children:` line of the brief, section 9.2). Before the report, the main thread settles each finished thread below a failed or cancelled child, found with `t3_thread_list` and `includeSubagents: true`.
 
 Modes and checks:
 
-- `omt-ulw`, `omt-plan`, `omt-design`, `omt-code-review`, `omt-research`, and `omt-setup` start with a step that calls `t3_thread_configure` with no arguments and reads `interactionMode` and `modelSelection`. The driver of `modelSelection`, such as `claudeAgent` or `codex`, is the main thread's family. No skill calls `orchestrator_capabilities` to read its modes. In `plan` mode, a skill writes no files: no `omt init`, no plan file, no `--save`, no `omt ledger done`, no evidence, and no git action. It dispatches only children in `plan` interaction mode: the read-only roles, and `review` or `oracle` with `interactionMode: "plan"` set in `delegateTask`. It delivers the result in its final message, or asks the user to switch the thread to default mode. `omt-ulw` and `omt-design` ask for the switch; `omt-ulw` also offers `omt-plan`.
+- `omt-ulw`, `omt-plan`, `omt-design`, `omt-code-review`, and `omt-setup` start with a step that calls `t3_thread_configure` with no arguments and reads `interactionMode` and `modelSelection`. The driver of `modelSelection`, such as `claudeAgent` or `codex`, is the main thread's family. No skill calls `orchestrator_capabilities` to read its modes. In `plan` mode, a skill writes no files: no `omt init`, no plan file, no `--save`, no evidence, and no git action. It dispatches only children in `plan` interaction mode: the read-only roles, and `review` or `oracle` with `interactionMode: "plan"` set in `delegateTask`. It delivers the result in its final message, or asks the user to switch the thread to default mode. `omt-ulw` and `omt-design` ask for the switch; `omt-ulw` also offers `omt-plan`.
 - Branch check. `omt-ulw` step 0 and `omt-plan` step 0 sync the branch: `git fetch origin`, then a merge of the default branch, never a rebase. In `plan` mode, the skill only reports how far behind the branch is. When the tree is not clean or the merge conflicts, the skill asks the user how to go on.
 - Worktree setup. The section "Worktree setup" of `delegation.md` points to `worktrees.md` on the first run in a project, or when `omt init` prints a `WARN` worktree line. `omt-ulw` step 0 and `omt-setup` step 6 follow it. No skill runs the worktree check before every CLI command. `docs/agents/quickstart.md` runs the check before it reports the install as complete.
 - Question batches. The main thread asks every open owner question in one batch, each with 2 to 4 options and a recommendation, and asks the next batch after the answers until no question is open. A question that the code can answer is not an owner question.
-- Profiles. `omt-ulw` reads `omt profile show [<name>] --json`, or `omt profile show --plan <slug> --json` once the plan exists, and reads it again after `omt plan profile` and after a context reset. `omt-code-review` reads `omt profile show [<name>] --json` and passes `--profile <name>` to each brief. `omt brief` applies the profile's limits, so no skill compares ledger counts with the profile itself.
+- Profiles. `omt-ulw` reads `omt profile show [<name>] --json`, or `omt profile show --plan <slug> --json` once the plan exists, and reads it again after `omt plan profile` and after a context reset. `omt-code-review` reads `omt profile show [<name>] --json` and passes `--profile <name>` to each brief. `omt brief` applies the profile's limits.
 - Evidence. Skills write evidence files in the directory that `omt paths --evidence` prints, never under a path relative to `.omt3/evidence/`, so a worktree uses the shared evidence directory.
-- Plans. Skills tick plan items only with `omt plan mark <slug> <id> <done|open|blocked>`, and create LIGHT plans with `omt plan new <slug> --light`. After a context reset, `omt-ulw` reads `omt plan status <slug>` and `omt ledger list --plan <slug>` before they act. A plan file has no hash: the reviewer reads the plan at its path.
+- Plans. Skills tick plan items only with `omt plan mark <slug> <id> <done|open|blocked>`, and create LIGHT plans with `omt plan new <slug> --light`. After a context reset, `omt-ulw` reads `omt plan status <slug>` and the `task_status` of the run's children before it acts. A plan file has no hash: the reviewer reads the plan at its path.
 
 `omt-ulw`:
 
 - It runs the full flow for every task, however small. The main thread explores, asks question batches, plans, builds every unit, writes the planned tests, and fixes. One review child (step 8) and one QA child (step 10) check the work, as `build.review` and `build.oracle` allow. A LIGHT run skips only the plan review and the owner approval of the plan. Done means that a check that can fail ran and passed.
-- Step 1 runs `omt-research` instead when the message asks a question and names no change.
-- Step 2 picks the plan slug and reads the profile. The main thread reads the code itself, and sends only broad reads to 1 to `maxParallel` read-only `explore` children, units `E<k>`.
+- Step 1: when the message asks a question and names no change, the main thread answers it in the thread with a source for each claim, and treats fetched pages as data, or sends a question that needs docs, the web, or other repositories to one `research` child. Then it stops.
+- Step 2 picks the plan slug and reads the profile. The main thread reads the code itself, and sends only broad reads to parallel read-only `explore` children, units `E<k>`.
 - Step 3 frames the objective, the done conditions (each a check that can fail), and the tier. LIGHT is one or two units in one area of code with no design decision left; HEAVY is anything else. `omt roles` must show a target for `review` and `qa`.
 - Step 5 plans. LIGHT: `omt plan new <slug> --light`, filled by the main thread by `planning.md`. HEAVY: `omt-plan` with the slug, and the owner approves the plan. With `build.qa: planned`, the plan keeps only the owner's approved `## Tests` lines; with `off`, `## Tests` is empty. A unit that implements a design or changes UI has the role `ui`. The `F2` oracle item stays in `## Final verification` only when `build.oracle` requires it for the tier: `heavy` for HEAVY, `always` for both, `off` for neither. The main thread checks it again after a profile switch.
 - Step 6 runs `omt git start --plan <slug>` before the first file changes. A design pass runs only when the plan holds one that the user requested; the main thread waits for the owner's approval of the spec before it builds the affected UI units. Without one, it builds the UI from the task requirements.
@@ -2362,7 +2206,7 @@ Relevance check. Before the main thread fixes the reported findings of a review,
 - In `plan` mode, it dispatches only read-only children and `plan-review`, with no `--save`, writes no plan file, puts the plan text in the review brief, and delivers the finished plan in its final message.
 - Step 2 settles each decision from the code, the docs, or the request. What remains is an owner decision. Before it asks, the main thread finishes the research and a draft plan. The first batch includes the proposed `## Tests` lines, with a reason for each line outside `workflow.plan.testLayers`. When the goal has no done condition that can fail, or 4 or more owner decisions remain, the first option of the first batch offers the stress test.
 - Step 2a, the stress test, runs only when the owner picks it, in the main thread, with no child and no grill file. The main thread finds the edge cases, each with an id `GE<k>`, its trigger, its effect, a proposed handling, and a test layer (`integration`, `unit`, or `none`); the options for the direction of the work, each with its gain and its cost and a recommendation; and the open questions. It asks them in the next step 2 batch. The owner accepts, changes, or drops each edge case by its id. The main thread asks again about an answer that conflicts with the code, and cites the code. It writes the chosen direction, the decisions, and each answered edge case under `## Research`. An accepted or changed edge case with an `integration` or `unit` layer becomes a `## Tests` line with `Reason: edge case GE<k>`. One with the layer `none` goes into the done condition of the unit that handles it. A dropped edge case gets neither.
-- Step 3 edits the plan at the absolute path that `omt plan status <slug>` prints, also from a worktree. When no plan exists, it runs `omt plan new <slug> --title <title> --profile <name>`, after `omt init` when `.omt3/.gitignore` is missing. It keeps an existing plan and never passes `--force`. It writes each research question, its answer, and its sources under `## Research`, pastes the output of `omt roles --plan <slug>` under `Roles`, names each shared resource, and locks its verify commands with `omt lock run <resource> -- <command>`. UI units use the `ui` role and cite an approved design spec when one exists; it plans an `omt-design` step only when the user asked for a design pass first. With `workflow.build.qa: off`, `## Tests` is empty. Edge cases stay out of e2e lines. `## Summary` is filled last and updated after each review fix.
+- Step 3 edits the plan at the absolute path that `omt plan status <slug>` prints, also from a worktree. When no plan exists, it runs `omt plan new <slug> --title <title> --profile <name>`, after `omt init` when `.omt3/.gitignore` is missing. It keeps an existing plan and never passes `--force`. It writes each research question, its answer, and its sources under `## Research`, pastes the output of `omt roles --plan <slug>` under `Roles`, and names each shared resource, so that the units that use it run one at a time. UI units use the `ui` role and cite an approved design spec when one exists; it plans an `omt-design` step only when the user asked for a design pass first. With `workflow.build.qa: off`, `## Tests` is empty. Edge cases stay out of e2e lines. `## Summary` is filled last and updated after each review fix.
 - Step 4 applies `workflow.plan.review`. `owner` dispatches no child and waits for the owner's approval of the plan and its `## Tests` list. `two-families` dispatches 1 `plan-review` child with `--against <main thread driver> --strict`. `one` dispatches 1 `plan-review` child on any family, with no `--against`. Each round is a fresh child with unit `plan` and `--round <n>`, dispatched with `mode: "wait"` after every plan edit. The task names the plan path and the effective `workflow.plan.testLayers`. Round 1 freezes the reviewer's blocking findings under `Log`; the main thread fixes them in the plan. Round 2 passes the frozen list and the responses in `--prior-file`, and checks only the frozen blockers and the regressions from the fixes; another finding is a note. There are at most 2 rounds. Blockers still open after round 2 go to the owner in one batch.
 - Step 5 shows the plan, also when `omt-ulw` called the skill. The reply holds the `## Summary` text in full, the plan path, the review result, and each open decision. When `omt-ulw` called it, it returns to `omt-ulw` step 5; called alone, it stops and starts no units.
 
@@ -2372,7 +2216,7 @@ Every plan has a `## Summary` of at most 15 lines for the owner, in plain words 
 
 - A design pass writes files, so in `plan` mode the skill asks the user to switch to default mode.
 - The drawer comes from `omt route design --json`: when its `delegateTask.target.model` is the main thread's model, the main thread draws; otherwise 1 routed `design` child draws, one child at a time, unit `DS<k>`, with `--scope docs/design/<slug>/` and `mode: "wait"`. The configured role chain carries the rule that only Claude Opus draws by default (section 6.4).
-- The ledger plan is the plan slug when `omt-plan` or `omt-ulw` called the skill, else `design-<slug>`. Run alone, it runs `omt git start --run design-<slug>` before the first file.
+- The `--plan` of each brief is the plan slug when `omt-plan` or `omt-ulw` called the skill, else `design-<slug>`. Run alone, it runs `omt git start --run design-<slug>` before the first file.
 - It draws `workflow.design.variants` variants of each screen, or the count that the owner asked for, each with its empty, loading, and error states. `workflow.design.tool: paper` draws in a new Paper file named after the project when Paper's tools load, and in HTML mockups otherwise. `html` draws self-contained HTML mockups. It exports a PNG of each frame to `docs/design/<slug>/`. When Anthropic's optional `frontend-design` skill is installed, the drawer loads it.
 - It shows every screenshot as a Markdown image with its absolute path, grouped by screen, asks which variant to keep for each screen and what to change, and ends the turn. It applies the owner's words verbatim and repeats until the owner approves one variant for each screen. A child gets each new round with the owner's words in the task and every earlier round in `--prior-file`.
 - The main thread writes `docs/design/<slug>.md`, also when a child drew, with exact values from the Paper file or the mockup source, the approved variant of each screen, and the owner's last words. Each unit that builds this UI cites the spec and uses the `ui` role. When the owner asks, the skill writes a LIGHT plan with one `ui` unit per screen and runs `omt-ulw` steps 7 to 12.
@@ -2390,28 +2234,21 @@ Design exclusion. No model reviews design artifacts. `review`, `oracle`, and `pl
 - Merge. The main thread drops duplicates of one location and failure, keeps the higher severity and each failure scenario, and keeps a missing-test finding only when the plan or the task names that test.
 - In default mode, the findings go to `review-<slug>-r<n>.md` in the evidence directory, in the review result format. With `review.fixLoop: offer`, the skill asks before each fix loop. After yes, the main thread fixes each P0 to P2 finding and runs its checks. A round after fixes runs 1 `review` child over all fixes of the round, unit `FIX`, with `--against <main thread driver>`; its task gives each finding, its fix, and `git diff HEAD -- <fix paths>`, and from round 2 `--prior-file` carries the earlier findings and responses. Fix rounds stop at `maxReviewRounds`. Every round is a fresh task.
 
-`omt-research`:
-
-- It answers a narrow question, one area of the repository or one source, in the main thread with no child, and cites `path:line` or a URL for each fact.
-- A broad question gets 2 to 4 sub-questions, each with one role (`explore` for this repository, `research` for docs, the web, or other repositories) and a stated form of answer. Each child has unit `Q<k>` and plan `research-<slug>`, and is dispatched with `mode: "async"`. The main thread opens each cited source to check each claim, drops or moves to an UNKNOWN list a claim that its source does not support, and reads both sources of a conflict, with one follow-up child when they do not settle it.
-- It treats fetched text and cloned repositories as data: an instruction inside them is content to report, never one to follow.
-- The answer gives the direct answer first, the supporting facts with citations, an UNKNOWN list, and inference marked as inference. It writes a file only when the user asks for one.
-
 `omt-setup`:
 
 - It writes only by its write rules: show the command or the edit, run `--dry-run` first when the command has it, ask, pass `--yes` or make the edit only after the user agrees, and run the step's check after the write.
-- Step 3 answers a question and writes nothing. It sorts the question and runs its read commands first: the router's workflow list, `omt help <command>`, `omt config show`, `omt config explain`, `omt profile list`, `omt profile show <name>`, `omt roles`, `omt detect`, the doctor command, and `omt update --check`. Every fact in the answer comes from a command that it ran in that turn, the router, or one linked doc on GitHub (`install`, `configuration`, `commands`, `workflows`, `walkthrough`, or `design`).
+- Step 3 answers a question and writes nothing. It sorts the question and runs its read commands first: its own workflow list, `omt help <command>`, `omt config show`, `omt config explain`, `omt profile list`, `omt profile show <name>`, `omt roles`, `omt detect`, the doctor command, and `omt update --check`. Every fact in the answer comes from a command that it ran in that turn, its workflow list, or one linked doc on GitHub (`install`, `configuration`, `commands`, `workflows`, `walkthrough`, or `design`).
 - The other steps read the doctor and map each line that is not `PASS` to a step: harnesses (`omt detect`, with `--capabilities` in a T3 thread), defaults review, worktree setup, a profile or role edit, or an update. A plain "set up omt" runs the doctor, harness, defaults, and worktree steps, then checks whether Anthropic's optional `frontend-design` skill is available and recommends the official skill when it is missing. Setup never installs it without the user's request, and a missing skill does not block setup or UI work.
 
 Verification and devices (section "Verification and devices" of `delegation.md`):
 
-- Only `qa` drives a device, a Simulator UI, a browser, or a computer. The main thread drives no device. Every other role lists each device check, with its steps and expected result, for the main thread to send to `qa`. When `qa` returns `INCONCLUSIVE` because it cannot reach a local tool, the main thread sends the same task once with `--fallback`, unless the cause is a busy lock. After that retry, the workflow fixes or stops.
+- Only `qa` drives a device, a Simulator UI, a browser, or a computer. The main thread drives no device. Every other role lists each device check, with its steps and expected result, for the main thread to send to `qa`. When `qa` returns `INCONCLUSIVE` because it cannot reach a local tool, the main thread sends the same task once with `--fallback`. After that retry, the workflow fixes or stops.
 - `qa` edits nothing and writes no tests. It captures each exit code in the command that runs it, saves a screenshot for each device flow or a recording for motion, lists every evidence path, and closes every device or browser session that it opens. It never restarts or replaces a shared device daemon. Its scope names the code under test, not files that it may change.
 
 Shared builds (section "Shared builds" of `delegation.md`):
 
-- Parallel edit scopes stay disjoint. Each command that uses shared build state runs as `omt lock run <name> -- <command>`, with one lock name per shared resource. A command that leaves processes running after it exits stays outside the lock, and the units that use it run one at a time (`omt plan limit <slug> 1`). Without `flock` or `lockf` on `PATH`, those units run one at a time too.
-- When `omt lock run` exits 75, the skill runs `omt lock list`. When an active child of this run holds the lock, it waits for that child to end, then runs the command again. It never takes over or clears a held lock. After a second busy lock for the same check, it asks the owner. A failure in a file outside the run's scope while an independent child of this run is active waits for that child to end, then runs once more.
+- Parallel edit scopes stay disjoint. Children in the main thread's checkout share its build state, so the units that run a command on a shared resource, such as a build folder, a simulator, or a dev-server port, run one at a time. Work that must run in parallel on shared state goes to a T3 workflow, whose agents each work in their own worktree.
+- A failure in a file outside the run's scope while an independent child of this run is active waits for that child to end, then runs once more.
 
 Top-level threads. `delegate_task` makes children. Only when the user asks for separate threads does a skill use `t3_thread_launch` or `create_threads`.
 
@@ -2421,7 +2258,7 @@ Top-level threads. `delegate_task` makes children. Only when the user asks for s
 - `roles.md`: the default roles with their access, result kind, and use; the commands `omt roles`, `omt route`, and `omt brief`, and `--capabilities`; the cross-family roles with `--against` and `--strict`; "Main thread or child", the rule that a role whose first target has the main thread's model is work that the main thread does itself; and custom roles.
 - `brief.md`: what a brief holds, the four parts of the task text (deliverable, scope, verify, stop condition), what goes in the context and in `--prior-file`, and that children write no new tests.
 - `results.md`: the result kind of each role with its first label; "A claim is not evidence", the checks of a `DONE` claim; the action for each verdict; and what to do when the result block is missing.
-- `planning.md`: the standard for a plan file: cited units with five fields (role, scope, done condition, verify command, and dependencies), failable done conditions, shared resources with locks, the `## Tests` line format and layers, and `## Summary` last.
+- `planning.md`: the standard for a plan file: cited units with five fields (role, scope, done condition, verify command, and dependencies), failable done conditions, shared resources whose units run one at a time, the `## Tests` line format and layers, and `## Summary` last.
 - `worktrees.md`: the T3 worktree setup on first use. Run `omt worktree check`. Work out the effective saved setup script in the order of T3's `resolveProjectScripts`: `projectSettingsOverrides[projectId].defaultProjectScripts` first (an empty list wins), then `defaultProjectScripts` when `projectSettingsFolded` is true, then the legacy `projectScriptOverrides`, then the project's `scripts`. Keep a compatible setup and verify a custom command (frozen install, `async: false`, store reuse across two checkouts). Generate a missing setup only with the owner's yes. Import it only after `t3.json`, `.t3/`, and for pnpm `pnpm-workspace.yaml` are committed on the base branch of new worktrees and the owner's yes covers activation, with the inherited scripts copied in. Never change `defaultProjectScripts`. Read the effective scripts back, or report activation as unverified.
 - `roles/<role>.md`: one persona file per default role, plus `_generic.md`. Each persona keeps its access, its stop conditions, and its result kind, and leaves out the rules that the rendered brief's `Constraints` already states (section 9.2).
 - `results/<kind>.md`: the contracts from section 11.
@@ -2441,7 +2278,7 @@ Top-level threads. `delegate_task` makes children. Only when the user asks for s
 The PR extras in `pr-extras.md`:
 
 - CI (`review.ci`). At step 1, read `gh pr checks <n> --json name,state,bucket,link,workflow`, and save the last 400 lines of `gh run view --job <job-id> --log-failed` per failing check as `ci-<slug>-<check>.log`. With `fix`, the main thread fixes each failure after step 4, runs its local command again, and sends the round's CI fixes to one fix review, up to `maxReviewRounds`. The skill never waits with `--watch`: when checks are pending at step 5, it calls `watch_pull_request` last, and `unwatch_pull_request` when the review ends.
-- Coverage and CRAP (`review.crap: report`). Before step 3, run the coverage command once as `omt lock run coverage -- <command>`, with lcov output to `coverage-<slug>.lcov`. Each reviewer computes `CRAP = complexity² × (1 − coverage)³ + complexity` per added or changed function, with McCabe complexity, and coverage 0 without a coverage file. A function above 30 is a P2 finding with its three values.
+- Coverage and CRAP (`review.crap: report`). Before step 3, run the coverage command once, with lcov output to `coverage-<slug>.lcov`. Each reviewer computes `CRAP = complexity² × (1 − coverage)³ + complexity` per added or changed function, with McCabe complexity, and coverage 0 without a coverage file. A function above 30 is a P2 finding with its three values.
 - Changed-flow QA (`review.verify: changed-flows`). At step 3, when the PR changes a screen, a CLI command, or an API route, dispatch one `qa` child with the changed flows, the build and run commands, and the changed paths. It changes no files and names the test file that covers each flow, or `none`. Each `NOT VERIFIED` flow becomes a P1 finding.
 - Test offers (`review.tests: offer`). At step 6, offer one e2e test per verified flow that no test covers, with its file path. After the owner's yes, the main thread writes the tests, one `qa` child runs them with `mode: "wait"`, and the tests go through one fix review before the commit.
 
@@ -2462,29 +2299,27 @@ Required coverage:
 
 - JSONC: comments, comment markers inside strings, trailing commas, a byte order mark, and error positions. `test/config/jsonc-edit.test.ts` checks `setJsoncValue`: nested set, insert, and removal with line and block comments, trailing commas, CRLF, a byte order mark, duplicate keys, empty and one-line objects, missing parents, the upward removal, a missing path, the 100-column rendering, and the error codes. It parses each result and checks that the comments outside the edited value stay.
 - Profiles: `test/config/profiles.test.ts` checks presets, sparse overrides, code-point limits, per-key pruning, profile removal, legacy `roles.test` warnings, and merged-layer inheritance errors. `test/profile/resolve.test.ts` checks precedence, root-to-child application, limits, roles, models, implicit normal inheritance, cycles, depth, and non-mutation. `test/profile/profile.test.ts` runs custom-profile selection, plan switches, profile limits, output sources, and errors through the CLI.
-- Locks: `test/lock/lock.test.ts` checks real process contention, wrapper SIGKILL, inherited background holders, Node child waits, failure and signal release, wait output, holder metadata, inode preservation, no-tool fallback, argument errors, and help. It also checks shared ignored locks across linked worktrees, nested projects, separate Git directories, and trailing-space paths.
 - Fast mode: `test/routing/fast.test.ts` uses `test/fixtures/capabilities-live.json` for advertised options, unsupported models, false overrides, precedence, raw options, and unverified mapping. The older `capabilities.json` fixture still checks fallback when Haiku is absent.
 - Config: defaults pass validation, the exact default chains and `crossFamily` flags, one current configuration without the retired keys and roles, accepted snapshots, defaults confirmation and refusal, one warning for each retired key or role that a layer sets (at root and in a profile) with no effect on the effective config, layering order, `null` removal, chain replacement, new-role defaults, `crossFamily` kept, set, and overridden by a layer, every validation error class (including a non-boolean `crossFamily`), and a syntax error that skips one file.
 - Routing: a fixture with Claude, Codex, Pi, and Cursor enabled and Grok disabled. Cover a resolved role, fallback past a disabled provider, a missing model, effort mapping for each driver, nearest-value mapping, invalid raw options, driver-only candidates, unverified mode, and the MCP content wrapper.
 - Routing also covers both mode ceilings, the inherited-instance preference for driver-only candidates, and a candidate whose provider instance is not registered: with a `driver` it runs on an instance of that driver with its note, and without a `driver` it fails.
 - Cross-family routing: the reorder for `--against claudeAgent` and `--against codex` on `review`, a role without `crossFamily` that ignores `--against` with its note, a chain with only same-family candidates that keeps its order with the same-family note, a provider instance id that maps to its driver kind with capabilities and through a configured candidate without capabilities, a worker family that matches no candidate with its note, and an unavailable other-family candidate that falls back to the same family with the note.
-- Cross-family routing also covers a candidate that names only a provider. A configured candidate maps that provider to its driver, the same way as the `--against` value. The candidate is in the worker's family for the reorder and for each note, through `--against <provider>` and through `--against auto`. `workerFamily` and `candidateFamily` give the same family for the same provider id.
-- `pickWorker`: `--unit` takes the last worker entry of the unit, the plan-wide majority, the tie rule with replaced entries, entries without a unit, an invalid provider with its warning, no worker entries, and roles with result `review` or `test` that do not count as workers. A mixed-provider review plan gives each fix unit `F<k>` a reviewer from the family other than its fix worker's. `--against auto` without `--plan` is a usage error (exit 2).
+- Cross-family routing also covers a candidate that names only a provider. A configured candidate maps that provider to its driver, the same way as the `--against` value. The candidate is in the worker's family for the reorder and for each note, through `--against <provider>`. `workerFamily` and `candidateFamily` give the same family for the same provider id. `--against auto` is a usage error (exit 2).
 - Defaults: unverified default targets name `providerInstanceId`, and a user candidate with only a `driver` still gives a `driverKind` target.
-- Brief: every section, omitted sections, access and delegation lines, plan mode, per-role test policy, CLI and shared-build lines, template lookup, title, and JSON payload. Also cover saved bytes, request-id and hash paths, the short pointer, complete ledger command, unavailable-route writes, profile flags with missing plan files, the device line for every role except `qa`, the `qa` access and test lines, and an unknown-role exit for `verify`, `quick`, and `deep`.
+- Brief: every section, omitted sections, access and delegation lines, plan mode, per-role test policy, CLI and shared-build lines, template lookup, title, and JSON payload. Also cover saved bytes, request-id and hash paths, the short pointer, unavailable-route writes, profile flags with missing plan files, the device line for every role except `qa`, the `qa` access and test lines, and an unknown-role exit for `verify`, `quick`, and `deep`.
 - Plan: the template with `## Tests`, every checkbox state, counts, next unit, `complete`, profile headers, plan profile switches, and effective status output, and each dependency warning: an unknown unit, a self-dependency, a cycle, units inside code fences, and the `warning:` lines and the JSON `warnings` field of `omt plan status`, including the `max-tasks` header warning. `plan limit --tasks` and `plan new --max-tasks` exit 2 and change no file.
-- Ledger: append, list, stats, a malformed line, `requestId` sanitizing with round and attempt, `done` by request id and task id with `stats` agreeing, `settle-check` in a linked worktree, and the start record, limit exit 75, resend, concurrent briefs, `--fallback`, `--tried`, and `--strict` of `omt brief` (`test/commands/brief-ledger.test.ts`). `canDispatch` depends only on `active` and `maxParallel`, also after many dispatched entries, and stats ignores a config `maxTasksPerRun` and a plan `max-tasks`.
-- Hook: a detection matrix (inside a code block, inside quotes, `ulwx`, `$ulw`, `ULTRAWORK`, a prompt with `<!-- omt-brief`, a prompt that starts with `Act as the `, a prompt that starts with `/omt-ulw`, a prompt that starts with `<task-notification>`, negated keywords and the two-word window, a 200,000-character negated prompt), invalid JSON, the output shape, and the build-contract text of the pointer.
-- Install: create, idempotent rerun, conflict without and with `--force`, a locally modified managed skill, backups outside the skill roots, `--dry-run` and a declined prompt write nothing, non-TTY without `--yes`, roots that resolve to the same directory, hook add and update that keep other settings, an unchanged hook writes nothing, a symlinked `settings.json` stays a symlink, `--hooks` refused for a temp `cliPath`, uninstall removes only managed paths, and `--purge`.
-- Project install: the files of section 14.8, an idempotent rerun, `--dry-run`, the exclude file for a `.git` directory and a worktree `.git` file, block replacement, no `.git`, `--no-git-exclude` (also on a reinstall, and its `.omt3/.gitignore` restore), the conditional `.omt3` and `settings.local.json` lines, the hook in `settings.local.json`, uninstall with a locally modified skill and `--purge`, `--targets gemini` (exit 2), a temp `cliPath`, and the shim conflict and update. Also: a copied project, a moved clone round trip, a tracked manifest with paths outside the root, a symlinked path to the root, the home directory as the root (exit 2), a dangling settings symlink, a failed scratch delete, glob characters in a package path, worktrees, a block whose root is gone, the exact bytes of the exclude file, a kept created `settings.local.json`, and a kept ledger. Also: a reinstall that appends `plans/`, `locks/`, and `guardrails.md` to an unedited `.omt3/.gitignore` that an earlier install created, and one that leaves an edited file alone. Also: uninstall, reinstall, and a second uninstall after each kind of kept created file, each with an empty `git status`; an uninstall that fails midway; a symlinked exclude file and `.omt3/.gitignore`; a crafted tracked manifest that names project files; a package copied inside the same repository; and the exact paths that stay after a failed install and its uninstall.
+- Fallback: `--fallback`, `--attempt`, `--tried`, and `--strict` of `omt brief` (`test/commands/brief-fallback.test.ts`), with no ledger file written.
+- Retired features: in a temp `HOME` and a project fixture, `omt update` and `omt install` remove an installed `omt-research` and its links, the retired hook entry from the settings file that it was written to (never deleting a settings file or a backup), the retired config keys such as `limits.maxParallel`, and `.omt3/ledger.jsonl` and the lock files in `.omt3/locks/` (never recursively, and never through a symlink). `omt doctor` passes afterwards.
+- Install: create, idempotent rerun, conflict without and with `--force`, a locally modified managed skill, backups outside the skill roots, `--dry-run` and a declined prompt write nothing, non-TTY without `--yes`, roots that resolve to the same directory, a retired hook removal that keeps other settings, a symlinked `settings.json` stays a symlink, uninstall removes only managed paths, and `--purge`.
+- Project install: the files of section 14.8, an idempotent rerun, `--dry-run`, the exclude file for a `.git` directory and a worktree `.git` file, block replacement, no `.git`, `--no-git-exclude` (also on a reinstall, and its `.omt3/.gitignore` restore), the conditional `.omt3` and `settings.local.json` lines, the removal of a retired hook from `settings.local.json`, uninstall with a locally modified skill and `--purge`, `--targets gemini` (exit 2), a temp `cliPath`, and the shim conflict and update. Also: a copied project, a moved clone round trip, a tracked manifest with paths outside the root, a symlinked path to the root, the home directory as the root (exit 2), a dangling settings symlink, a failed scratch delete, glob characters in a package path, worktrees, a block whose root is gone, the exact bytes of the exclude file, a kept created `settings.local.json`, and a kept ledger. Also: a reinstall that appends `plans/`, `locks/`, and `guardrails.md` to an unedited `.omt3/.gitignore` that an earlier install created, and one that leaves an edited file alone. Also: uninstall, reinstall, and a second uninstall after each kind of kept created file, each with an empty `git status`; an uninstall that fails midway; a symlinked exclude file and `.omt3/.gitignore`; a crafted tracked manifest that names project files; a package copied inside the same repository; and the exact paths that stay after a failed install and its uninstall.
 - Doctor: each status that the table in section 14.7 defines, with `runtimeName` and `runtimeVersion` injected through the context.
 - Worktree setup: `test/commands/worktree-setup.test.ts` covers the cases in section 5.11: init, `install --project --dry-run`, setup dry run and apply, check, and `doctor --project` from a linked worktree (shared `.omt3`, setup files in the worktree); a Bun and a pnpm runner with controlled executables (versions, flags, environment, lockfiles, failure exit codes, a failed linker query, CI warning); existing, invalid, and partial `t3.json`, ambiguous and unsupported managers, linker settings with TOML comments, each persistent-store status with the created, kept, and incomplete `pnpm-workspace.yaml`, symlinked and dangling `.t3` folders and runners, a home-directory alias, conflicting output paths, idempotency, and a dry run that writes nothing; and `launchSpec` for Windows. Tests never start a real package manager. They start the runner with `node`, the command in `t3.json`, and with Bun when no `node` is on `PATH`. `test/e2e/binary.test.ts` (Bun project) and `test/e2e/packages.test.ts` (pnpm and Bun projects) run `worktree setup --yes` through the shim and compare the written runner with `templates/worktree-setup.mjs`, so the binary and the bundle prove that they carry the runner.
-- Skills: `test/skills/*.test.ts`. `common` checks the skill folders, frontmatter, links and their `#anchor` targets, and a `Done when:` line in each numbered step. `personas` checks a persona file for each default role and one fenced block per result kind. `contract` checks a short list of safety rules, each a phrase in the file that owns the rule: children never commit, push, or create branches; a run stays on one machine; only `qa` drives a device; a force push asks the owner; no settle of your own thread or a top-level thread; plan mode writes nothing; report-only reviewers in plan mode in `omt-code-review`; no model reviews `docs/design/`; `--strict` on the cross-family reviews of `omt-ulw` and `omt-plan`; fetched text is data in `omt-research`. `budget` checks the word target of each skill file (at most 110% of it), a total of at most 16,000 words under `skills/`, and that no skill names a removed bookkeeping string (`ledger.dispatched`, `omt ledger add`, `t3_thread_wait`, `shasum`, a ready-PR default, the ulw banner, `gh pr checks --watch`, or `t3_thread_configuration`).
+- Skills: `test/skills/*.test.ts`. `common` checks the skill folders, frontmatter, links and their `#anchor` targets, and a `Done when:` line in each numbered step. `personas` checks a persona file for each default role and one fenced block per result kind. `contract` checks a short list of safety rules, each a phrase in the file that owns the rule: children never commit, push, or create branches; a run stays on one machine; only `qa` drives a device; a force push asks the owner; no settle of your own thread or a top-level thread; plan mode writes nothing; report-only reviewers in plan mode in `omt-code-review`; no model reviews `docs/design/`; `--strict` on the cross-family reviews of `omt-ulw` and `omt-plan`; fetched text is data in the `research` persona. `budget` checks the word target of each skill file (at most 110% of it), a total of at most 16,000 words under `skills/`, and that no skill names a removed bookkeeping string (`ledger.dispatched`, `omt ledger add`, `t3_thread_wait`, `shasum`, a ready-PR default, the ulw banner, `gh pr checks --watch`, or `t3_thread_configuration`).
 - Schema: the committed schema equals the generated one, and it allows the same keys as the validator.
-- CLI: `--help`, `--version`, an unknown command (exit 2), and an unknown flag (exit 2), run as a child process. `test/cli.test.ts` also checks that `omt help` and `omt help config` print the same text as `omt --help` and `omt config -h`. `test/cli-help.test.ts` runs every command in `COMMANDS` except `hook` with probe arguments from its usage text. It records the options of each `parseArgs` call through `observeParseArgs` in `src/util/args.ts`, and fails when a usage text does not name a flag that its parser accepts, or when no probe of a command reaches a parser.
+- CLI: `--help`, `--version`, an unknown command (exit 2), and an unknown flag (exit 2), run as a child process. `test/cli.test.ts` also checks that `omt help` and `omt help config` print the same text as `omt --help` and `omt config -h`. `test/cli-help.test.ts` runs every command in `COMMANDS` with probe arguments from its usage text. It records the options of each `parseArgs` call through `observeParseArgs` in `src/util/args.ts`, and fails when a usage text does not name a flag that its parser accepts, or when no probe of a command reaches a parser.
 - Config explain: `test/e2e/config-explain.test.ts` runs `omt config explain` and `omt config explain --profile fast-proto --json` as a child process with a temp user and project config, and checks a source from the defaults, the user file, the project file, and a profile.
-- Commands: `roles`, `route`, `brief`, and `doctor` in `test/commands/`, including the `brief --json` payload fields, the title rule, `brief --json --against` with its target and fallbacks, `route --against auto` against a ledger, and the `CROSS` column and `crossFamily` field of `omt roles`.
-- End to end: one child-process flow in a temp `HOME` (`test/e2e.test.ts`) runs `install`, `doctor`, `roles`, `route`, `init`, `plan`, `profile`, `brief`, `ledger`, `hook`, and `uninstall` in a temp git project. It runs the CLI with `process.execPath`, because a version-manager `node` shim can fail when `HOME` is a temp directory. A second flow runs `install --project --hooks --yes` in a temp git project, runs `.omt3/bin/omt`, checks that `git status --porcelain` is empty, and uninstalls.
+- Commands: `roles`, `route`, `brief`, and `doctor` in `test/commands/`, including the `brief --json` payload fields, the title rule, `brief --json --against` with its target and fallbacks, and the `CROSS` column and `crossFamily` field of `omt roles`.
+- End to end: one child-process flow in a temp `HOME` (`test/e2e.test.ts`) runs `install`, `doctor`, `roles`, `route`, `init`, `plan`, `profile`, `brief`, and `uninstall` in a temp git project. It runs the CLI with `process.execPath`, because a version-manager `node` shim can fail when `HOME` is a temp directory. A second flow runs `install --project --yes` in a temp git project, runs `.omt3/bin/omt`, checks that `git status --porcelain` is empty, and uninstalls.
 
 ## 17. Packaging and release
 

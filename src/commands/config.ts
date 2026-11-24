@@ -1,5 +1,5 @@
 import { activeDefaults } from "../config/defaultsState.ts";
-import { DEFAULT_CONFIG, formatValue } from "../config/defaults.ts";
+import { DEFAULT_CONFIG, formatValue, withUpdaterLimits } from "../config/defaults.ts";
 import { explainConfig, sourceLabel } from "../config/explain.ts";
 import type { ExplainEntry } from "../config/explain.ts";
 import { loadConfig, mergeConfigLayers, readConfigLayers } from "../config/load.ts";
@@ -39,7 +39,7 @@ const SUBCOMMANDS = ["show", "explain", "path", "validate", "init"];
 
 async function show(ctx: CliContext, defaults: boolean): Promise<number> {
   const loaded = await loadConfigReporting(ctx);
-  ctx.stdout(formatJson(defaults ? DEFAULT_CONFIG : loaded.config));
+  ctx.stdout(formatJson(defaults ? withUpdaterLimits(DEFAULT_CONFIG) : loaded.config));
   return 0;
 }
 

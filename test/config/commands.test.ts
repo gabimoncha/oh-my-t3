@@ -33,7 +33,7 @@ test("config show --defaults prints the 10 default roles as JSON", async () => {
   const c = ctx(["show", "--defaults"]);
   assert.equal(await config(c), 0);
   const printed = JSON.parse(c.out());
-  assert.deepEqual(printed, DEFAULT_CONFIG);
+  assert.deepEqual(printed, { ...DEFAULT_CONFIG, limits: { maxParallel: 6, ...DEFAULT_CONFIG.limits } });
   assert.equal(Object.keys(printed.roles).length, 10);
   assert.equal("visuals" in printed, false);
 });
@@ -41,7 +41,7 @@ test("config show --defaults prints the 10 default roles as JSON", async () => {
 test("an old config with retired keys and roles still loads, with one warning per key, and the keys have no effect", async () => {
   const { ctx, write, userPath } = setup();
   write(userPath, JSON.stringify({
-    limits: { maxParallel: 2, maxTasksPerRun: 9 },
+    limits: { maxReviewRounds: 2, maxTasksPerRun: 9 },
     roles: { verify: { fast: true }, quick: null, deep: { description: "Deep." }, plan: { fast: true } },
     profiles: {
       normal: { workflow: { build: { verify: "heavy", checkpoint: "unit", stallMinutes: 20, review: "off" } } },
@@ -51,7 +51,7 @@ test("an old config with retired keys and roles still loads, with one warning pe
   const c = ctx([]);
   assert.equal(await config(c), 0);
   const printed = JSON.parse(c.out());
-  assert.deepEqual(printed.limits, { ...DEFAULT_CONFIG.limits, maxParallel: 2 });
+  assert.deepEqual(printed.limits, { ...DEFAULT_CONFIG.limits, maxReviewRounds: 2 });
   for (const name of ["verify", "quick", "deep", "plan"]) assert.equal(name in printed.roles, false, name);
   assert.deepEqual(printed.profiles.normal.workflow.build, { ...DEFAULT_CONFIG.profiles.normal?.workflow?.build, review: "off" });
   assert.equal("limits" in printed.profiles.prototype, DEFAULT_CONFIG.profiles.prototype?.limits !== undefined);
@@ -74,21 +74,21 @@ test("an old config with retired keys and roles still loads, with one warning pe
 
 test("an old config with visuals still loads, with a warning that drops the key", async () => {
   const { ctx, write, userPath } = setup();
-  write(userPath, '{ "visuals": { "plan": false }, "limits": { "maxParallel": 2 } }');
+  write(userPath, '{ "visuals": { "plan": false }, "limits": { "maxReviewRounds": 2 } }');
   const c = ctx([]);
   assert.equal(await config(c), 0);
   const printed = JSON.parse(c.out());
   assert.equal("visuals" in printed, false);
-  assert.equal(printed.limits.maxParallel, 2);
+  assert.equal(printed.limits.maxReviewRounds, 2);
   assert.equal(c.err(), `warning ${userPath} visuals: visuals is no longer used; remove it\n`);
 });
 
 test("config with no subcommand shows the effective config and prints issues to stderr", async () => {
   const { ctx, write, userPath } = setup();
-  write(userPath, '{ "limits": { "maxParallel": 7, "maxDepth": 99 } }');
+  write(userPath, '{ "limits": { "maxReviewRounds": 7, "maxDepth": 99 } }');
   const c = ctx([]);
   assert.equal(await config(c), 0);
-  assert.equal(JSON.parse(c.out()).limits.maxParallel, 7);
+  assert.equal(JSON.parse(c.out()).limits.maxReviewRounds, 7);
   assert.equal(c.err(), `error ${userPath} limits.maxDepth: must be an integer from 0 to 3, got 99\n`);
 });
 
@@ -379,8 +379,8 @@ test("with $PWD on a symlink into a subdirectory, the CLI uses the real project 
   assert.equal(path.code, 0, path.stderr);
   assert.match(path.stdout, new RegExp(`^project: ${realpathSync(repo)}/\\.omt3/config\\.jsonc \\(present\\)$`, "m"));
 
-  const add = cli(["ledger", "add", "--role", "execute", "--status", "dispatched", "--task-id", "t1"]);
-  assert.equal(add.code, 0, add.stderr);
-  assert.ok(readFileSync(join(repo, ".omt3", "ledger.jsonl"), "utf8").includes('"taskId":"t1"'));
+  const plan = cli(["plan", "new", "p1"]);
+  assert.equal(plan.code, 0, plan.stderr);
+  assert.ok(readFileSync(join(repo, ".omt3", "plans", "p1.md"), "utf8").includes("slug=p1"));
   assert.throws(() => statSync(join(repo, "pkg", ".omt3")));
 });

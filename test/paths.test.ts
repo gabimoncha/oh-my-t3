@@ -9,7 +9,6 @@ import {
   evidenceDir,
   findProjectRoot,
   mainCheckoutOf,
-  ledgerPath,
   manifestPath,
   omtDir,
   plansDir,
@@ -47,7 +46,6 @@ test("project paths live under <root>/.omt3", () => {
   assert.equal(projectConfigPath("/repo"), "/repo/.omt3/config.jsonc");
   assert.equal(projectRolesDir("/repo"), "/repo/.omt3/roles");
   assert.equal(plansDir("/repo"), "/repo/.omt3/plans");
-  assert.equal(ledgerPath("/repo"), "/repo/.omt3/ledger.jsonl");
   assert.equal(evidenceDir("/repo"), "/repo/.omt3/evidence");
 });
 
@@ -187,24 +185,19 @@ test("findProjectRoot keeps a worktree whose gitdir is broken", () => {
   assert.equal(findProjectRoot(worktree), worktree);
 });
 
-test("shadowedWorktreeState reports a worktree .omt3 with plans or a ledger", () => {
+test("shadowedWorktreeState reports a worktree .omt3 with plans", () => {
   const { main, worktree } = worktreeRepo();
   assert.equal(shadowedWorktreeState(worktree), undefined);
   mkdirSync(join(worktree, ".omt3", "plans"), { recursive: true });
   writeFileSync(join(worktree, ".omt3", "plans", "notes.txt"), "x\n");
   mkdirSync(join(worktree, ".omt3", "plans", "dir.md"));
-  mkdirSync(join(worktree, ".omt3", "ledger.jsonl"));
-  assert.equal(shadowedWorktreeState(worktree), undefined, "only regular .md files and a regular ledger file count");
+  writeFileSync(join(worktree, ".omt3", "ledger.jsonl"), "");
+  assert.equal(shadowedWorktreeState(worktree), undefined, "only regular .md files in plans count");
   writeFileSync(join(worktree, ".omt3", "plans", "x.md"), "# x\n");
   assert.deepEqual(shadowedWorktreeState(worktree), { worktree, main, dir: join(worktree, ".omt3") });
   mkdirSync(join(main, ".omt3", "plans"), { recursive: true });
   writeFileSync(join(main, ".omt3", "plans", "y.md"), "# y\n");
   assert.equal(shadowedWorktreeState(main), undefined, "the main checkout is never shadowed");
-
-  const other = worktreeRepo();
-  mkdirSync(join(other.worktree, ".omt3"));
-  writeFileSync(join(other.worktree, ".omt3", "ledger.jsonl"), "");
-  assert.deepEqual(shadowedWorktreeState(other.worktree), { worktree: other.worktree, main: other.main, dir: join(other.worktree, ".omt3") });
 
   const legacy = worktreeRepo();
   mkdirSync(join(legacy.worktree, ".omt", "plans"), { recursive: true });

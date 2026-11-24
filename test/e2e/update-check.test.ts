@@ -27,12 +27,6 @@ test("U7 check: doctor reports B and agent commands send no request", async () =
     assert.ok(output.length > 0);
     assert.equal(reg.requests.length, before, `${args[0]} must send no request with an empty daily cache`);
   }
-  const input = join(reg.root, "hook-input.json");
-  writeFile(input, JSON.stringify({ prompt: "start ultrawork check the update behavior" }));
-  const before = reg.requests.length;
-  const hook = await run("/bin/sh", ["-c", 'exec "$1" "$2" hook user-prompt-submit < "$3"', "hook", tool.node, cli, input], reg.root, envFor("hook"));
-  assert.equal(JSON.parse(hook).hookSpecificOutput.hookEventName, "UserPromptSubmit");
-  assert.equal(reg.requests.length, before, "the hook must send no request with an empty daily cache");
 }, LONG);
 
 test("U7 default: install and doctor check without the update key, and CI or NO_UPDATE_NOTIFIER stops it", async () => {

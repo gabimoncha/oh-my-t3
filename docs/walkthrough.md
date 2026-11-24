@@ -2,20 +2,14 @@
 
 This page shows two runs of omt on this repository. All facts come from three sources: the plan file, the ledger, and `git log`. Times are in UTC.
 
-Both runs are from before default set `2026-12` and the [workflow fold](design/workflow-fold.md). At that time the conductor thread edited no product files: it sent each unit to child tasks for execute, review, verify, and test work, and a task budget capped each run. Today the main thread builds the units itself, one review task and one qa task check the work, and a run has no task budget. The `verify`, `quick`, and `deep` roles that these runs used are retired. The old output below still shows the `max tasks` lines that the CLI printed then.
+Both runs are from before default set `2026-12` and the [workflow fold](design/workflow-fold.md). At that time the conductor thread edited no product files: it sent each unit to child tasks for execute, review, verify, and test work, and a task budget capped each run. Today the main thread builds the units itself, one review task and one qa task check the work, and a run has no task budget. The `verify`, `quick`, and `deep` roles that these runs used are retired. The old output below still shows the `max tasks` lines that the CLI printed then. The ledger (`.omt3/ledger.jsonl` and `omt ledger`), `omt lock`, and the `max-parallel` limit that these runs used were removed later: T3 now tracks the child tasks.
 
 | Run | Units | Dispatched tasks | Time | Result |
 | --- | --- | --- | --- | --- |
 | [`code-health`](#run-1-code-health) | 4 | 29 | 2 hours 20 minutes on 2026-10-16 | Commit `58a85b0`: 353 fewer lines, no change in behavior |
 | [`workflow-profiles`](#run-2-workflow-profiles) | 10 | 128 | 5 days of work from 2026-10-09 to 2026-10-17 | Commits `3a44354`, `6ccb731`, `b2092fc`, `a9ca54a` |
 
-The plan files and the ledger are in `.omt3/`, which git ignores. So the excerpts below are trimmed copies. To see the same data for your own runs, use these commands:
-
-```sh
-omt plan status <slug>
-omt ledger stats --plan <slug>
-omt ledger list --plan <slug> --json
-```
+The plan files and the ledger were in `.omt3/`, which git ignores. So the excerpts below are trimmed copies. For your own runs, `omt plan status <slug>` prints the plan state, and T3 shows each child task.
 
 ## Run 1: code-health
 
@@ -81,7 +75,7 @@ The U4 round 2 test is worth a look. The test task returned `NOT VERIFIED` on on
 
 ### What the ledger holds
 
-Each child task gets a `dispatched` entry and a terminal entry, such as `completed` or `verified`. In these runs the conductor wrote both with `omt ledger add`. Today `omt brief --save --json` writes the `dispatched` entry, and `omt ledger done` writes the terminal entry. Here are two entries from `omt ledger list --plan code-health --json`, with the `taskId`, `clientRequestId`, `provider`, and `model` fields cut:
+Each child task gets a `dispatched` entry and a terminal entry, such as `completed` or `verified`. In these runs the conductor wrote both with `omt ledger add`. Here are two entries from `omt ledger list --plan code-health --json`, with the `taskId`, `clientRequestId`, `provider`, and `model` fields cut:
 
 ```json
 {

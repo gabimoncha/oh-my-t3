@@ -1,5 +1,5 @@
 interface:
   display_name: "oh-my-t3"
-  short_description: "Route to the omt workflows for T3 Code."
+  short_description: "Shared references for the omt skills; not a workflow."
 policy:
   allow_implicit_invocation: false

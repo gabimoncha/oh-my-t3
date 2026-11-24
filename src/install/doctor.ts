@@ -1,4 +1,3 @@
-import { legacyHint } from "../migrate/hint.ts";
 import { constants } from "node:fs";
 import { access, realpath, stat } from "node:fs/promises";
 import { delimiter, join } from "node:path";
@@ -164,46 +163,19 @@ async function checkLinks(ctx: CliContext, paths: ScopePaths, names: string[]): 
   return check("links", "PASS", `${plural(plan.links.length, "link")} in ${claude}`);
 }
 
-// The managed command is `"<runtime>" "<cli>" hook ...` or `"<binary>" hook ...` in user scope, and
-// `"<shim>" hook ...` in project scope.
-function commandPaths(command: string): string[] {
-  const match = /^"([^"]*)"(?: "([^"]*)")?/.exec(command);
-  if (match === null) return [];
-  return [match[1] ?? "", ...(match[2] === undefined ? [] : [match[2]])];
-}
-
-async function checkHooks(ctx: CliContext, paths: ScopePaths, loaded: ScopeManifest): Promise<DoctorCheck> {
-  const hint = installHint(ctx, paths, " --hooks");
-  if ("error" in loaded) return check("hooks", "WARN", errorMessage(loaded.error));
-  let settingsPaths = (loaded.manifest?.hooks ?? []).map((hook) => hook.settingsPath);
-  const fromManifest = settingsPaths.length > 0;
-  if (!fromManifest) settingsPaths = [paths.settingsPath];
-  const commands: string[] = [];
-  const absent: string[] = [];
+// A WARN line only while the retired Claude prompt hook is left in a settings file.
+async function checkHooks(paths: ScopePaths, loaded: ScopeManifest): Promise<DoctorCheck[]> {
+  const settingsPaths = new Set([paths.settingsPath, ...("error" in loaded ? [] : (loaded.manifest?.hooks ?? []).map((hook) => hook.settingsPath))]);
+  const left: string[] = [];
   for (const path of settingsPaths) {
-    let found: string[];
     try {
-      found = findManagedCommands(parseSettings(await readFileIfExists(path), path));
-    } catch (error) {
-      return check("hooks", "WARN", errorMessage(error));
+      if (findManagedCommands(parseSettings(await readFileIfExists(path), path)).length > 0) left.push(path);
+    } catch {
+      // A settings file that does not parse holds no hook that omt can remove.
     }
-    if (found.length === 0) absent.push(path);
-    commands.push(...found);
   }
-  if (commands.length === 0) {
-    return fromManifest
-      ? check("hooks", "WARN", `the installed hook is missing from ${absent.join(", ")}; run ${hint}`)
-      : check("hooks", "INFO", `no hook installed; run ${hint} to start ultrawork on the phrase start ulw`);
-  }
-  const lost: string[] = [];
-  for (const command of commands) {
-    const paths = commandPaths(command);
-    if (paths.length === 0) lost.push(command);
-    for (const path of paths) if (!(await pathExists(path))) lost.push(path);
-  }
-  if (lost.length > 0) return check("hooks", "FAIL", `the hook command points at a missing path: ${lost.join(", ")}; run ${hint}`);
-  if (absent.length > 0) return check("hooks", "WARN", `the installed hook is missing from ${absent.join(", ")}; run ${hint}`);
-  return check("hooks", "PASS", `Claude UserPromptSubmit hook in ${settingsPaths.join(", ")}`);
+  if (left.length === 0) return [];
+  return [check("hooks", "WARN", `the retired omt prompt hook is still in ${left.join(", ")}; run omt update to remove it`)];
 }
 
 async function checkShim(ctx: CliContext, paths: ScopePaths, loaded: ScopeManifest): Promise<DoctorCheck> {
@@ -434,12 +406,6 @@ export interface DoctorRun {
   daily: DailyResult | undefined;
 }
 
-// A WARN line only while a legacy folder is in use or sits beside the current one.
-function checkFolders(ctx: CliContext): DoctorCheck[] {
-  const hint = legacyHint(ctx);
-  return hint === undefined ? [] : [check("folders", "WARN", hint.replace(/^hint: /, "").trimEnd())];
-}
-
 // An INFO line only while a guardrails.md with text is left. cleanRetired deletes an empty one, and keeps one with text,
 // because it holds proposals that the user may still want.
 async function checkLeftovers(paths: ScopePaths): Promise<DoctorCheck[]> {
@@ -464,7 +430,6 @@ export async function runDoctor(
     checkDefaults(loadedConfig),
     ...(daily === undefined ? [] : [checkUpdate(daily)]),
     checkHarnesses(loadedConfig),
-    ...checkFolders(ctx),
   ];
   let loaded: ScopeManifest;
   try {
@@ -474,7 +439,7 @@ export async function runDoctor(
   }
   const names = bundled.map((skill) => skill.name);
   checks.push(await checkSkills(ctx, paths, bundled, loaded), await checkLinks(ctx, paths, names));
-  checks.push(await checkHooks(ctx, paths, loaded));
+  checks.push(...await checkHooks(paths, loaded));
   if (scope === "project") {
     checks.push(
       await checkShim(ctx, paths, loaded),

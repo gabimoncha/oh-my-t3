@@ -81,7 +81,6 @@ export const CONFIG_SCHEMA = {
       type: "object",
       additionalProperties: false,
       properties: {
-        maxParallel: limit("maxParallel", "Most child tasks that run at the same time."),
         maxDepth: limit("maxDepth", "Most levels of delegation below the main thread."),
         maxReviewRounds: limit("maxReviewRounds", "Most review rounds for one change."),
         ...retired(RETIRED_LIMIT_KEYS),

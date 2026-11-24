@@ -14,14 +14,23 @@ import { dirname, join } from "node:path";
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { writeFile } from "../helpers.ts";
-import { makeFixture, readJson, snapshot, STAMP } from "./fixture.ts";
+import { makeFixture, readJson, recordOldHook, snapshot, STAMP, withOldHook } from "./fixture.ts";
+import type { Fixture } from "./fixture.ts";
+
+// What an install of an earlier release with --hooks left: the omt entry in the settings file and its manifest record.
+async function installWithOldHook(f: Fixture, settings: Record<string, unknown>, settingsPath = f.settings): Promise<string> {
+  await f.runOk(["install", "--yes"]);
+  const text = `${JSON.stringify(withOldHook(settings), null, 2)}\n`;
+  writeFileSync(settingsPath, text);
+  recordOldHook(f, f.settings);
+  return text;
+}
 
 test("uninstall removes only managed paths and keeps the user config", async () => {
   const f = makeFixture();
   const userHook = { type: "command", command: "echo mine" };
-  const settingsText = JSON.stringify({ theme: "dark", hooks: { UserPromptSubmit: [{ hooks: [userHook] }] } }, null, 2);
-  writeFile(f.settings, settingsText);
-  await f.runOk(["install", "--yes", "--hooks"]);
+  const settings = { theme: "dark", hooks: { UserPromptSubmit: [{ hooks: [userHook] }] } };
+  const before = await installWithOldHook(f, settings);
 
   // Paths that omt does not manage.
   mkdirSync(join(f.agents, "user-skill"), { recursive: true });
@@ -36,10 +45,10 @@ test("uninstall removes only managed paths and keeps the user config", async () 
   assert.deepEqual(readdirSync(f.agents).sort(), ["README.md", "user-skill"]);
   assert.deepEqual(readdirSync(f.claudeSkills).sort(), ["real-dir", "user-skill"]);
   assert.ok(lstatSync(join(f.claudeSkills, "user-skill")).isSymbolicLink());
-  assert.equal(readFileSync(f.settings, "utf8"), settingsText, "the install-time backup is written back byte for byte");
+  assert.equal(readFileSync(f.settings, "utf8"), `${JSON.stringify(settings, null, 2)}\n`, "only the omt entry is gone");
+  assert.equal(readFileSync(join(f.backups, "20260102030406", "claude-settings.json"), "utf8"), before);
   assert.ok(existsSync(join(f.configDir, "config.jsonc")));
   assert.ok(!existsSync(f.manifest));
-  assert.ok(!existsSync(f.backups), "the restored backup, its stamp directory, and the empty backups directory are gone");
   for (const name of readdirSync(dirname(f.agents))) assert.doesNotMatch(name, /\.omt-(tmp|old)-/);
 });
 
@@ -60,41 +69,30 @@ test("uninstall --purge removes the config and the empty config directory", asyn
   assert.ok(!existsSync(f.configDir));
 });
 
-test("uninstall deletes a settings.json that install --hooks created, without a backup", async () => {
+// A settings file that an earlier install created can hold the user's keys by now; uninstall must never delete it.
+test("uninstall keeps a settings.json that an earlier install --hooks created, also when only {} is left", async () => {
   const f = makeFixture();
-  await f.runOk(["install", "--yes", "--hooks"]);
-  assert.equal((readJson(f.manifest).hooks as { created?: boolean }[])[0]?.created, true);
-  await f.runOk(["install", "--yes", "--hooks"], undefined, "a second run keeps the record");
-  assert.equal((readJson(f.manifest).hooks as { created?: boolean }[])[0]?.created, true);
+  await installWithOldHook(f, {});
+  recordOldHook(f, f.settings, { created: true });
   await f.runOk(["uninstall", "--yes"]);
-  assert.ok(!existsSync(f.settings));
-  assert.ok(!existsSync(f.backups));
-});
-
-test("uninstall keeps a created settings.json that gained other keys", async () => {
-  const f = makeFixture();
-  await f.runOk(["install", "--yes", "--hooks"]);
-  writeFileSync(f.settings, JSON.stringify({ ...readJson(f.settings), theme: "dark" }, null, 2));
-  await f.runOk(["uninstall", "--yes"]);
-  assert.deepEqual(readJson(f.settings), { theme: "dark" });
+  assert.equal(readFileSync(f.settings, "utf8"), "{}\n");
   assert.ok(existsSync(join(f.backups, STAMP, "claude-settings.json")));
 });
 
 test("uninstall --purge keeps the config directory when it still holds other files", async () => {
   const f = makeFixture();
-  writeFile(f.settings, '{ "theme": "dark" }\n');
-  await f.runOk(["install", "--yes", "--hooks"]);
+  await installWithOldHook(f, { theme: "dark" });
   mkdirSync(join(f.configDir, "roles"));
   writeFileSync(join(f.configDir, "roles", "x.md"), "mine\n");
   await f.runOk(["uninstall", "--yes", "--purge"]);
   assert.ok(!existsSync(join(f.configDir, "config.jsonc")));
   assert.ok(existsSync(join(f.configDir, "roles", "x.md")));
-  assert.ok(!existsSync(f.backups));
+  assert.deepEqual(readJson(f.settings), { theme: "dark" });
 });
 
 test("uninstall --dry-run, a declined prompt, and a missing --yes write nothing", async () => {
   const f = makeFixture();
-  await f.runOk(["install", "--yes", "--hooks"]);
+  await installWithOldHook(f, {});
   const before = snapshot(f.home);
   const dry = await f.runOk(["uninstall", "--dry-run", "--purge"]);
   assert.match(dry.ctx.out(), /Dry run/);
@@ -155,21 +153,13 @@ test("hook removal through a symlinked settings.json keeps the link and the file
   chmodSync(real, 0o600);
   mkdirSync(dirname(f.settings), { recursive: true });
   symlinkSync(real, f.settings);
-  await f.runOk(["install", "--yes", "--hooks"]);
+  await installWithOldHook(f, { apiKey: "secret" });
+  writeFileSync(real, JSON.stringify(withOldHook({ apiKey: "secret", theme: "light" })));
   assert.equal(statSync(real).mode & 0o777, 0o600);
 
-  await f.runOk(["uninstall", "--yes"], { now: () => new Date("2026-01-02T03:04:06.000Z") });
-  assert.ok(lstatSync(f.settings).isSymbolicLink());
-  assert.equal(readFileSync(real, "utf8"), '{ "apiKey": "secret" }\n');
-  assert.equal(statSync(real).mode & 0o777, 0o600);
-  assert.ok(!existsSync(f.backups));
-
-  // When the user changed the file meanwhile, the uninstall writes the edited JSON and a 0600 backup.
-  await f.runOk(["install", "--yes", "--hooks"]);
-  const installed = readJson(real);
-  writeFileSync(real, JSON.stringify({ ...installed, theme: "light" }));
   await f.runOk(["uninstall", "--yes"], { now: () => new Date("2026-01-02T03:04:07.000Z") });
   assert.ok(lstatSync(f.settings).isSymbolicLink());
   assert.equal(readFileSync(real, "utf8"), '{"apiKey":"secret","theme":"light"}', "compact JSON stays compact");
+  assert.equal(statSync(real).mode & 0o777, 0o600);
   assert.equal(statSync(join(f.backups, "20260102030407", "claude-settings.json")).mode & 0o777, 0o600);
 });

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "bun:test";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.ts";
-import { configuredDrivers, crossFamilyOrder, pickWorker, candidateFamily, workerFamily } from "../../src/routing/family.ts";
+import { configuredDrivers, crossFamilyOrder, candidateFamily, workerFamily } from "../../src/routing/family.ts";
 import { resolveRole, toRouteOutput } from "../../src/routing/resolve.ts";
-import type { Capabilities, LedgerEntry, RoleConfig, Candidate } from "../../src/types.ts";
+import type { Capabilities, RoleConfig, Candidate } from "../../src/types.ts";
 import { caps, role } from "./shared.ts";
 
 // The fixture plus a second Claude instance "claudeWork" and a Codex instance "codexWork".
@@ -266,102 +266,4 @@ test("with capabilities, a default candidate whose instance is not registered ke
 test("resolve options notes come before the cross-family notes", () => {
   const resolution = resolveRole("review", REVIEW, undefined, { against: "codex", notes: ["first"] });
   assert.deepEqual(resolution.notes, ["first", "cross-family: worker family codex; other families first"]);
-});
-
-function entry(fields: Partial<LedgerEntry>): LedgerEntry {
-  return { ts: "2026-10-06T00:00:00.000Z", role: "execute", status: "dispatched", plan: "p", ...fields };
-}
-
-const ROLES = DEFAULT_CONFIG.roles;
-
-test("pickWorker with --unit takes the provider of the unit's last worker entry", () => {
-  const entries = [
-    entry({ unit: "U1", provider: "claudeAgent" }),
-    entry({ unit: "U2", provider: "claudeAgent" }),
-    entry({ unit: "U1", provider: "codex", role: "ui", round: 3 }),
-    entry({ unit: "U1", provider: "claudeAgent", role: "review" }),
-    entry({ unit: "U1", provider: "claudeAgent", status: "completed" }),
-  ];
-  assert.deepEqual(pickWorker(entries, ROLES, "p", "U1"), { provider: "codex", from: "unit" });
-  assert.deepEqual(pickWorker(entries, ROLES, "p", "U2"), { provider: "claudeAgent", from: "unit" });
-});
-
-test("pickWorker without unit entries takes the provider of most units", () => {
-  const entries = [
-    entry({ unit: "U1", provider: "codex" }),
-    entry({ unit: "U1", provider: "claudeAgent", round: 2 }),
-    entry({ unit: "U2", provider: "claudeAgent" }),
-    entry({ unit: "U3", provider: "codex" }),
-    entry({ unit: "U2", provider: "codex", plan: "other" }),
-  ];
-  assert.deepEqual(pickWorker(entries, ROLES, "p"), { provider: "claudeAgent", from: "plan" });
-  assert.deepEqual(pickWorker(entries, ROLES, "p", "F2"), { provider: "claudeAgent", from: "plan" });
-});
-
-test("pickWorker breaks a tie with the provider whose last worker entry comes latest", () => {
-  const entries = [
-    entry({ unit: "U1", provider: "claudeAgent" }),
-    entry({ unit: "U2", provider: "codex" }),
-    entry({ unit: "U3", provider: "claudeAgent", role: "ui" }),
-    entry({ unit: "U4", provider: "codex" }),
-  ];
-  assert.deepEqual(pickWorker(entries, ROLES, "p"), { provider: "codex", from: "plan" });
-  const swapped = [entries[1], entries[0], entries[3], entries[2]] as LedgerEntry[];
-  assert.deepEqual(pickWorker(swapped, ROLES, "p"), { provider: "claudeAgent", from: "plan" });
-});
-
-test("pickWorker skips review, verify, qa, unknown roles, entries without a provider, and other plans", () => {
-  const entries = [
-    entry({ unit: "U1", provider: "codex", role: "review" }),
-    entry({ unit: "U1", provider: "codex", role: "verify" }),
-    entry({ unit: "U1", provider: "codex", role: "qa" }),
-    entry({ unit: "U1", provider: "codex", role: "oracle" }),
-    entry({ unit: "U1", provider: "codex", role: "swarm" }),
-    entry({ unit: "U1", role: "execute" }),
-    entry({ unit: "U1", provider: "codex", plan: "other" }),
-  ];
-  assert.equal(pickWorker(entries, ROLES, "p"), undefined);
-  assert.equal(pickWorker(entries, ROLES, "p", "U1"), undefined);
-  assert.equal(pickWorker([], ROLES, "p"), undefined);
-});
-
-test("pickWorker counts only the last worker entry of each unit for the tie rule", () => {
-  const entries = [
-    entry({ unit: "U1", provider: "codex" }),
-    entry({ unit: "U2", provider: "claudeAgent" }),
-    entry({ unit: "U3", provider: "codex" }),
-    entry({ unit: "U4", provider: "claudeAgent" }),
-    entry({ unit: "U5", provider: "codex" }),
-    entry({ unit: "U5", provider: "cursor", round: 2 }),
-  ];
-  assert.deepEqual(pickWorker(entries, ROLES, "p"), { provider: "claudeAgent", from: "plan" });
-});
-
-test("pickWorker counts the entries without a unit together as one unit", () => {
-  const entries = [
-    entry({ provider: "codex" }),
-    entry({ provider: "claudeAgent" }),
-    entry({ provider: "claudeAgent", round: 2 }),
-    entry({ unit: "U1", provider: "codex" }),
-    entry({ unit: "U2", provider: "codex" }),
-  ];
-  assert.deepEqual(pickWorker(entries, ROLES, "p"), { provider: "codex", from: "plan" });
-  const onlyWithout = [entry({ provider: "codex" }), entry({ provider: "claudeAgent" })];
-  assert.deepEqual(pickWorker(onlyWithout, ROLES, "p"), { provider: "claudeAgent", from: "plan" });
-  assert.deepEqual(pickWorker(onlyWithout, ROLES, "p", "U1"), { provider: "claudeAgent", from: "plan" });
-});
-
-test("pickWorker skips a provider that is not a non-empty string, warns, and keeps the last valid worker", () => {
-  const warnings: string[] = [];
-  const entries = [
-    entry({ unit: "U1", provider: "codex" }),
-    entry({ unit: "U1", provider: null as unknown as string }),
-    entry({ unit: "U1", provider: 7 as unknown as string }),
-    entry({ unit: "U1", provider: "" }),
-    entry({ unit: "U1", provider: "claudeAgent", role: "review" }),
-  ];
-  assert.deepEqual(pickWorker(entries, ROLES, "p", "U1", (w) => warnings.push(w)), { provider: "codex", from: "unit" });
-  assert.equal(warnings.length, 3);
-  assert.match(warnings[0] ?? "", /^skipped a ledger entry with an invalid provider null \(role execute, unit U1, ts /);
-  assert.deepEqual(pickWorker(entries, ROLES, "p", "U1"), { provider: "codex", from: "unit" });
 });

@@ -1,6 +1,5 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { limitArg } from "../config/validate.ts";
 import { projectWriteTarget } from "../install/fsops.ts";
 import { findProjectRoot, planPath, plansDir } from "../paths.ts";
 import { dependencyWarnings, findPlanHeader, headerWarnings, parsePlan } from "../plan/parse.ts";
@@ -16,10 +15,8 @@ import { loadEffectiveConfigReporting } from "./shared.ts";
 
 export const summary = "Create plan files and show their progress.";
 
-export const usage = `Usage: omt plan new <slug> [--title <text>] [--light] [--max-parallel <n>]
-                    [--profile <name>] [--force]
+export const usage = `Usage: omt plan new <slug> [--title <text>] [--light] [--profile <name>] [--force]
        omt plan mark <slug> <id> <done|open|blocked>
-       omt plan limit <slug> <n|none>
        omt plan profile <slug> <name|none>
        omt plan status [<slug>] [--json]
        omt plan list [--json]
@@ -28,8 +25,6 @@ Subcommands:
   new <slug>        write .omt3/plans/<slug>.md from the template
   mark <slug> <id>  set the checkbox of an item such as U3, D1, or F2, and
                     append a line to the log
-  limit <slug> <n>  set the plan's max-parallel header key (1 to 32), or
-                    remove it with none
   profile <slug> <name|none>
                     set or remove the plan's selected workflow profile
   status [<slug>]   print counts, the next open unit, and the ready units
@@ -39,8 +34,6 @@ Subcommands:
 Options:
   --title <text>    with new: the plan title (default: the slug)
   --light           with new: leave out the oracle line (F2)
-  --max-parallel <n>
-                    with new: cap parallel dispatch for this plan (1 to 32)
   --profile <name>  with new: select a workflow profile for the plan
   --max-tasks, --tasks
                     removed with the task budget; each exits 2
@@ -121,19 +114,18 @@ async function planNew(
   ctx: CliContext,
   root: string,
   positionals: string[],
-  options: { title: string | undefined; light: boolean; maxParallel: string | undefined; profile: string | undefined; force: boolean },
+  options: { title: string | undefined; light: boolean; profile: string | undefined; force: boolean },
 ) {
   const slug = positionals[1];
   if (slug === undefined) throw usageError("plan new needs a <slug>");
   checkPositionals(positionals, 2);
   checkPlanSlug(slug);
-  const maxParallel = options.maxParallel === undefined ? undefined : limitArg("--max-parallel", options.maxParallel, "maxParallel");
   const { profile } = await loadEffectiveConfigReporting(ctx, { profile: options.profile });
   const path = planPath(root, slug);
   if (!options.force && (await pathExists(path))) {
     throw new OmtError("plan_exists", `plan already exists: ${path}`, { hint: "pass --force to overwrite it" });
   }
-  const template = planTemplate(slug, options.title ?? slug, ctx.now().toISOString(), { light: options.light, maxParallel, profile: options.profile === undefined ? undefined : profile.name });
+  const template = planTemplate(slug, options.title ?? slug, ctx.now().toISOString(), { light: options.light, profile: options.profile === undefined ? undefined : profile.name });
   await writeFileAtomic(await projectWriteTarget(findProjectRoot(ctx.cwd), path), template);
   ctx.stdout(`${path}\n`);
   return 0;
@@ -162,21 +154,6 @@ async function planMark(ctx: CliContext, root: string, positionals: string[]) {
   return 0;
 }
 
-async function planLimit(ctx: CliContext, root: string, positionals: string[]) {
-  const [, slug, value] = positionals;
-  if (slug === undefined || value === undefined) throw usageError("plan limit needs <slug> <n|none>");
-  checkPositionals(positionals, 3);
-  checkPlanSlug(slug);
-  const limit = value === "none" ? undefined : limitArg("the limit", value, "maxParallel");
-  const { path, markdown } = await readPlan(root, slug);
-  const header = findPlanHeader(markdown);
-  if (header === undefined) throw new OmtError("plan_header_not_found", `plan "${slug}" has no omt-plan header comment`);
-  const updated = setHeaderKey(header.text, "max-parallel", limit);
-  await writeFileAtomic(await projectWriteTarget(findProjectRoot(ctx.cwd), path), markdown.slice(0, header.index) + updated + markdown.slice(header.index + header.text.length));
-  ctx.stdout(limit === undefined ? `removed the max-parallel limit of ${slug}\n` : `set max-parallel=${limit} for ${slug}\n`);
-  return 0;
-}
-
 async function planProfile(ctx: CliContext, root: string, positionals: string[]) {
   const [, slug, name] = positionals;
   if (slug === undefined || name === undefined) throw usageError("plan profile needs <slug> <name|none>");
@@ -199,7 +176,6 @@ function formatPlanStatus(status: PlanStatusReport): string {
     `units: ${unitsText(status)}`,
     `done-when: ${status.counts.D.done}/${status.counts.D.total}`,
     `final: ${status.counts.F.done}/${status.counts.F.total}`,
-    ...(status.maxParallel === undefined ? [] : [`max parallel: ${status.maxParallel}`]),
     `next: ${nextText(status)}`,
     `ready: ${status.ready.length === 0 ? "none" : status.ready.map((item) => item.id).join(", ")}`,
     ...status.warnings.map((warning) => `warning: ${warning}`),
@@ -253,7 +229,6 @@ export const run: CommandRun = async (ctx) => {
   const { values, positionals } = parseArgs(ctx.argv, {
     title: { type: "string" },
     light: { type: "boolean" },
-    "max-parallel": { type: "string" },
     "max-tasks": { type: "string" },
     tasks: { type: "string" },
     profile: { type: "string" },
@@ -263,7 +238,7 @@ export const run: CommandRun = async (ctx) => {
   const root = findProjectRoot(ctx.cwd);
   const json = values.json === true;
   if (values["max-tasks"] !== undefined || values.tasks !== undefined) {
-    throw usageError(`${values.tasks !== undefined ? "--tasks" : "--max-tasks"} is no longer supported: the task budget was removed`, "a plan limits only max-parallel");
+    throw usageError(`${values.tasks !== undefined ? "--tasks" : "--max-tasks"} is no longer supported: the task budget was removed`);
   }
   if (values.profile !== undefined && positionals[0] !== "new") throw usageError("--profile applies only to plan new; use plan profile to switch a plan");
   switch (positionals[0]) {
@@ -271,14 +246,11 @@ export const run: CommandRun = async (ctx) => {
       return planNew(ctx, root, positionals, {
         title: values.title,
         light: values.light === true,
-        maxParallel: values["max-parallel"],
         profile: values.profile,
         force: values.force === true,
       });
     case "mark":
       return planMark(ctx, root, positionals);
-    case "limit":
-      return planLimit(ctx, root, positionals);
     case "profile":
       return planProfile(ctx, root, positionals);
     case "status":
@@ -286,8 +258,8 @@ export const run: CommandRun = async (ctx) => {
     case "list":
       return planList(ctx, root, positionals, json);
     case undefined:
-      throw usageError("plan needs a subcommand: new, mark, limit, profile, status, or list");
+      throw usageError("plan needs a subcommand: new, mark, profile, status, or list");
     default:
-      throw usageError(`unknown plan subcommand "${positionals[0]}"`, "use new, mark, limit, profile, status, or list");
+      throw usageError(`unknown plan subcommand "${positionals[0]}"`, "use new, mark, profile, status, or list");
   }
 };

@@ -5,11 +5,11 @@ import { basename, dirname, join } from "node:path";
 import { starterConfig } from "../config/starter.ts";
 import { errorMessage, OmtError } from "../util/errors.ts";
 import { copyDir, ensureDir, hashDir, lstatIfExists, pathExists, readFileIfExists, writeFileAtomic } from "../util/fs.ts";
-import { isOmtLayout, writeHookChange } from "./claudeHook.ts";
+import { writeHookChange } from "./claudeHook.ts";
 import type { HookChange } from "./claudeHook.ts";
 import { movePath, newBackupDir, projectWriteTarget, writeTargetFor } from "./fsops.ts";
 import { mergeManifest, writeManifest } from "./manifest.ts";
-import type { Manifest, ManifestFile, ManifestHook } from "./manifest.ts";
+import type { Manifest, ManifestFile } from "./manifest.ts";
 import { removesRetired, replaceableSteps, sha256 } from "./plan.ts";
 import type { FileStep, HookStep, InstallPlan, PlanAction, SkillStep, UninstallPlan } from "./plan.ts";
 import { BACKUPS_GITIGNORE } from "./project.ts";
@@ -108,32 +108,11 @@ async function installSkill(step: SkillStep, plan: InstallPlan): Promise<void> {
   if (old !== undefined) await removeScratch(old);
 }
 
-// A settings file that the install created and that holds only the omt entry is deleted without a
-// backup. For a symlink, the install created its target, so the target goes and the link stays.
-// An exact restore writes the install-time backup's bytes back, then deletes that backup.
-// Returns the backup that this write made, if any.
-async function writeHook(step: HookStep, backupDir: () => Promise<string>, result: ApplyResult, skipBackup = false, root?: string): Promise<string | undefined> {
+// Drops the omt entry and backs the old file up. It never deletes the settings file or a backup.
+async function removeHook(step: HookStep, backupDir: () => Promise<string>, result: ApplyResult, root?: string): Promise<void> {
   if (root !== undefined) await projectWriteTarget(root, step.settingsPath);
-  let backup: string | undefined;
-  if (step.removeFile === true) {
-    if ((await readFileIfExists(step.settingsPath)) !== step.before) {
-      throw new OmtError("claude_settings", `${step.settingsPath} changed after the plan was made; nothing was written`, {
-        hint: "run the command again",
-      });
-    }
-    await rm(root === undefined ? await writeTargetFor(step.settingsPath) : await projectWriteTarget(root, step.settingsPath), { force: true });
-  } else if (step.restoreBackup !== undefined) {
-    await writeHookChange(step as HookChange, undefined, root);
-    await rm(step.restoreBackup, { force: true });
-    const stampDir = dirname(step.restoreBackup);
-    if (await removeEmptyDir(stampDir)) await removeEmptyDir(dirname(stampDir));
-  } else {
-    const needsBackup = step.action !== "unchanged" && step.before !== undefined && !skipBackup;
-    backup = await writeHookChange(step as HookChange, needsBackup ? await backupDir() : undefined, root);
-    if (backup !== undefined) result.backups.push(backup);
-  }
+  result.backups.push(await writeHookChange(step as HookChange, await backupDir(), root));
   result.changed.push(step.settingsPath);
-  return backup;
 }
 
 // Writes `after` only when the file still holds what the plan read. A `deleteFile` step deletes the
@@ -285,22 +264,12 @@ function projectRecord(plan: InstallPlan, files: ManifestFile[], dirs: string[])
 }
 
 // The backups .gitignore that this run will write, so the provisional manifest can record it.
-async function plannedBackupsIgnore(plan: InstallPlan, skipHookBackup: boolean): Promise<ManifestFile | undefined> {
+async function plannedBackupsIgnore(plan: InstallPlan): Promise<ManifestFile | undefined> {
   if (plan.project === undefined) return undefined;
   const path = join(plan.stateDir, "backups", ".gitignore");
   if (await pathExists(path)) return undefined;
   const replaces = replaceableSteps(plan).some((step) => step.action === "replace");
-  const hook = plan.hook;
-  const hookBackup = hook !== undefined && hook.action !== "unchanged" && hook.before !== undefined && !skipHookBackup;
-  return replaces || hookBackup ? { path, sha256: sha256(BACKUPS_GITIGNORE) } : undefined;
-}
-
-// A project hook update needs no backup when the file is in the layout that omt writes, because then
-// the rewrite changes only the command of the omt entry (the shim path moves with the project). A file
-// in any other layout, such as one with inline arrays, gets a backup, which is not the hook `backup`.
-function skipsHookBackup(plan: InstallPlan): boolean {
-  const hook = plan.hook;
-  return plan.project !== undefined && hook?.action === "update" && hook.before !== undefined && isOmtLayout(hook.before, hook.settingsPath);
+  return replaces || plan.hooks.length > 0 ? { path, sha256: sha256(BACKUPS_GITIGNORE) } : undefined;
 }
 
 // A sync owns only what the previous manifest owned, or what this run wrote. A kept conflict changes no
@@ -336,25 +305,13 @@ function installManifest(plan: InstallPlan, now: Date, fields: Pick<Manifest, "c
   };
 }
 
-function hookRecords(plan: InstallPlan, created: boolean, backup?: string): ManifestHook[] {
-  if (plan.hook === undefined) return [];
-  return [
-    {
-      kind: "claude-user-prompt-submit",
-      settingsPath: plan.hook.settingsPath,
-      command: plan.hook.command,
-      ...(created ? { created: true } : {}),
-      ...(backup === undefined ? {} : { backup }),
-    },
-  ];
-}
-
 // In project scope, the exclude block and a provisional manifest go first, so a failure later in
-// the run leaves no file that git shows or that the next run takes for the user's.
+// the run leaves no file that git shows or that the next run takes for the user's. The provisional
+// manifest keeps the previous hook records, so a run that fails before the hook removal can still
+// restore the install-time backup.
 async function beginProjectInstall(
   plan: InstallPlan,
   now: Date,
-  hookCreated: boolean,
   starter: string,
   backupsIgnore: ManifestFile | undefined,
 ): Promise<void> {
@@ -380,7 +337,7 @@ async function beginProjectInstall(
   if (backupsIgnore !== undefined) files.push(backupsIgnore);
   const provisional = installManifest(plan, now, {
     config: { path: plan.config.path, created: plan.config.action === "create" },
-    hooks: hookRecords(plan, hookCreated),
+    hooks: [],
     backups: [],
     project: projectRecord(plan, files, project.missingDirs),
   });
@@ -392,7 +349,7 @@ export async function applyInstall(plan: InstallPlan, now: Date): Promise<ApplyR
     for (const path of [plan.stateDir, join(plan.stateDir, "backups"), plan.agentsRoot, plan.config.path, plan.manifestPath, plan.project.plans.path, plan.project.shim.path]) {
       await projectWriteTarget(plan.project.root, path);
     }
-    if (plan.hook !== undefined) await projectWriteTarget(plan.project.root, plan.hook.settingsPath);
+    for (const hook of plan.hooks) await projectWriteTarget(plan.project.root, hook.settingsPath);
     if (["create", "update"].includes(plan.project.gitignore.action)) await projectWriteTarget(plan.project.root, plan.project.gitignore.path);
   }
   const result: ApplyResult = { changed: [], backups: [] };
@@ -405,12 +362,7 @@ export async function applyInstall(plan: InstallPlan, now: Date): Promise<ApplyR
     }
   }
   const starter = starterConfig(plan.scope, plan.config.harnesses);
-  const hookCreated =
-    plan.hook !== undefined &&
-    (plan.hook.before === undefined ||
-      plan.previous?.hooks.some((hook) => hook.settingsPath === plan.hook?.settingsPath && hook.created === true) === true);
-  const skipHookBackup = skipsHookBackup(plan);
-  await beginProjectInstall(plan, now, hookCreated, starter, await plannedBackupsIgnore(plan, skipHookBackup));
+  await beginProjectInstall(plan, now, starter, await plannedBackupsIgnore(plan));
   await removeScratchDirs(plan.scratch, result);
   await removeRetired(plan, backupDir, result);
 
@@ -458,21 +410,17 @@ export async function applyInstall(plan: InstallPlan, now: Date): Promise<ApplyR
 
   const createdFiles = await applyProjectInstall(plan, backupDir, result);
   if (configCreated && plan.project !== undefined) createdFiles.push({ path: plan.config.path, sha256: sha256(starter) });
-  let hookBackup: string | undefined;
-  if (plan.hook !== undefined && plan.hook.action !== "unchanged") {
-    const backup = await writeHook(plan.hook, backupDir, result, skipHookBackup, plan.project?.root);
-    // Only the backup taken before the entry was first added can restore the file exactly.
-    if (plan.hook.action === "create") hookBackup = backup;
-  }
+  for (const hook of plan.hooks) await removeHook(hook, backupDir, result, plan.project?.root);
   if (plan.project?.exclude !== undefined && plan.project.exclude.action !== "unchanged") result.changed.push(plan.project.exclude.path);
 
   const manifest = installManifest(plan, now, {
     config: { path: plan.config.path, created: configCreated },
-    hooks: hookRecords(plan, hookCreated, hookBackup),
+    hooks: [],
     backups: result.backups,
     project: plan.project === undefined ? undefined : projectRecord(plan, [...createdFiles, ...createdIgnores], await existing(plan.project.missingDirs)),
   });
-  await writeManifest(plan.manifestPath, pruneRetired(mergeManifest(plan.previous, manifest), plan));
+  // Every recorded hook is gone now, removed by this run or by hand before it, except in a file that did not parse.
+  await writeManifest(plan.manifestPath, { ...pruneRetired(mergeManifest(plan.previous, manifest), plan), hooks: plan.keptHooks });
   return result;
 }
 
@@ -505,7 +453,7 @@ export async function applyUninstall(plan: UninstallPlan, now: Date): Promise<Ap
     await removeSkillDir(skill.path);
     result.changed.push(skill.path);
   }
-  for (const hook of plan.hooks) await writeHook(hook, backupDir, result, false, plan.project?.root);
+  for (const hook of plan.hooks) await removeHook(hook, backupDir, result, plan.project?.root);
   result.changed.push(...await removeWorkflows(plan.workflows));
   if (plan.project?.shim !== undefined) {
     await removePath(plan.project.shim.path);
