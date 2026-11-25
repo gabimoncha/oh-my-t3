@@ -137,10 +137,10 @@ function oneOf(values: readonly string[]): string {
 }
 
 function isFast(value: unknown): value is Fast {
-  return typeof value === "boolean" || value === "ultra";
+  return typeof value === "boolean" || value === "ultrafast";
 }
 
-const FAST_ERROR = 'must be true, false, or "ultra"';
+const FAST_ERROR = 'must be true, false, or "ultrafast"';
 
 function codePointLength(value: string): number {
   return [...value].length;

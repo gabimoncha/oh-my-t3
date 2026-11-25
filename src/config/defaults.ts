@@ -30,7 +30,7 @@ function formatChain(chain: unknown[]): string {
     const parts = [`${String(driver)}/${String(candidate.model)}`];
     if (typeof candidate.effort === "string") parts.push(candidate.effort);
     if (candidate.fast === true) parts.push("fast");
-    if (candidate.fast === "ultra") parts.push("ultrafast");
+    if (candidate.fast === "ultrafast") parts.push("ultrafast");
     return parts.join(" ");
   }).join(", ");
 }

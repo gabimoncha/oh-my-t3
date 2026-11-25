@@ -8,8 +8,8 @@ export type RuntimeMode = "inherit" | "approval-required" | "auto-accept-edits" 
 export type T3Role = "implementation" | "research" | "review" | "design" | "test" | "general";
 export type ResultKind = "work" | "review" | "test" | "research" | "plan" | "score";
 export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan", "score"];
-// true asks for fast mode; "ultra" asks for the ultrafast service tier where a model offers it.
-export type Fast = boolean | "ultra";
+// true asks for fast mode; "ultrafast" asks for the Codex ultrafast service tier where a model offers it.
+export type Fast = boolean | "ultrafast";
 
 export interface Candidate {
   provider?: string; // T3 provider instance id, for example "claudeAgent"

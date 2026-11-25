@@ -28,8 +28,8 @@ function limit(name: keyof typeof LIMIT_RANGES, description: string) {
 
 const RETIRED = { deprecated: true, description: "No longer used. omt ignores this key." };
 const FAST = {
-  enum: [true, false, "ultra"],
-  description: "true asks for fast mode. \"ultra\" asks for the ultrafast service tier, or fast mode where the model has no ultrafast tier.",
+  enum: [true, false, "ultrafast"],
+  description: "true asks for fast mode. \"ultrafast\" asks for the Codex ultrafast service tier, or fast mode where the model has no ultrafast tier.",
 };
 
 function retired(keys: readonly string[]) {

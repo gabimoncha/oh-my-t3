@@ -136,7 +136,7 @@ function fastOptions(
   provider: string,
   notes: string[],
 ): Record<string, OptionValue> {
-  const ultra = fast === "ultra";
+  const ultra = fast === "ultrafast";
   let options: Record<string, OptionValue> | undefined;
   if (descriptors !== undefined) {
     if (ultra && offersTier(descriptors, "ultrafast")) return { serviceTier: "ultrafast" };

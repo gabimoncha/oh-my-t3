@@ -24,7 +24,7 @@ test("fast mode uses the live model descriptors and reports models without a fas
   }
 });
 
-test("ultra asks for the ultrafast tier only where offered and falls back to fast mode with a note", () => {
+test("ultrafast asks for the ultrafast tier only where offered and falls back to fast mode with a note", () => {
   const cases: [Candidate, Record<string, OptionValue> | undefined, string | undefined][] = [
     [{ driver: "codex", model: "gpt-6.2-sol" }, { serviceTier: "ultrafast" }, undefined],
     [{ driver: "codex", model: "gpt-6.2-astra" }, { serviceTier: "priority" }, "ultrafast is not offered by codex/gpt-6.2-astra; using fast mode"],
@@ -32,12 +32,12 @@ test("ultra asks for the ultrafast tier only where offered and falls back to fas
     [{ driver: "claudeAgent", model: "claude-haiku-5-5" }, undefined, "fast mode is not offered by claudeAgent/claude-haiku-5-5"],
   ];
   for (const [candidate, expected, note] of cases) {
-    const resolution = resolveRole("r", role([{ ...candidate, fast: "ultra" }]), liveCaps());
+    const resolution = resolveRole("r", role([{ ...candidate, fast: "ultrafast" }]), liveCaps());
     assert.equal(resolution.status, "resolved", candidate.model);
     assert.deepEqual(resolution.delegateTask?.target.options, expected, candidate.model);
     assert.deepEqual(resolution.attempts[0]?.notes, note === undefined ? [] : [note], candidate.model);
   }
-  const unverified = resolveRole("r", { ...role([{ driver: "codex", model: "gpt-6.2-sol" }]), fast: "ultra" });
+  const unverified = resolveRole("r", { ...role([{ driver: "codex", model: "gpt-6.2-sol" }]), fast: "ultrafast" });
   assert.deepEqual(unverified.delegateTask?.target.options, { serviceTier: "ultrafast" });
 });
 

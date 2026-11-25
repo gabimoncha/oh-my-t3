@@ -82,7 +82,7 @@ A chain holds 1 to 10 candidates. A candidate has these fields:
 | `driver` | The driver of the provider, such as `claudeAgent` or `codex`. A candidate needs `provider`, `driver`, or both. |
 | `model` | The model id. Required. |
 | `effort` | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. omt maps it to the effort option of the model. |
-| `fast` | `true`, `false`, or `"ultra"`. See [Set fast mode per role](#set-fast-mode-per-role). |
+| `fast` | `true`, `false`, or `"ultrafast"`. See [Set fast mode per role](#set-fast-mode-per-role). |
 | `options` | Raw T3 model options, as an object of strings and booleans. |
 
 `options` goes to T3 as it is, after omt applies the effort and fast mode, so a value in `options` wins over both. With `--capabilities`, omt checks each option id and value against the options that the model advertises. Without it, T3 checks them when the task starts. This candidate asks Codex for the priority service tier:
@@ -114,7 +114,7 @@ Add the role under `roles` in either config file. A new role needs `description`
 | `interactionMode` | The T3 interaction mode of the child: `inherit`, `default`, or `plan`. `plan` stops the child from editing files. | `default` for `edit`, `plan` for `read-only`. |
 | `runtimeMode` | The T3 runtime mode of the child: `inherit`, `approval-required`, `auto-accept-edits`, `auto`, or `full-access`. A child cannot get a broader mode than its parent thread. | `inherit`. |
 | `crossFamily` | `true` puts the candidates of the other family first when the skill names the worker. | `false`. |
-| `fast` | `true`, `false`, or `"ultra"`. | Not set. |
+| `fast` | `true`, `false`, or `"ultrafast"`. | Not set. |
 
 This role runs a security review on GPT-6.2-Astra in plan mode:
 
@@ -261,11 +261,11 @@ A run has no task budget and no parallel limit: T3 tracks the child tasks. `limi
 
 The first value that is set wins: the candidate `fast`, the role `fast`, the model `fast`, and then `false`. GPT-6.2-Sol and GPT-6.2-Astra have fast mode on by default. For a model that supports it, `true` becomes `serviceTier: "priority"` or `fastMode: true`. A model without fast mode keeps its target, and omt reports a note. A value in `candidate.options` wins over this mapping. `false` adds no fast option.
 
-`"ultra"` asks for the Codex ultrafast service tier, `serviceTier: "ultrafast"`. Today only GPT-6.2-Sol offers it. With `--capabilities`, a model without the tier gets fast mode and a note. Without it, T3 rejects the tier on such a Codex model, and the dispatch moves to the next target, so set `"ultra"` only on models that offer it:
+`"ultrafast"` asks for the Codex ultrafast service tier, `serviceTier: "ultrafast"`, instead of `priority`. Today only GPT-6.2-Sol offers it. With `--capabilities`, a model without the tier gets fast mode and a note. Without it, T3 rejects the tier on such a Codex model, and the dispatch moves to the next target, so set `"ultrafast"` only on models that offer it:
 
 ```jsonc
 {
-  "models": { "gpt-6.2-sol": { "fast": "ultra" } }
+  "models": { "gpt-6.2-sol": { "fast": "ultrafast" } }
 }
 ```
 
