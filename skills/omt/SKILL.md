@@ -3,6 +3,8 @@ name: omt
 description: Shared references for the omt skills. Not a workflow; do not load it. To pick a workflow, use omt-setup.
 disable-model-invocation: true
 user-invocable: false
+metadata:
+  internal: true
 ---
 
 # oh-my-t3 shared references

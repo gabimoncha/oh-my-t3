@@ -1,6 +1,8 @@
 ---
 name: omt-code-review
 description: Code review with subagents in T3 Code. Use when the user asks to review uncommitted changes, a branch, a commit, or a pull request. Accepts --profile. Runs report-only reviewers and an oracle, merges the findings, and offers fixes.
+metadata:
+  internal: true
 ---
 
 # Code review

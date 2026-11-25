@@ -2138,6 +2138,7 @@ Wake-up. T3 does not wake the thread that started a run. So the last step of eac
 ### 15.1 Common rules
 
 - Each skill is `skills/<name>/SKILL.md` with YAML frontmatter. `name` equals the directory name. `description` is at most 1,024 characters.
+- Each skill sets `metadata: { internal: true }`. The skills call the omt CLI, so they do not work alone, and `npx skills add` hides a skill with this flag unless `INSTALL_INTERNAL_SKILLS=1` is set. The agents ignore the field, and `omt install` copies it unchanged. A move of `skills/` would not hide them, because that installer also scans `.agents/skills/` and `.claude/skills/` and then the whole repository.
 - A user-invoked skill sets `disable-model-invocation: true` (read by Claude, Cursor, and Pi). It also ships `agents/openai.yaml`, because Codex reads that file instead:
 
   ```yaml

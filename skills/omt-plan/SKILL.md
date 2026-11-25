@@ -1,6 +1,8 @@
 ---
 name: omt-plan
 description: Plan before code in T3 Code. Use when the user asks for a plan, a spec, or a design before implementation, asks to stress-test or find the edge cases of a goal, or when omt-ulw needs a reviewed plan for a HEAVY task. The main thread explores, asks owner question batches, writes an omt plan file, and gets it reviewed from the other model family in at most 2 rounds.
+metadata:
+  internal: true
 ---
 
 # Plan

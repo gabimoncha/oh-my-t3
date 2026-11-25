@@ -1,6 +1,8 @@
 ---
 name: omt-ulw
 description: ulw / ultrawork in T3 Code. Use when the user says ulw or ultrawork, or asks to build, fix, or ship something with subagents in a T3 thread. The main thread explores, asks, plans, and builds; one review child and one QA child check the work before it reports done with evidence.
+metadata:
+  internal: true
 ---
 
 # Ultrawork
@@ -35,7 +37,7 @@ Done when: the message is a goal, or the question is answered.
 
 Pick the plan slug (`^[a-z0-9][a-z0-9-]{0,63}$`, such as `http-retry`) for the whole run. Read the profile with `omt profile show [<name>] --json`, or `omt profile show --plan <slug> --json` once the plan exists.
 
-Read the code that the goal touches yourself. Send only broad reads to parallel `explore` children, one narrow question each, with `--unit E<k>`.
+Read the code the goal touches yourself. Send only broad reads to parallel `explore` children, one narrow question each, with `--unit E<k>`.
 
 Done when: you can name the files and functions that the change touches, each with a `path:line` citation.
 

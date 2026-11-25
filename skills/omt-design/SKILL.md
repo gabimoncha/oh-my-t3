@@ -1,6 +1,8 @@
 ---
 name: omt-design
 description: Design pass in T3 Code. Use when the user asks for designs, mockups, screens, UX, or a design pass, or when an omt-plan or omt-ulw run has a requested design pass before its UI units. Draws variants, lets the owner pick and steer by screenshots until they approve, and writes a design spec that UI units cite.
+metadata:
+  internal: true
 ---
 
 # Design

@@ -63,8 +63,11 @@ test("the bundled skills are all present", () => {
 
 for (const name of skillDirs()) {
   test(`skill ${name} has valid frontmatter`, () => {
-    const fields = parseFrontmatter(readFileSync(join(SKILLS_DIR, name, "SKILL.md"), "utf8"));
+    const text = readFileSync(join(SKILLS_DIR, name, "SKILL.md"), "utf8");
+    const fields = parseFrontmatter(text);
     assert.equal(fields.name, name);
+    // Without the omt CLI the skills do not work, so `npx skills add` must not offer them.
+    assert.match(/^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] ?? "", /^metadata:\r?\n\s+internal: true$/m, "metadata.internal");
     const description = fields.description ?? "";
     assert.ok(description.length >= 1 && description.length <= 1024, `description length ${description.length}`);
     if (USER_INVOKED.includes(name)) {
