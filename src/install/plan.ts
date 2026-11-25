@@ -43,6 +43,7 @@ import {
   scratchPattern,
   shimContent,
   shimTarget,
+  shimToWrite,
   withExcludeBlock,
   withGitignoreLines,
   withoutExcludeBlocks,
@@ -488,7 +489,7 @@ async function planProjectInstall(
   const shimPath = projectShimPath(root);
   const shimIsFile = await isRegularFile(shimPath);
   const shimBefore = shimIsFile ? await readFileIfExists(shimPath) : undefined;
-  const shimAfter = shimContent(shimTarget(ctx, runner));
+  const shimAfter = await shimToWrite(shimBefore, shimContent(shimTarget(ctx, runner)));
   const shim: FileStep = { path: shimPath, before: shimBefore, after: shimAfter, action: fileAction(shimBefore, shimAfter) };
   if (!shimIsFile && (await pathExists(shimPath))) {
     shim.action = "conflict";
@@ -875,6 +876,7 @@ function reducedManifest(
   root: string,
   manifest: Manifest | undefined,
   stays: { config: boolean; settings: boolean },
+  gitExclude: string | undefined,
 ): Manifest | undefined {
   if (manifest === undefined || plan.project === undefined) return undefined;
   const project = plan.project;
@@ -883,7 +885,6 @@ function reducedManifest(
   if (stays.config && configRecord !== undefined) files.push(configRecord);
   if (files.length === 0 && !stays.config && !stays.settings) return undefined;
   const excludeFile = manifest.project?.excludeFile;
-  const gitExclude = manifest.project?.gitExclude;
   const existing = manifest.project?.existing;
   return {
     scope: "project",
@@ -1063,7 +1064,9 @@ export async function buildUninstallPlan(
       plan.manifest = { ...plan.manifest, action: "keep", reason: "a locally modified skill is kept" };
     }
     if (plan.manifest.action === "remove" && (await blockWillHide(paths.root, from))) {
-      const rewrite = reducedManifest(plan, paths.root, manifest, stays);
+      // The block that hides the reduced manifest is in the exclude file of the current root, which
+      // differs from the recorded one after the project moved.
+      const rewrite = reducedManifest(plan, paths.root, manifest, stays, (await findGitExclude(paths.root)).path);
       if (rewrite !== undefined) {
         const text = manifestText(rewrite);
         plan.manifest = {
