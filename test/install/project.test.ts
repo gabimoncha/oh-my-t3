@@ -429,7 +429,7 @@ test("the shim keeps a recorded runtime that still runs when omt runs under anot
   const other = join(f.root, "node-26", "bin", "node");
   writeFile(other, "#!/bin/sh\n");
   chmodSync(other, 0o755);
-  const again = await f.run(["install", "--project", "--yes"], { runtimePath: other });
+  const again = await f.runOk(["install", "--project", "--yes"], { runtimePath: other });
   assert.doesNotMatch(again.ctx.out(), /update {3}.*\.omt3[/\\]bin[/\\]omt/);
   assert.equal(readFileSync(shim, "utf8"), before, "the shim keeps the recorded runtime");
 });
