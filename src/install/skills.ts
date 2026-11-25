@@ -1,4 +1,4 @@
-import { readdir, realpath } from "node:fs/promises";
+import { readdir, realpath, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import pkg from "../../package.json" with { type: "json" };
 import { errorCode, hashDir, lstatIfExists, MANAGED_MARKER, pathExists, readFileIfExists, writeFileAtomic } from "../util/fs.ts";
@@ -85,8 +85,8 @@ export async function isLinkToSource(sourceDir: string, path: string): Promise<b
   }
   const skills = dirname(real);
   if (basename(real) !== basename(sourceDir) || basename(skills) !== "skills") return false;
-  if (!(await pathExists(join(real, "SKILL.md")))) return false;
   try {
+    if (!(await stat(real)).isDirectory() || !(await pathExists(join(real, "SKILL.md")))) return false;
     const manifest = JSON.parse((await readFileIfExists(join(dirname(skills), "package.json"))) ?? "null") as { name?: unknown } | null;
     return manifest?.name === pkg.name;
   } catch {
