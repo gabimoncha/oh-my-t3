@@ -1,5 +1,5 @@
-import { lstatSync } from "node:fs";
-import { stat } from "node:fs/promises";
+import { constants, lstatSync } from "node:fs";
+import { access, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { MISE_GITHUB_TOOL, PACKAGE_NAME, REPOSITORY_URL } from "../brand.ts";
@@ -177,6 +177,26 @@ export function shimContent(target: ShimTarget): string {
     }
   }
   return `${lines.join("\n")}\n`;
+}
+
+async function canRun(path: string): Promise<boolean> {
+  try {
+    if (!(await stat(path)).isFile()) return false;
+    await access(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// The shim to write when `before` is on disk. A shim that differs only in the recorded runtime stays
+// while that runtime can run, because a bundle under `#!/usr/bin/env node` runs with the node of the
+// current folder, and each folder would otherwise rewrite the shim of every project.
+export async function shimToWrite(before: string | undefined, after: string): Promise<string> {
+  const runtime = before === undefined ? undefined : shimPaths(before).runtime;
+  if (before === undefined || !isManagedShim(before) || runtime === undefined || before === after) return after;
+  const kept = after.replace(/^runtime="[^"]*"$/m, () => `runtime="${runtime}"`);
+  return kept === before && (await canRun(runtime)) ? before : after;
 }
 
 export function isManagedShim(text: string | undefined): boolean {

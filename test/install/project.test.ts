@@ -414,9 +414,24 @@ test("the shim: an unmanaged file conflicts, --force backs it up, and a changed 
   assert.equal(readFileSync(join(f.project, ".omt3", "backups", STAMP, "bin", "omt"), "utf8"), "#!/bin/sh\necho mine\n");
   assert.match(readFileSync(shim, "utf8"), /^# oh-my-t3code project shim$/m);
 
+  writeFileSync(shim, readFileSync(shim, "utf8").replace(/^runtime=".*"$/m, `runtime="${join(f.root, "gone", "bun")}"`));
   const moved = await f.runOk(["install", "--project", "--yes"], { runtimePath: "/opt/bun/bin/bun" });
   assert.match(moved.ctx.out(), /update {3}.*\.omt3[/\\]bin[/\\]omt/);
   assert.match(readFileSync(shim, "utf8"), /^runtime="\/opt\/bun\/bin\/bun"$/m);
+});
+
+// Regression: the npm bin runs under the node of the current folder, so each folder rewrote every project's shim.
+test("the shim keeps a recorded runtime that still runs when omt runs under another runtime", async () => {
+  const f = projectFixture();
+  await f.runOk(["install", "--project", "--yes"]);
+  const shim = join(f.project, ".omt3", "bin", "omt");
+  const before = readFileSync(shim, "utf8");
+  const other = join(f.root, "node-26", "bin", "node");
+  writeFile(other, "#!/bin/sh\n");
+  chmodSync(other, 0o755);
+  const again = await f.runOk(["install", "--project", "--yes"], { runtimePath: other });
+  assert.doesNotMatch(again.ctx.out(), /update {3}.*\.omt3[/\\]bin[/\\]omt/);
+  assert.equal(readFileSync(shim, "utf8"), before, "the shim keeps the recorded runtime");
 });
 
 test("a directory at the shim path is a conflict", async () => {
@@ -886,6 +901,18 @@ test("uninstall of a moved clone without a reinstall removes the old root's bloc
     "every other created path goes",
   );
   assert.equal(f.shown(moved), "", "the kept created file is hidden from git");
+});
+
+// Regression: the reduced manifest kept the exclude path of the old root.
+test("uninstall of a moved clone records the moved exclude file in the reduced manifest", async () => {
+  const f = gitFixture();
+  await f.runOk(["install", "--project", "--yes"]);
+  plantOldHook(f.project, hooked({ permissions: { allow: ["Bash(ls)"] } }), { created: true });
+  const moved = join(f.root, "moved");
+  renameSync(f.project, moved);
+  await f.runOk(["uninstall", "--project", "--yes"], { cwd: moved });
+  const project = readJson(join(moved, ".omt3", "install.json")).project as Record<string, unknown>;
+  assert.equal(project.gitExclude, join(moved, ".git", "info", "exclude"));
 });
 
 test("--project refuses a root that is the home directory or shares the user-scope paths", async () => {
