@@ -258,29 +258,61 @@ export async function applyDefaults(ctx: CliContext, scope: Scope, plan: Default
   await writeFileAtomic(target, `${JSON.stringify({ ...manifest, acceptedDefaults: snapshot }, null, 2)}\n`);
 }
 
+export interface DefaultsReview {
+  changed: boolean;
+  applied: boolean;
+  changes: DefaultsChange[];
+}
+
 export async function reviewDefaults(
   ctx: CliContext,
   scope: Scope,
   options: { yes: boolean; dryRun: boolean; json: boolean },
   target: OmtConfig = DEFAULT_CONFIG,
-): Promise<{ changed: boolean; applied: boolean; changes: DefaultsChange[] }> {
+): Promise<DefaultsReview> {
+  const [result] = await reviewDefaultsScopes(ctx, [{ scope, cwd: ctx.cwd }], options, target);
+  return result as DefaultsReview;
+}
+
+// Reviews several scopes against one target. Scopes whose diff text is the same share one review: the diff
+// prints once, and one answer applies to all of them.
+export async function reviewDefaultsScopes(
+  ctx: CliContext,
+  scopes: { scope: Scope; cwd: string }[],
+  options: { yes: boolean; dryRun: boolean; json: boolean },
+  target: OmtConfig = DEFAULT_CONFIG,
+): Promise<DefaultsReview[]> {
   const say = options.json ? ctx.stderr : ctx.stdout;
-  say(formatRetiredCleanup(await cleanRetired(ctx, scope, { dryRun: options.dryRun }), options.dryRun));
-  const plan = await planDefaults(ctx, scope, target);
-  const result = { changed: plan.changed, applied: false, changes: plan.changes };
-  if (!plan.changed) return result;
-  say(formatDefaultsPlan(plan));
-  if (options.dryRun) {
-    say("Dry run: nothing was written.\n");
-    return result;
+  const results: DefaultsReview[] = [];
+  const groups = new Map<string, { label: string; ctx: CliContext; scope: Scope; plan: DefaultsPlan; result: DefaultsReview }[]>();
+  for (const { scope, cwd } of scopes) {
+    const scopeCtx = { ...ctx, cwd };
+    say(formatRetiredCleanup(await cleanRetired(scopeCtx, scope, { dryRun: options.dryRun }), options.dryRun));
+    const plan = await planDefaults(scopeCtx, scope, target);
+    const result = { changed: plan.changed, applied: false, changes: plan.changes };
+    results.push(result);
+    if (!plan.changed) continue;
+    const text = formatDefaultsPlan(plan);
+    const label = scope === "user" ? "user" : findProjectRoot(cwd);
+    groups.set(text, [...(groups.get(text) ?? []), { label, ctx: scopeCtx, scope, plan, result }]);
   }
-  if ((options.json && !options.yes) || (!ctx.isTTY && !options.yes)) {
-    say("Run omt doctor --yes after reviewing the changes to apply them.\n");
-    return result;
+  for (const [text, members] of groups) {
+    say(text);
+    if (members.length > 1) say(`  Applies to: ${members.map((member) => member.label).join(", ")}\n`);
+    if (options.dryRun) {
+      say("Dry run: nothing was written.\n");
+      continue;
+    }
+    if ((options.json && !options.yes) || (!ctx.isTTY && !options.yes)) {
+      say("Run omt doctor --yes after reviewing the changes to apply them.\n");
+      continue;
+    }
+    if (!(await confirmApply(ctx, options.yes, { question: "Use the current defaults? [Y/n] ", defaultYes: true }))) continue;
+    for (const member of members) {
+      await applyDefaults(member.ctx, member.scope, member.plan);
+      member.result.applied = true;
+    }
+    say("Default settings updated. User overrides are unchanged.\n");
   }
-  if (!options.yes && !(await confirmApply({ ...ctx, prompt: () => ctx.prompt("Use the current defaults? [y/N] ") }, false))) return result;
-  await applyDefaults(ctx, scope, plan);
-  result.applied = true;
-  say("Default settings updated. User overrides are unchanged.\n");
-  return result;
+  return results;
 }

@@ -270,7 +270,7 @@ export interface CliContext {
   stderr: (text: string) => void;
   readStdin: () => Promise<string>;
   isTTY: boolean; // true when stdin is a terminal
-  prompt: (question: string) => Promise<string>;
+  prompt: (question: string) => Promise<string | null>; // null when input closes before an answer (Ctrl-D)
   now: () => Date;
   packageRoot: string; // directory that holds skills/: the package root, or the embedded root of a binary
   cliPath: string; // absolute path of src/cli.ts, dist/cli.js, or the binary

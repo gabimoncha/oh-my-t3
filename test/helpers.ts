@@ -122,7 +122,7 @@ export interface FakeContext extends CliContext {
 
 export interface FakeContextOptions extends Partial<CliContext> {
   root?: string; // temp directory to hold home/ and project/; required unless homedir and cwd are given
-  answer?: string; // what prompt() returns
+  answer?: string | null; // what prompt() returns; null is closed input
   stdin?: string; // what readStdin() returns
 }
 

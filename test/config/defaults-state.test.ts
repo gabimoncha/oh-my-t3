@@ -30,7 +30,7 @@ test("doctor shows the diff and preserves accepted defaults and overrides after 
   writeFile(config, '{\n  // Keep this override.\n  "defaults": "2026-12",\n  "limits": { "maxReviewRounds": 2 }\n}\n');
   const prompts: string[] = [];
   await doctor({ ...ctx, argv: ["--project"], isTTY: true, prompt: async (question) => { prompts.push(question); return "no"; } });
-  assert.deepEqual(prompts, ["Use the current defaults? [y/N] "]);
+  assert.deepEqual(prompts, ["Use the current defaults? [Y/n] "]);
   assert.match(ctx.out(), /roles\.execute\.chain:.*low.*->.*medium/);
   assert.equal(readFileSync(path, "utf8"), before);
   assert.equal(readFileSync(config, "utf8"), '{\n  // Keep this override.\n  "limits": { "maxReviewRounds": 2 }\n}\n');
