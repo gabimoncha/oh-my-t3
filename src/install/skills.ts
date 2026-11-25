@@ -1,5 +1,6 @@
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { readdir, realpath } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
+import pkg from "../../package.json" with { type: "json" };
 import { errorCode, hashDir, lstatIfExists, MANAGED_MARKER, pathExists, readFileIfExists, writeFileAtomic } from "../util/fs.ts";
 
 export const PACKAGE_NAME = "oh-my-t3code";
@@ -21,8 +22,10 @@ export type SkillAction = "create" | "update" | "unchanged" | "conflict";
 export interface SkillClassification {
   action: SkillAction;
   sourceHash: string;
-  reason?: string; // set for conflicts
+  reason?: string; // set for conflicts and for a link to the source skill
 }
+
+export const SOURCE_LINK_REASON = "links to the omt source";
 
 export async function listBundledSkills(packageRoot: string): Promise<BundledSkill[]> {
   const root = join(packageRoot, "skills");
@@ -70,10 +73,35 @@ export async function isManagedDir(path: string): Promise<boolean> {
   return pathExists(join(path, MANAGED_MARKER));
 }
 
+// True when `path` resolves to this skill in the skills/ folder of an omt package: the running one, or
+// another checkout, as when the CLI runs from a linked worktree and the links are the main checkout's.
+export async function isLinkToSource(sourceDir: string, path: string): Promise<boolean> {
+  let real: string;
+  try {
+    real = await realpath(path);
+    if (real === (await realpath(sourceDir))) return true;
+  } catch {
+    return false;
+  }
+  const skills = dirname(real);
+  if (basename(real) !== basename(sourceDir) || basename(skills) !== "skills") return false;
+  if (!(await pathExists(join(real, "SKILL.md")))) return false;
+  try {
+    const manifest = JSON.parse((await readFileIfExists(join(dirname(skills), "package.json"))) ?? "null") as { name?: unknown } | null;
+    return manifest?.name === pkg.name;
+  } catch {
+    return false;
+  }
+}
+
 export async function classifySkill(sourceDir: string, targetDir: string): Promise<SkillClassification> {
   const sourceHash = await hashDir(sourceDir);
   const stat = await lstatIfExists(targetDir);
   if (stat === undefined) return { action: "create", sourceHash };
+  // A checkout of omt links its skill roots to its own skills/, so agents load the current sources.
+  if (stat.isSymbolicLink() && (await isLinkToSource(sourceDir, targetDir))) {
+    return { action: "unchanged", sourceHash, reason: SOURCE_LINK_REASON };
+  }
   if (!stat.isDirectory()) return { action: "conflict", sourceHash, reason: "exists and is not a directory" };
   const marker = await readMarker(targetDir);
   if (marker === undefined) return { action: "conflict", sourceHash, reason: "exists and is not managed by omt" };

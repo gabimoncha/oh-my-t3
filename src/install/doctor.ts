@@ -31,7 +31,7 @@ import {
 } from "./project.ts";
 import { worktreeSummary } from "../worktree/check.ts";
 import { DEFAULT_HARNESSES, harnessEffects } from "./harness.ts";
-import { classifySkill, isManagedDir, listBundledSkills } from "./skills.ts";
+import { classifySkill, isLinkToSource, isManagedDir, listBundledSkills } from "./skills.ts";
 import { planWorkflows, t3Workflows } from "./workflows.ts";
 import type { BundledSkill } from "./skills.ts";
 
@@ -147,16 +147,20 @@ async function checkSkills(ctx: CliContext, paths: ScopePaths, bundled: BundledS
   return check("skills", "PASS", `${plural(bundled.length, "skill")} installed in ${root}`);
 }
 
-async function checkLinks(ctx: CliContext, paths: ScopePaths, names: string[]): Promise<DoctorCheck> {
+async function checkLinks(ctx: CliContext, paths: ScopePaths, bundled: BundledSkill[]): Promise<DoctorCheck> {
   const claude = paths.linkRoots.claude ?? "";
-  const plan = await planLinks(paths.agentsRoot, [{ name: "claude", path: claude }], names);
+  const sources = new Map(bundled.map((skill) => [skill.name, skill.dir]));
+  const plan = await planLinks(paths.agentsRoot, [{ name: "claude", path: claude }], bundled.map((skill) => skill.name));
   if (plan.skipped.length > 0) return check("links", "PASS", `${claude} is the agents skill root`);
   const missing: string[] = [];
   const broken: string[] = [];
   for (const link of plan.links) {
     if (link.action === "create") missing.push(link.name);
     else if (link.action === "conflict") broken.push(`${link.name} (${link.reason ?? "conflict"})`);
-    else if (!(await isManagedDir(await resolveReal(link.canonical)))) broken.push(`${link.name} (target is missing)`);
+    else if (
+      !(await isManagedDir(await resolveReal(link.canonical))) &&
+      !(await isLinkToSource(sources.get(link.name) ?? "", link.canonical))
+    ) broken.push(`${link.name} (target is missing)`);
   }
   if (broken.length > 0) return check("links", "FAIL", `broken or conflicting in ${claude}: ${broken.join(", ")}`);
   if (missing.length > 0) return check("links", "WARN", `missing in ${claude}: ${missing.join(", ")}; run ${installHint(ctx, paths)}`);
@@ -439,7 +443,7 @@ export async function runDoctor(
     loaded = { error };
   }
   const names = bundled.map((skill) => skill.name);
-  checks.push(await checkSkills(ctx, paths, bundled, loaded), await checkLinks(ctx, paths, names));
+  checks.push(await checkSkills(ctx, paths, bundled, loaded), await checkLinks(ctx, paths, bundled));
   checks.push(...await checkHooks(paths, loaded));
   if (scope === "project") {
     checks.push(
