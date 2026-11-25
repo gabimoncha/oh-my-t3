@@ -61,6 +61,10 @@
                   "id": "priority",
                   "label": "Fast",
                   "description": "2x speed, increased usage"
+                },
+                {
+                  "id": "ultrafast",
+                  "label": "Ultrafast"
                 }
               ],
               "currentValue": "default"

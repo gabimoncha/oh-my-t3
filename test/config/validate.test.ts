@@ -41,6 +41,16 @@ test("a full valid layer is kept as given, and $schema is ignored", () => {
   assert.deepEqual(layer, rest);
 });
 
+test('fast accepts "ultra" on a candidate, a role, and a model, and rejects other strings', () => {
+  const value = {
+    roles: { execute: { fast: "ultra", chain: [{ ...CANDIDATE, fast: "ultra" }] } },
+    models: { "gpt-6.2-sol": { fast: "ultra" } },
+  };
+  assert.deepEqual(validateLayer(value, "src"), { layer: value, issues: [] });
+  assert.deepEqual(paths({ roles: { execute: { fast: "turbo" } }, models: { m: { fast: "fast" } } }),
+    ["roles.execute.fast", "models.m.fast"]);
+});
+
 test("an empty object is a valid empty layer", () => {
   assert.deepEqual(validateLayer({}, "src"), { layer: {}, issues: [] });
 });
