@@ -475,7 +475,7 @@ Argument parsing uses `node:util` `parseArgs` with `strict: true` and `allowPosi
 | `init` | `omt init` |
 | `config` | `omt config [show \| explain \| path \| validate \| init] [--json] [--defaults] [--force]`, `omt config explain [--profile <name>] [--json]` |
 | `detect` | `omt detect [--capabilities <file>] [--json] [--write] [--user \| --project] [--dry-run] [--yes]` |
-| `roles` | `omt roles [--capabilities <file>] [--role <name>]... [--plan <slug>] [--profile <name>] [--json]` |
+| `roles` | `omt roles [--capabilities <file>] [--role <name>]... [--plan <slug>] [--profile <name>] [--json \| --html <file>]` |
 | `route` | `omt route <role> [--capabilities <file>] [--against <provider\|driver>] [--plan <slug>] [--profile <name>]` |
 | `brief` | `omt brief <role> (--task <text> \| --task-file <file>) [options]` |
 | `plan` | `omt plan new <slug> [--title <text>] [--light] [--profile <name>] [--force]`, `omt plan profile <slug> <name\|none>`, `omt plan mark <slug> <id> <done\|open\|blocked>`, `omt plan status [<slug>] [--json]`, `omt plan list [--json]` |
@@ -584,6 +584,8 @@ oracle       unavailable -                                              edit    
 `MODE` is the role's `interactionMode`. `CROSS` is `yes` when the role has `crossFamily: true`, else `no`. Under each role, the table prints one indented line per failure reason of the candidates before the chosen one, and the notes of the chosen candidate. For an unavailable role it prints the reason of every candidate. Later candidates are not shown.
 
 A footer line says either `verified against orchestrator_capabilities` or `unverified: pass --capabilities <file> to check the chains against T3`. `--json` prints the `RolesReport`. Config issues go to stderr. An unknown `--role` exits 1.
+
+`--html <file>` writes the same report as one HTML document for the T3 `html_preview` and `html_render` tools, and prints the absolute path. `--json` with `--html` is a usage error. `src/routing/html.ts` renders it. The document starts with `<!doctype html>`, uses the T3 theme variables with plain fallbacks, and sets no page background. A header names the selected profile and says `verified against T3` or `unverified`. The table has one row per role, with a `Primary` group for the first ok candidate and a `Fallback` group for the second. Each group has the columns harness (`providerInstanceId`, else `driverKind`), model, effort, and speed. Effort is the candidate's `effort`, else the mapped effort option, else `default`. Speed is `ultrafast` for `serviceTier: "ultrafast"`, `fast` for `serviceTier: "priority"` or `fastMode: true`, else `off`. More ok candidates add `+<n>` after the fallback model. A role with no ok candidate spans both groups with `unavailable`. Role notes and the notes of the chosen candidate follow the table as a list.
 
 `omt route <role>` prints a `RouteOutput` (section 3) as JSON. Its `delegateTask` fields map directly onto `delegate_task` arguments. This is `omt route review --against codex --capabilities caps.json`:
 
@@ -2291,7 +2293,7 @@ Top-level threads. `delegate_task` makes children. Only when the user asks for s
 ### 15.3 Shared references in `skills/omt/references/`
 
 - `delegation.md`: the T3 rules, in these sections: "User instructions win", "The CLI", "What a child is", "Your interaction mode", "Branch check", "Worktree setup", "Dispatching a child", "Waiting", "Failure codes", "Releasing children", "Git actions", "Pull requests", "Verification and devices", "Shared builds", and "Top-level threads". Section 15.2 gives their rules.
-- `roles.md`: the default roles with their access, result kind, and use; the commands `omt roles`, `omt route`, and `omt brief`, and `--capabilities`; the cross-family roles with `--against` and `--strict`; "Main thread or child", the rule that a role whose first target has the main thread's model is work that the main thread does itself; and custom roles.
+- `roles.md`: the default roles with their access, result kind, and use; the commands `omt roles`, `omt route`, and `omt brief`, and `--capabilities`; the roles card from `omt roles --html`, shown with `html_preview` and `html_render`; the cross-family roles with `--against` and `--strict`; "Main thread or child", the rule that a role whose first target has the main thread's model is work that the main thread does itself; and custom roles.
 - `brief.md`: what a brief holds, the four parts of the task text (deliverable, scope, verify, stop condition), what goes in the context and in `--prior-file`, and that children write no new tests.
 - `results.md`: the result kind of each role with its first label; "A claim is not evidence", the checks of a `DONE` claim; the action for each verdict; and what to do when the result block is missing.
 - `planning.md`: the standard for a plan file: cited units with five fields (role, scope, done condition, verify command, and dependencies), failable done conditions, shared resources whose units run one at a time, the `## Tests` line format and layers, and `## Summary` last.

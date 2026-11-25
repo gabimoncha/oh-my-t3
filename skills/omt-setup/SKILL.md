@@ -47,7 +47,7 @@ This step writes nothing. Sort the question, and run its commands first:
 
 - Which skill to use, or what omt can do: [Workflows](#workflows).
 - What a command means: `omt help <command>`.
-- A config question: `omt config show`, `omt config explain`, `omt profile list`, `omt profile show <name>`, `omt roles`, or `omt detect`.
+- A config question: `omt config show`, `omt config explain`, `omt profile list`, `omt profile show <name>`, the [roles card](../omt/references/roles.md#commands), or `omt detect`.
 - What to do next: the doctor command of step 2, and `omt update --check` for a new version.
 
 Answer first, in one to three sentences. For a skill, give its composer form, such as `$omt-ulw <task>`. For a change, name the key and the file, and offer the write steps. Link one doc as `https://github.com/gabimoncha/oh-my-t3/blob/main/docs/<file>.md`: `install`, `configuration`, `commands`, `workflows`, `walkthrough`, or `design`.
@@ -84,7 +84,7 @@ Done when: you finished each step of worktrees.md that applies.
 1. Run `omt config path`. Pick the project file for one project, or the user file for all. When it is absent, propose `omt init` or `omt config init`.
 2. Read the file and `omt config show --defaults`. Write the JSONC edit with its key path by the [configuration guide](https://github.com/gabimoncha/oh-my-t3/blob/main/docs/configuration.md). A new role needs `description`, `access`, and `chain`. A `chain` replaces the old chain, and `null` removes a role. To run the review and QA steps as T3 workflows, set `profiles.normal.t3Workflow` to `true`. When the doctor's `workflows` line says T3 Workflows is off, tell the user to turn it on in T3 Settings → Labs → Workflows.
 3. Show the edit and ask. After yes, make it, and keep every other byte.
-4. The check: `omt config validate`, then `omt profile show <name>`.
+4. The check: `omt config validate`, then `omt profile show <name>`. After a role, model, or `fast` change, show the [roles card](../omt/references/roles.md#commands).
 
 Done when: `omt config validate` exits 0, and `omt profile show <name>` shows the new values.
 

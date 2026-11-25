@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "bun:test";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.ts";
 import type { RolesReport } from "../../src/types.ts";
+import { LIVE_CAPS_FILE } from "../routing/shared.ts";
 import { CAPS_FILE, makeProject } from "./shared.ts";
 
 test("roles prints every role unverified with the unverified footer", async () => {
@@ -63,6 +65,29 @@ test("roles prints config issues to stderr and fails on an unknown role", async 
   assert.equal(unknown.code, 1);
   assert.match(unknown.ctx.err(), /unknown role nope; known roles: explore, /);
   assert.equal(unknown.ctx.out(), "");
+});
+
+test("roles --html shows ultrafast, fast, and off per target, and counts hidden fallbacks", async () => {
+  const project = makeProject();
+  project.projectConfig(`{ "version": 1, "roles": { "qa": { "fast": "ultrafast", "chain": [
+    { "driver": "codex", "model": "gpt-6.2-sol", "effort": "medium" },
+    { "driver": "codex", "model": "gpt-6.2-astra" },
+    { "driver": "claudeAgent", "model": "claude-sonnet-5-5" }
+  ] } } }\n`);
+  const file = join(project.root, "out", "roles.html");
+  const { code, ctx } = await project.run(["roles", "--role", "qa", "--role", "execute", "--html", file, "--capabilities", LIVE_CAPS_FILE]);
+  assert.equal(code, 0, ctx.err());
+  assert.equal(ctx.out(), `${file}\n`);
+  const html = readFileSync(file, "utf8");
+  assert.ok(html.startsWith("<!doctype html>"));
+  const qa = html.split("\n").find((line) => line.includes('class="role">qa<')) ?? "";
+  assert.match(qa, /gpt-6\.2-sol<\/td><td>medium<\/td><td><span class="chip ultrafast">ultrafast<\/span>.*gpt-6\.2-astra <span class="dim">\+1<\/span><\/td><td>default<\/td><td><span class="chip fast">fast/);
+  assert.match(html, /profile normal · verified against T3/);
+  const execute = html.split("\n").find((line) => line.includes('class="role">execute<')) ?? "";
+  assert.match(execute, /claude-opus-5-5<\/td><td>medium<\/td><td><span class="chip off">off/);
+
+  const both = await project.run(["roles", "--json", "--html", file]);
+  assert.equal(both.code, 2);
 });
 
 test("roles rejects a positional argument and a missing capabilities file", async () => {
