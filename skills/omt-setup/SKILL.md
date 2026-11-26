@@ -1,6 +1,8 @@
 ---
 name: omt-setup
 description: Set up, configure, update, or explain omt in T3 Code. Use when the user asks to set up, configure, or update omt, change models, roles, or profiles, pick the harnesses (Claude Code, Codex), or review new defaults, or asks for help, what omt can do, what to do next, which skill to use, or what a command means. Asks before each write.
+metadata:
+  internal: true
 ---
 
 # Setup and help

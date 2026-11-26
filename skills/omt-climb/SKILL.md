@@ -2,6 +2,8 @@
 name: omt-climb
 description: Hill climb in T3 Code. Turns a goal into a score, then repeats change, gates, and score until every judge meets a target, the score stops rising, or the round limit ends the run. The judges are commands that print a number, or models that score blind-labeled screenshots or outputs, least expensive tier first. Runs only as the T3 workflow omt-climb, so it needs T3 Workflows.
 disable-model-invocation: true
+metadata:
+  internal: true
 ---
 
 # Climb

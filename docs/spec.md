@@ -1784,7 +1784,7 @@ Skill copies of the selected skills (section 14.1) go to `skillRoots().agents/<n
 
 - `create`: the target is absent.
 - `update`: the target is managed, the hash of the installed files equals the marker hash, and the marker hash differs from the source hash.
-- `unchanged`: the target is managed and the marker hash equals the source hash.
+- `unchanged`: the target is managed and the marker hash equals the source hash. Also a symlink that links to the omt source, with the reason `(links to the omt source)`: its real path is the real path of the bundled skill, or it is `<dir>/skills/<name>` with a `SKILL.md`, where `<dir>/package.json` has the name of the running package. The second form covers a CLI that runs from a linked worktree while the project root is the main checkout. A checkout of omt commits such links, so its agents load the current `skills/`. The install never replaces them, and the uninstall never removes them, because they are not managed.
 - `conflict`: the target exists and is not managed, or it is managed but the hash of the installed files differs from the marker hash (the user edited it). This holds even when the source is unchanged.
 
 Links for the selected skills go to `skillRoots().claude/<name>`, and to `skillRoots().gemini/<name>` when that target is selected. The link is relative. Its target is computed from real paths, `path.relative(realpath(link root), join(realpath(agents root), name))`, so the link resolves even when a root is itself a symlink. Each link is `create`, `unchanged` (a symlink that resolves to the canonical directory), or `conflict` (anything else). Before planning links, resolve each root and the agents root with `fs.realpath` (a missing root resolves to its own path). When a link root and the agents root are the same directory, plan no links for that root.
@@ -1886,7 +1886,7 @@ Then doctor runs these checks and prints one line per check, such as `PASS  conf
 | `update` | only when the update check is on (section 5.14), also with `--project`: `omt <v> is the latest (checked <date>)` | | never: a failed check is `INFO` | `omt <latest> is out; run omt update`; or `the update check failed: <reason>` |
 | `harnesses` | the config sets no `harnesses` key: `claudeAgent, codex`; or the key holds both | | | a restricted harness list: `<list> only; <effects>`; effects follow the selected role chains as in section 5.13, so a single family reports `cross-family review: the same family reviews` |
 | `skills` | every bundled skill (section 14.1) is installed, managed, and current, and no retired skill is left | missing, outdated, or locally modified skills; a retired skill (section 14.2) that is still in place, as `no longer shipped: <names> in <agents root>; run omt install` | the CLI has no bundled skills (section 14.1) | |
-| `links` | every Claude link of a selected skill resolves to its canonical directory | a missing link | a broken or conflicting link | |
+| `links` | every Claude link of a selected skill resolves to its canonical directory, which is managed or links to the omt source (section 14.2) | a missing link | a broken or conflicting link | |
 | `hooks` | | only while a settings file (the scope's, or one that the manifest records) still holds the retired hook: `the retired omt prompt hook is still in <paths>; run omt update to remove it`. No line otherwise | | |
 | `path` | an executable `omt` exists in a `PATH` directory | none found; the message says that skills need the CLI, and names the install channels of section 14.2 | | |
 | `t3` | `t3SettingsPath()` exists | it does not exist | | |
@@ -2138,6 +2138,7 @@ Wake-up. T3 does not wake the thread that started a run. So the last step of eac
 ### 15.1 Common rules
 
 - Each skill is `skills/<name>/SKILL.md` with YAML frontmatter. `name` equals the directory name. `description` is at most 1,024 characters.
+- Each skill sets `metadata: { internal: true }`. The skills call the omt CLI, so they do not work alone, and `npx skills add` hides a skill with this flag unless `INSTALL_INTERNAL_SKILLS=1` is set. The agents ignore the field, and `omt install` copies it unchanged. A move of `skills/` would not hide them, because that installer also scans `.agents/skills/` and `.claude/skills/` and then the whole repository.
 - A user-invoked skill sets `disable-model-invocation: true` (read by Claude, Cursor, and Pi). It also ships `agents/openai.yaml`, because Codex reads that file instead:
 
   ```yaml

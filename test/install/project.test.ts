@@ -370,6 +370,65 @@ test("uninstall --project keeps a locally modified skill without --force", async
   assert.ok(existsSync(join(f.project, ".omt3", "backups", STAMP, "agents", "alpha", "SKILL.md")));
 });
 
+// A checkout of omt commits skill roots that link to its own skills/. Before the fix, doctor failed the
+// links, install planned conflicts, and --force replaced the tracked links with copies.
+test("skill roots that link to the omt source pass doctor and stay through install and uninstall", async () => {
+  const f = projectFixture();
+  const links: Record<string, string> = {};
+  for (const root of [".agents", ".claude"]) {
+    mkdirSync(join(f.project, root, "skills"), { recursive: true });
+    for (const name of ["alpha", "beta"]) {
+      const link = join(f.project, root, "skills", name);
+      symlinkSync(join(f.packageRoot, "skills", name), link);
+      links[link] = readlinkSync(link);
+    }
+  }
+  const assertLinksKept = (when: string) => {
+    for (const [link, target] of Object.entries(links)) assert.equal(readlinkSync(link), target, `${when}: ${link}`);
+    assert.ok(!existsSync(join(f.packageRoot, "skills", "alpha", MANAGED_MARKER)), `${when}: no marker in the source`);
+  };
+
+  const before = await doctor(f, ["--project"]);
+  assert.equal(before.get("skills").status, "PASS");
+  assert.equal(before.get("links").status, "PASS");
+
+  const { ctx } = await f.runOk(["install", "--project", "--yes"]);
+  assert.match(ctx.out(), /unchanged .*alpha {2}\(links to the omt source\)/);
+  assertLinksKept("install");
+  const manifest = readJson(join(f.project, ".omt3", "install.json"));
+  assert.deepEqual(manifest.skills, []);
+  assert.deepEqual(manifest.project, { ...(manifest.project as object), existing: {
+    skills: ["alpha", "beta"],
+    links: ["alpha", "beta"].map((name) => join(f.project, ".claude", "skills", name)),
+  } });
+  assert.doesNotMatch(readFileSync(f.exclude, "utf8"), /skills\/alpha/, "git still sees the tracked links");
+
+  const after = await doctor(f, ["--project"]);
+  assert.equal(after.get("skills").status, "PASS");
+  assert.equal(after.get("links").status, "PASS");
+
+  await f.runOk(["uninstall", "--project", "--yes"]);
+  assertLinksKept("uninstall");
+});
+
+// In a linked worktree the project root is the main checkout, so the links resolve to the main
+// checkout's skills/, not to the skills of the CLI that runs.
+test("skill links to another omt checkout pass doctor; links to another package's skills stay conflicts", async () => {
+  for (const [name, ok] of [["oh-my-t3", true], ["other-skills", false]] as const) {
+    const f = projectFixture();
+    const checkout = join(f.root, "checkout");
+    cpSync(join(f.packageRoot, "skills"), join(checkout, "skills"), { recursive: true });
+    writeFile(join(checkout, "package.json"), JSON.stringify({ name }));
+    mkdirSync(join(f.project, ".agents", "skills"), { recursive: true });
+    for (const skill of ["alpha", "beta"]) symlinkSync(join(checkout, "skills", skill), join(f.project, ".agents", "skills", skill));
+
+    const report = await doctor(f, ["--project"]);
+    assert.equal(report.get("skills").status, ok ? "PASS" : "WARN", name);
+    const { ctx } = await f.run(["install", "--project", "--dry-run"]);
+    assert.match(ctx.out(), ok ? /unchanged .*alpha {2}\(links to the omt source\)/ : /conflict .*alpha/, name);
+  }
+});
+
 test("uninstall --project --purge removes the config only when the install created it", async () => {
   const f = projectFixture();
   await f.runOk(["install", "--project", "--yes"]);
