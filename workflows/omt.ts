@@ -7,8 +7,8 @@
 // Each run ends by sending a short message to the thread that started it, because T3 does not wake that thread.
 // Each run tags itself with its skill and names the thread or the PR that it is about.
 import { execFile } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
 
@@ -179,8 +179,24 @@ interface BriefArgs {
   against?: string;
 }
 
-// Renders the role's brief with omt and routes the role: the first target, then its fallbacks. --save puts
-// the brief in a file, so the step's value on the Workflows page is a short pointer, not the whole brief.
+// Saves the brief under the hash of its text in the project's evidence folder, so that the step's value on
+// the Workflows page is a short pointer. The workflow saves it, not omt brief --save: an older project CLI
+// saves by request ID, and two runs of one plan could then replace each other's brief.
+const saveBrief = (omt: readonly string[], cwd: string, role: string, brief: string) =>
+  Effect.gen(function* () {
+    const [command, ...prefix] = omt;
+    const evidence = (yield* exec(command ?? "omt", [...prefix, "paths", "--evidence"], cwd)).trim();
+    const path = join(evidence, "briefs", `${role}-${createHash("sha256").update(brief).digest("hex")}.md`);
+    yield* attempt(() => {
+      mkdirSync(join(evidence, "briefs"), { recursive: true });
+      const temp = `${path}.${randomBytes(4).toString("hex")}.tmp`;
+      writeFileSync(temp, brief);
+      renameSync(temp, path);
+    });
+    return `Act as the ${role} sub-agent for this task. Your full brief is in the file ${path}. Read it in full first, then follow it exactly. Submit the structured result that the brief asks for.`;
+  });
+
+// Renders the role's brief with omt and routes the role: the first target, then its fallbacks.
 const route = (omt: readonly string[], cwd: string, plan: string, args: BriefArgs) =>
   Effect.gen(function* () {
     const dir = mkdtempSync(join(tmpdir(), "omt-workflow-"));
@@ -188,7 +204,7 @@ const route = (omt: readonly string[], cwd: string, plan: string, args: BriefArg
       writeFileSync(join(dir, "task.md"), args.task);
       const flags = [
         "brief", args.role, "--task-file", join(dir, "task.md"),
-        "--plan", plan, "--unit", args.unit, "--round", String(args.round), "--workflow", "--save", "--json",
+        "--plan", plan, "--unit", args.unit, "--round", String(args.round), "--workflow", "--json",
       ];
       if (args.context !== undefined && args.context.trim() !== "") {
         writeFileSync(join(dir, "context.md"), args.context);
@@ -203,7 +219,7 @@ const route = (omt: readonly string[], cwd: string, plan: string, args: BriefArg
         fallbacks: Target[];
       };
       const routed: Routed = {
-        brief: out.delegateTask.task,
+        brief: yield* saveBrief(omt, cwd, args.role, out.delegateTask.task),
         title: out.delegateTask.title,
         interactionMode: out.delegateTask.interactionMode,
         targets: [out.delegateTask.target, ...out.fallbacks].map(toModel),
@@ -1278,12 +1294,16 @@ workflow(
           data: { body, reason: next.reason, table, findings },
           timeout: "2 days",
         });
-        if (Option.isNone(answer) || answer.value.choice === "stop") {
+        if (Option.isNone(answer)) {
           return yield* finish(input, run.id, next.action, round, next.reason, at.head, table, scores, changes, declined);
+        }
+        const why = (answer.value.reason ?? "").trim();
+        if (answer.value.choice === "stop") {
+          const reason = why === "" ? next.reason : `${next.reason}; the owner stopped the climb: ${why}`;
+          return yield* finish(input, run.id, next.action, round, reason, at.head, table, scores, changes, declined);
         }
         since = round;
         maxRounds = Math.max(maxRounds, round + EXTRA_ROUNDS);
-        const why = (answer.value.reason ?? "").trim();
         if (answer.value.choice === "change approach") {
           guidance = `The owner asked for another approach than the earlier rounds${why === "" ? "." : `: ${why}`}`;
         } else if (why !== "") {

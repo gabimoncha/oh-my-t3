@@ -70,7 +70,7 @@ When Workflows is off, or `t3 workflow start` fails, the skill prints one line a
 
 ### Find a run by its skill, thread, or PR
 
-On T3 `v0.1.13-nightly.20261125.5258` or later, each run has a tag with its skill (`ulw`, `code-review`, or `climb`) and a subject. The subject is the thread that started the run. An `omt-code-review` run uses the linked PR when T3 reports a single PR for that thread. The Workflows page shows the subject under the run and opens it beside the run. Use these commands to find runs by tag or subject.
+On T3 `v0.1.13-nightly.20261125.5258` or later, each run has a tag with its skill (`ulw`, `code-review`, or `climb`) and a subject. The subject is the thread that started the run. An `omt-code-review` run uses the thread's PR when the thread has exactly one PR link and that PR is open. T3 does not report a closed or merged PR to the workflow, so for such a PR the subject stays the thread, and the question has no PR link. The Workflows page shows the subject under the run and opens it beside the run. Use these commands to find runs by tag or subject.
 
 ```sh
 t3 workflow list --tag code-review
