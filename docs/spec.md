@@ -111,13 +111,14 @@ export type RuntimeMode = "inherit" | "approval-required" | "auto-accept-edits" 
 export type T3Role = "implementation" | "research" | "review" | "design" | "test" | "general";
 export type ResultKind = "work" | "review" | "test" | "research" | "plan" | "score";
 export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan", "score"];
+export type Fast = boolean | "ultrafast"; // section 8.4
 
 export interface Candidate {
   provider?: string; // T3 provider instance id, for example "claudeAgent"
   driver?: string; // T3 driver kind; used when provider is absent
   model: string; // model id as listed by orchestrator_capabilities
   effort?: Effort; // mapped onto the model's effort option
-  fast?: boolean;
+  fast?: Fast;
   options?: Record<string, OptionValue>; // raw T3 option selections; override the effort mapping
 }
 
@@ -129,7 +130,7 @@ export interface RoleConfig {
   interactionMode: InteractionMode;
   runtimeMode: RuntimeMode;
   crossFamily?: boolean; // review from the family other than the worker's when --against names the worker
-  fast?: boolean;
+  fast?: Fast;
   chain: Candidate[];
 }
 
@@ -167,7 +168,7 @@ export interface Workflow {
 export type WorkflowLayer = { [K in keyof Workflow]?: Partial<Workflow[K]> };
 
 export interface ModelConfig {
-  fast?: boolean;
+  fast?: Fast;
 }
 
 export interface ProfileConfig {
@@ -474,7 +475,7 @@ Argument parsing uses `node:util` `parseArgs` with `strict: true` and `allowPosi
 | `init` | `omt init` |
 | `config` | `omt config [show \| explain \| path \| validate \| init] [--json] [--defaults] [--force]`, `omt config explain [--profile <name>] [--json]` |
 | `detect` | `omt detect [--capabilities <file>] [--json] [--write] [--user \| --project] [--dry-run] [--yes]` |
-| `roles` | `omt roles [--capabilities <file>] [--role <name>]... [--plan <slug>] [--profile <name>] [--json]` |
+| `roles` | `omt roles [--capabilities <file>] [--role <name>]... [--plan <slug>] [--profile <name>] [--json \| --html <file>]` |
 | `route` | `omt route <role> [--capabilities <file>] [--against <provider\|driver>] [--plan <slug>] [--profile <name>]` |
 | `brief` | `omt brief <role> (--task <text> \| --task-file <file>) [options]` |
 | `plan` | `omt plan new <slug> [--title <text>] [--light] [--profile <name>] [--force]`, `omt plan profile <slug> <name\|none>`, `omt plan mark <slug> <id> <done\|open\|blocked>`, `omt plan status [<slug>] [--json]`, `omt plan list [--json]` |
@@ -583,6 +584,8 @@ oracle       unavailable -                                              edit    
 `MODE` is the role's `interactionMode`. `CROSS` is `yes` when the role has `crossFamily: true`, else `no`. Under each role, the table prints one indented line per failure reason of the candidates before the chosen one, and the notes of the chosen candidate. For an unavailable role it prints the reason of every candidate. Later candidates are not shown.
 
 A footer line says either `verified against orchestrator_capabilities` or `unverified: pass --capabilities <file> to check the chains against T3`. `--json` prints the `RolesReport`. Config issues go to stderr. An unknown `--role` exits 1.
+
+`--html <file>` writes the same report as one HTML document for the T3 `html_preview` and `html_render` tools, and prints the absolute path. `--json` with `--html` is a usage error. `src/routing/html.ts` renders it. The document starts with `<!doctype html>`, uses the T3 theme variables with plain fallbacks, and sets no page background. A header names the selected profile and says `verified against T3` or `unverified`. The table has one row per role, with a `Primary` group for the first ok candidate and a `Fallback` group for the second. Each group has the columns harness (`providerInstanceId`, else `driverKind`), model, effort, and speed. Effort is the candidate's `effort`, else the mapped effort option, else `default`. Speed is `ultrafast` for `serviceTier: "ultrafast"`, `fast` for `serviceTier: "priority"` or `fastMode: true`, else `off`. More ok candidates add `+<n>` after the fallback model. A role with no ok candidate spans both groups with `unavailable`. Role notes and the notes of the chosen candidate follow the table as a list.
 
 `omt route <role>` prints a `RouteOutput` (section 3) as JSON. Its `delegateTask` fields map directly onto `delegate_task` arguments. This is `omt route review --against codex --capabilities caps.json`:
 
@@ -1142,14 +1145,15 @@ A missing file is not an error. Each file is JSONC (section 7). Profile selectio
   - `t3Role`: `implementation`, `research`, `review`, `design`, `test`, or `general`.
   - `interactionMode`: `inherit`, `default`, or `plan`.
   - `runtimeMode`: `inherit`, `approval-required`, `auto-accept-edits`, `auto`, or `full-access`.
-  - `crossFamily` and `fast`: booleans. Any other value is an error with the message `must be a boolean, got <value>`.
+  - `crossFamily`: a boolean. Any other value is an error with the message `must be a boolean, got <value>`.
+  - `fast`: `true`, `false`, or `"ultrafast"`. Any other value is an error with the message `must be true, false, or "ultrafast", got <value>`.
   - `chain`: an array of 1 to 10 candidates.
 - A role object with any invalid key or value is dropped as a whole, with one issue per problem.
 - Allowed candidate keys:
   - `provider` and `driver`: strings that match `^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`. A candidate needs at least one of them.
   - `model`: a non-empty string of at most 200 characters. It is required.
   - `effort`: a value from the effort ladder.
-  - `fast`: a boolean.
+  - `fast`: `true`, `false`, or `"ultrafast"`, with the role error message.
   - `options`: an object whose values are strings or booleans.
 - Allowed limit keys and integer ranges: `maxDepth` 0 to 3, `maxReviewRounds` 1 to 10. An invalid limit is dropped with an error.
 - Retired keys and roles. omt ignores these keys: `workflow.build.verify`, `workflow.build.checkpoint`, `workflow.build.stallMinutes`, `workflow.review.guardrails`, and the whole `workflow.git` group in any profile, `limits.maxTasksPerRun` and `limits.maxParallel` at root or in a profile, and the roles `verify`, `quick`, `deep`, `plan`, `grill`, and `guardrail` at root or in a profile. A layer that sets one still loads. Validation drops the key, whatever its value, and adds one warning for each key: `<path> is no longer used; remove it`, for example `profiles.normal.workflow.build.checkpoint is no longer used; remove it`. A retired key or role therefore has no effect on the effective config. `RETIRED_BUILD_KEYS`, `RETIRED_REVIEW_KEYS`, `RETIRED_WORKFLOW_GROUPS`, `RETIRED_LIMIT_KEYS`, and `RETIRED_ROLES` in `src/config/defaults.ts` hold the lists.
@@ -1157,7 +1161,7 @@ A missing file is not an error. Each file is JSONC (section 7). Profile selectio
 - `profile` and each profile name match the role-name pattern. A profile value is `null` or an object. Allowed fields are `description`, `extends`, `workflow`, `limits`, `roles`, and `models`. `visuals` is an unknown profile field, so it is an error.
 - Profile `description` is a non-empty string of at most 300 Unicode code points. An invalid description drops the whole profile override. Other invalid profile fields are dropped individually. `extends` matches the profile-name pattern.
 - Profile `roles` and `limits` use the root validation rules. Each workflow group and key follows section 6.7. An unknown group, key, or value is an error. Valid fields remain. `plan.testLayers` can be empty and can contain only `integration`, `e2e`, and `unit`.
-- A model id is a non-empty string of at most 200 Unicode code points. Each `models.<id>` value is an object with only an optional boolean `fast`. Invalid model fields are dropped individually.
+- A model id is a non-empty string of at most 200 Unicode code points. Each `models.<id>` value is an object with only an optional `fast`: `true`, `false`, or `"ultrafast"`. Invalid model fields are dropped individually.
 - Role descriptions and candidate model ids use the same code-point limits as profile descriptions and model ids.
 - A `roles.test` key, at root or inside a profile, warns: `role "test" was renamed to "qa"; rename it`. It remains a custom role with no special behavior. A partial legacy override can fail the new-role requirements in section 6.3.
 
@@ -1196,7 +1200,7 @@ A JSONC syntax error in a file becomes one error issue, and that file is skipped
 
 `src/config/defaults.ts` exports one `DEFAULT_CONFIG` and `diffDefaults(from, to, overrides): DefaultsChange[]`. The values of `DEFAULT_CONFIG` are in `src/config/defaults.jsonc`. `src/config/defaultsText.ts` is a Bun macro that reads the file, and `defaults.ts` imports it `with { type: "macro" }` and parses the text with `parseJsonc`, so the bundle and the binary hold the text and read no file. `test/defaults.test.ts` checks that the file has no validation issue and passes `isCompleteDefaults`. Each release updates this configuration directly. The accepted snapshot in the install record supplies the active base until the user accepts the current defaults (section 5.12).
 
-`diffDefaults` compares leaf values in both configurations. Arrays, including role chains, compare as one leaf. Chains print as `driver/model effort, ...`, with `provider` when no driver is set and ` fast` for a fast candidate. Other values print as JSON. A missing value prints `none`. Added or removed objects report each leaf.
+`diffDefaults` compares leaf values in both configurations. Arrays, including role chains, compare as one leaf. Chains print as `driver/model effort, ...`, with `provider` when no driver is set, ` fast` for a fast candidate, and ` ultrafast` for an ultrafast candidate. Other values print as JSON. A missing value prints `none`. Added or removed objects report each leaf.
 
 Overrides are the validated user and project layers, in that order. A layer overrides a change when it sets the full path or removes an ancestor with `null`. `overriddenBy` names the last layer that overrides the change. The diff covers roles, profiles, workflow, limits, and model settings.
 
@@ -1254,7 +1258,7 @@ Only the user starter has a commented `// "update": "off",` line after the `limi
 
 ### 6.6 JSON Schema
 
-`src/config/schema.ts` exports the JSON Schema (draft 2020-12) for a config file as a plain object. `scripts/build-schema.ts` writes it to `schema/omt.schema.json` with 2-space indentation and a final newline. A test fails when the committed file differs from the generated output. Another test checks that the schema allows exactly the keys that `validateLayer` allows. Role and candidate definitions include boolean `fast`. The role definition also includes boolean `crossFamily`. The schema defines `profile`, `profiles`, `models`, and all workflow groups. Preset profile values cannot be null. New-profile descriptions and inheritance chains need the runtime merge checks. `visuals`, the retired limit `maxTasksPerRun`, and the retired build keys `verify`, `checkpoint`, and `stallMinutes` stay only as `{ "deprecated": true, "description": "No longer used. omt ignores this key." }`, so an editor marks an old key instead of rejecting it; `validateLayer` drops each with a warning (section 6.2). A retired role name needs no entry, because `roles` accepts any role name. `defaults` is also deprecated and has no date enum.
+`src/config/schema.ts` exports the JSON Schema (draft 2020-12) for a config file as a plain object. `scripts/build-schema.ts` writes it to `schema/omt.schema.json` with 2-space indentation and a final newline. A test fails when the committed file differs from the generated output. Another test checks that the schema allows exactly the keys that `validateLayer` allows. Role, candidate, and model definitions include `fast` as the enum `true`, `false`, `"ultrafast"`. The role definition also includes boolean `crossFamily`. The schema defines `profile`, `profiles`, `models`, and all workflow groups. Preset profile values cannot be null. New-profile descriptions and inheritance chains need the runtime merge checks. `visuals`, the retired limit `maxTasksPerRun`, and the retired build keys `verify`, `checkpoint`, and `stallMinutes` stay only as `{ "deprecated": true, "description": "No longer used. omt ignores this key." }`, so an editor marks an old key instead of rejecting it; `validateLayer` drops each with a warning (section 6.2). A retired role name needs no entry, because `roles` accepts any role name. `defaults` is also deprecated and has no date enum.
 
 `update` has an `enum` of `off`, `check`, and `apply`.
 
@@ -1446,6 +1450,8 @@ With `fast: true` and known capabilities:
 3. Otherwise, add no fast option and the note `fast mode is not offered by <provider>/<model>`.
 
 Known capabilities with no model descriptors never infer a fast option. Without capabilities, driver `codex` gives `serviceTier: "priority"`. Driver `claudeAgent` with a model id that starts with `claude-opus` gives `fastMode: true`. Other targets get the same unsupported note and no fast option. Unverified routing uses `candidate.driver`, or `candidate.provider` when no driver is set.
+
+With `fast: "ultrafast"`, a `serviceTier` select that offers `ultrafast` gives `serviceTier: "ultrafast"`. Otherwise the `fast: true` rules apply. When they give a fast option, omt adds the note `ultrafast is not offered by <provider>/<model>; using fast mode`. When they give none, only the `fast mode is not offered` note applies. Without capabilities, driver `codex` gives `serviceTier: "ultrafast"`, and T3 checks the value when the task starts. A Codex model without the tier then fails with `invalid_request`, and the dispatch moves to the next target.
 
 Effort mapping applies first, fast mapping second, and explicit `candidate.options` last. The chosen target and each fallback keep their mapped options. An unsupported fast option does not make the candidate unavailable.
 
@@ -2288,7 +2294,7 @@ Top-level threads. `delegate_task` makes children. Only when the user asks for s
 ### 15.3 Shared references in `skills/omt/references/`
 
 - `delegation.md`: the T3 rules, in these sections: "User instructions win", "The CLI", "What a child is", "Your interaction mode", "Branch check", "Worktree setup", "Dispatching a child", "Waiting", "Failure codes", "Releasing children", "Git actions", "Pull requests", "Verification and devices", "Shared builds", and "Top-level threads". Section 15.2 gives their rules.
-- `roles.md`: the default roles with their access, result kind, and use; the commands `omt roles`, `omt route`, and `omt brief`, and `--capabilities`; the cross-family roles with `--against` and `--strict`; "Main thread or child", the rule that a role whose first target has the main thread's model is work that the main thread does itself; and custom roles.
+- `roles.md`: the default roles with their access, result kind, and use; the commands `omt roles`, `omt route`, and `omt brief`, and `--capabilities`; the roles card from `omt roles --html`, shown with `html_preview` and `html_render`; the cross-family roles with `--against` and `--strict`; "Main thread or child", the rule that a role whose first target has the main thread's model is work that the main thread does itself; and custom roles.
 - `brief.md`: what a brief holds, the four parts of the task text (deliverable, scope, verify, stop condition), what goes in the context and in `--prior-file`, and that children write no new tests.
 - `results.md`: the result kind of each role with its first label; "A claim is not evidence", the checks of a `DONE` claim; the action for each verdict; and what to do when the result block is missing.
 - `planning.md`: the standard for a plan file: cited units with five fields (role, scope, done condition, verify command, and dependencies), failable done conditions, shared resources whose units run one at a time, the `## Tests` line format and layers, and `## Summary` last.

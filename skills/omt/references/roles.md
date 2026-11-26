@@ -20,7 +20,7 @@ Read-only roles run in `plan` interaction mode, and edit roles in `default`. Eve
 
 ## Commands
 
-- `omt roles` prints every role with its target, access, and mode.
+- `omt roles` prints every role with its target, access, and mode. To show it to the user in T3, run `omt roles --html <temp>/roles.html`, then pass the printed path to `html_preview` and `html_render`. Do not restate the card.
 - `omt route <role> --json` prints the payload fields and the fallbacks of one role.
 - `omt brief <role> ... --json` resolves the role and renders the brief in one step ([delegation.md](delegation.md#dispatching-a-child)).
 - `--capabilities <file>` checks the targets against a saved `orchestrator_capabilities` result.
@@ -35,4 +35,4 @@ A role whose first target has your own model is work that you can do yourself. `
 
 ## Custom roles
 
-A config can add or override a role, set `fast` for a model, a role, or a target, and give a role its own persona file `$(omt paths --omt)/roles/<role>.md`. `omt-setup` makes these changes with the owner.
+A config can add or override a role, set `fast` (`true`, `false`, or `"ultrafast"`) for a model, a role, or a target, and give a role its own persona file `$(omt paths --omt)/roles/<role>.md`. `omt-setup` makes these changes with the owner.

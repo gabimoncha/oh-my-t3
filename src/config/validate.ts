@@ -3,6 +3,7 @@ import type {
   ConfigIssue,
   ConfigLayer,
   Effort,
+  Fast,
   Limits,
   ModelConfig,
   OmtConfig,
@@ -135,6 +136,12 @@ function oneOf(values: readonly string[]): string {
   return values.map((value) => `"${value}"`).join(", ");
 }
 
+function isFast(value: unknown): value is Fast {
+  return typeof value === "boolean" || value === "ultrafast";
+}
+
+const FAST_ERROR = 'must be true, false, or "ultrafast"';
+
 function codePointLength(value: string): number {
   return [...value].length;
 }
@@ -185,8 +192,8 @@ function validateCandidate(value: unknown, path: string, out: Collector): Candid
       if (typeof item === "string" && (EFFORT_LADDER as readonly string[]).includes(item)) candidate.effort = item as Effort;
       else out.error(keyPath, `must be one of ${oneOf(EFFORT_LADDER)}, got ${describe(item)}`);
     } else if (key === "fast") {
-      if (typeof item === "boolean") candidate.fast = item;
-      else out.error(keyPath, `must be a boolean, got ${describe(item)}`);
+      if (isFast(item)) candidate.fast = item;
+      else out.error(keyPath, `${FAST_ERROR}, got ${describe(item)}`);
     } else if (key === "options") {
       if (!isRecord(item)) {
         out.error(keyPath, `must be an object, got ${describe(item)}`);
@@ -227,9 +234,12 @@ function validateRole(value: unknown, path: string, out: Collector): Partial<Rol
     } else if (key === "description") {
       if (typeof item === "string" && item.length > 0 && codePointLength(item) <= DESCRIPTION_MAX) role[key] = item;
       else out.error(keyPath, `must be a non-empty string of at most ${DESCRIPTION_MAX} characters`);
-    } else if (key === "crossFamily" || key === "fast") {
+    } else if (key === "crossFamily") {
       if (typeof item === "boolean") role[key] = item;
       else out.error(keyPath, `must be a boolean, got ${describe(item)}`);
+    } else if (key === "fast") {
+      if (isFast(item)) role[key] = item;
+      else out.error(keyPath, `${FAST_ERROR}, got ${describe(item)}`);
     } else if (key === "chain") {
       if (!Array.isArray(item) || item.length < CHAIN_MIN || item.length > CHAIN_MAX) {
         out.error(keyPath, `must be an array of ${CHAIN_MIN} to ${CHAIN_MAX} candidates`);
@@ -317,10 +327,10 @@ function validateModels(value: unknown, path: string, out: Collector): Record<st
     for (const [key, field] of Object.entries(item)) {
       if (!MODEL_KEYS.includes(key)) {
         out.error(`${keyPath}.${key}`, `unknown model key "${key}"; allowed keys: ${MODEL_KEYS.join(", ")}`);
-      } else if (typeof field === "boolean") {
+      } else if (isFast(field)) {
         model.fast = field;
       } else {
-        out.error(`${keyPath}.${key}`, `must be a boolean, got ${describe(field)}`);
+        out.error(`${keyPath}.${key}`, `${FAST_ERROR}, got ${describe(field)}`);
       }
     }
     models[name] = model;

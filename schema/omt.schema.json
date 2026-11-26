@@ -184,7 +184,12 @@
           "description": "With --against, try the candidates outside the worker's family first."
         },
         "fast": {
-          "type": "boolean"
+          "enum": [
+            true,
+            false,
+            "ultrafast"
+          ],
+          "description": "true asks for fast mode. \"ultrafast\" asks for the Codex ultrafast service tier, or fast mode where the model has no ultrafast tier."
         },
         "chain": {
           "type": "array",
@@ -242,7 +247,12 @@
           ]
         },
         "fast": {
-          "type": "boolean"
+          "enum": [
+            true,
+            false,
+            "ultrafast"
+          ],
+          "description": "true asks for fast mode. \"ultrafast\" asks for the Codex ultrafast service tier, or fast mode where the model has no ultrafast tier."
         },
         "options": {
           "type": "object",
@@ -260,7 +270,12 @@
       "additionalProperties": false,
       "properties": {
         "fast": {
-          "type": "boolean"
+          "enum": [
+            true,
+            false,
+            "ultrafast"
+          ],
+          "description": "true asks for fast mode. \"ultrafast\" asks for the Codex ultrafast service tier, or fast mode where the model has no ultrafast tier."
         }
       }
     },

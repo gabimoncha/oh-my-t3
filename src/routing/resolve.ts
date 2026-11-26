@@ -1,5 +1,6 @@
 import type {
   Capabilities,
+  Fast,
   ModelCapability,
   ModelConfig,
   OmtConfig,
@@ -106,7 +107,7 @@ function makeTarget(
 
 function candidateOptions(
   candidate: Candidate,
-  fast: boolean,
+  fast: Fast,
   descriptors: OptionDescriptor[] | undefined,
   driver: string | undefined,
   provider: string,
@@ -119,31 +120,41 @@ function candidateOptions(
     Object.assign(options, mapped.options);
     if (mapped.note !== undefined) notes.push(mapped.note);
   }
-  if (fast) Object.assign(options, fastOptions(candidate.model, descriptors ?? (verified ? [] : undefined), driver, provider, notes));
+  if (fast !== false) Object.assign(options, fastOptions(candidate.model, fast, descriptors ?? (verified ? [] : undefined), driver, provider, notes));
   return { ...options, ...candidate.options };
+}
+
+function offersTier(descriptors: OptionDescriptor[], tier: string): boolean {
+  return descriptors.some((d) => d.id === "serviceTier" && d.type === "select" && d.options?.some((c) => c.id === tier) === true);
 }
 
 function fastOptions(
   model: string,
+  fast: Fast,
   descriptors: OptionDescriptor[] | undefined,
   driver: string | undefined,
   provider: string,
   notes: string[],
 ): Record<string, OptionValue> {
+  const ultra = fast === "ultrafast";
+  let options: Record<string, OptionValue> | undefined;
   if (descriptors !== undefined) {
-    if (descriptors.some((d) => d.id === "serviceTier" && d.type === "select" && d.options?.some((c) => c.id === "priority"))) {
-      return { serviceTier: "priority" };
-    }
-    if (descriptors.some((d) => d.id === "fastMode" && d.type === "boolean")) return { fastMode: true };
+    if (ultra && offersTier(descriptors, "ultrafast")) return { serviceTier: "ultrafast" };
+    if (offersTier(descriptors, "priority")) options = { serviceTier: "priority" };
+    else if (descriptors.some((d) => d.id === "fastMode" && d.type === "boolean")) options = { fastMode: true };
   } else {
-    if (driver === "codex") return { serviceTier: "priority" };
-    if (driver === "claudeAgent" && model.startsWith("claude-opus")) return { fastMode: true };
+    if (driver === "codex") return { serviceTier: ultra ? "ultrafast" : "priority" };
+    if (driver === "claudeAgent" && model.startsWith("claude-opus")) options = { fastMode: true };
   }
-  notes.push(`fast mode is not offered by ${provider}/${model}`);
-  return {};
+  if (options === undefined) {
+    notes.push(`fast mode is not offered by ${provider}/${model}`);
+    return {};
+  }
+  if (ultra) notes.push(`ultrafast is not offered by ${provider}/${model}; using fast mode`);
+  return options;
 }
 
-function resolveVerified(candidate: Candidate, fast: boolean, caps: Capabilities, notes: string[]): ResolvedTarget {
+function resolveVerified(candidate: Candidate, fast: Fast, caps: Capabilities, notes: string[]): ResolvedTarget {
   const provider = findProvider(candidate, caps, notes);
   const id = provider.providerInstanceId;
   if (!provider.canRunChildTask) {
@@ -167,7 +178,7 @@ function resolveVerified(candidate: Candidate, fast: boolean, caps: Capabilities
   return makeTarget({ providerInstanceId: id }, candidate.model, options);
 }
 
-function resolveUnverified(candidate: Candidate, fast: boolean, notes: string[]): ResolvedTarget {
+function resolveUnverified(candidate: Candidate, fast: Fast, notes: string[]): ResolvedTarget {
   if (candidate.provider === undefined && candidate.driver === undefined) {
     throw new CandidateFailure("the candidate names no provider or driver");
   }
@@ -191,7 +202,7 @@ function harnessFailure(candidate: Candidate, options: ResolveOptions, caps?: Ca
   return `harness ${driver} is not enabled (harnesses: ${harnesses.join(", ")}); run omt detect`;
 }
 
-function attempt(index: number, candidate: Candidate, fast: boolean, caps: Capabilities | undefined, ceiling: string | undefined): CandidateAttempt {
+function attempt(index: number, candidate: Candidate, fast: Fast, caps: Capabilities | undefined, ceiling: string | undefined): CandidateAttempt {
   const notes: string[] = [];
   if (ceiling !== undefined) return { index, candidate, ok: false, reason: ceiling, notes };
   try {

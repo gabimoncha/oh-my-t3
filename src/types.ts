@@ -8,13 +8,15 @@ export type RuntimeMode = "inherit" | "approval-required" | "auto-accept-edits" 
 export type T3Role = "implementation" | "research" | "review" | "design" | "test" | "general";
 export type ResultKind = "work" | "review" | "test" | "research" | "plan" | "score";
 export const RESULT_KINDS: readonly ResultKind[] = ["work", "review", "test", "research", "plan", "score"];
+// true asks for fast mode; "ultrafast" asks for the Codex ultrafast service tier where a model offers it.
+export type Fast = boolean | "ultrafast";
 
 export interface Candidate {
   provider?: string; // T3 provider instance id, for example "claudeAgent"
   driver?: string; // T3 driver kind; used when provider is absent
   model: string; // model id as listed by orchestrator_capabilities
   effort?: Effort; // mapped onto the model's effort option
-  fast?: boolean;
+  fast?: Fast;
   options?: Record<string, OptionValue>; // raw T3 option selections; override the effort mapping
 }
 
@@ -26,7 +28,7 @@ export interface RoleConfig {
   interactionMode: InteractionMode;
   runtimeMode: RuntimeMode;
   crossFamily?: boolean; // review from the family other than the worker's when --against names the worker
-  fast?: boolean;
+  fast?: Fast;
   chain: Candidate[];
 }
 
@@ -65,7 +67,7 @@ export interface Workflow {
 export type WorkflowLayer = { [K in keyof Workflow]?: Partial<Workflow[K]> };
 
 export interface ModelConfig {
-  fast?: boolean;
+  fast?: Fast;
 }
 
 export interface ProfileConfig {

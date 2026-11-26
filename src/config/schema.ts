@@ -27,6 +27,10 @@ function limit(name: keyof typeof LIMIT_RANGES, description: string) {
 }
 
 const RETIRED = { deprecated: true, description: "No longer used. omt ignores this key." };
+const FAST = {
+  enum: [true, false, "ultrafast"],
+  description: "true asks for fast mode. \"ultrafast\" asks for the Codex ultrafast service tier, or fast mode where the model has no ultrafast tier.",
+};
 
 function retired(keys: readonly string[]) {
   return Object.fromEntries(keys.map((key) => [key, RETIRED]));
@@ -115,7 +119,7 @@ export const CONFIG_SCHEMA = {
           type: "boolean",
           description: "With --against, try the candidates outside the worker's family first.",
         },
-        fast: { type: "boolean" },
+        fast: FAST,
         chain: {
           type: "array",
           minItems: CHAIN_MIN,
@@ -134,7 +138,7 @@ export const CONFIG_SCHEMA = {
         driver: { type: "string", pattern: PROVIDER_PATTERN, description: "T3 driver kind." },
         model: { type: "string", minLength: 1, maxLength: MODEL_MAX },
         effort: { enum: [...EFFORT_LADDER] },
-        fast: { type: "boolean" },
+        fast: FAST,
         options: {
           type: "object",
           additionalProperties: { type: ["string", "boolean"] },
@@ -144,7 +148,7 @@ export const CONFIG_SCHEMA = {
     model: {
       type: "object",
       additionalProperties: false,
-      properties: { fast: { type: "boolean" } },
+      properties: { fast: FAST },
     },
     profile: {
       type: "object",
