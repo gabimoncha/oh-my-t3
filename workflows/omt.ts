@@ -470,7 +470,7 @@ const ulwOnEnd = (input: typeof UlwInput.Type, end: { id: string; outcome: strin
 
 workflow(
   "omt-ulw",
-  { version: 4, payload: UlwInput, returns: UlwResult, onEnd: ulwOnEnd },
+  { version: 3, payload: UlwInput, returns: UlwResult, onEnd: ulwOnEnd },
   Effect.fn(function* (input, run) {
     yield* title(`Review and QA of ${input.plan}, round ${input.round}`);
     yield* label("ulw", input.thread);
@@ -650,7 +650,7 @@ const reviewOnEnd = (input: typeof ReviewInput.Type, end: { id: string; outcome:
 
 workflow(
   "omt-code-review",
-  { version: 4, payload: ReviewInput, returns: ReviewResult, onEnd: reviewOnEnd },
+  { version: 3, payload: ReviewInput, returns: ReviewResult, onEnd: reviewOnEnd },
   Effect.fn(function* (input, run) {
     yield* title(`Code review of ${input.slug}, round ${input.round}`);
     const thread = yield* readThread(input.thread, input.project);
@@ -1221,7 +1221,7 @@ const finish = (
 
 workflow(
   "omt-climb",
-  { version: 3, payload: ClimbInput, returns: ClimbResult, onEnd: climbOnEnd },
+  { version: 2, payload: ClimbInput, returns: ClimbResult, onEnd: climbOnEnd },
   Effect.fn(function* (input, run) {
     yield* title(`Climb ${input.slug}`);
     const thread = yield* readThread(input.thread, input.project);

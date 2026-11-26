@@ -100,7 +100,9 @@ function sameOptions(a: ResolvedTarget, b: ResolvedTarget): boolean {
 }
 
 // The resolved order, with one more target for each candidate that names only a driver: the same candidate with
-// providerInstanceId set to the driver. T3 checks a named instance again before it refuses it.
+// providerInstanceId set to the driver. T3 checks a named instance again before it refuses it. Targets that share a
+// key but differ in options, such as Sol at the ultrafast and the priority tier, get the key <key>@<speed>, so
+// that --tried of one does not skip the other. A target with the same key and options as an earlier one is dropped.
 function targetChoices(resolution: RoleResolution): TargetChoice[] {
   const choices = resolution.attempts.flatMap((attempt) => {
     const target = attempt.target;
