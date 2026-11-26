@@ -495,7 +495,7 @@ workflow(
         }),
       );
 
-    // Both model picks run before the first agent, so the Workflows page shows them on one row.
+    // The Workflows page can group adjacent picks when both steps finish in less than one second each.
     const reviewRoute =
       input.review === "off"
         ? undefined
@@ -513,9 +513,8 @@ workflow(
               against: input.family,
             }),
           );
-    const firstQa = yield* routeQa(1, input.checks);
     if (reviewRoute?.outcome === "failed") return yield* stop(`no ${input.review} target: ${reviewRoute.reason}`);
-    if (firstQa.outcome === "failed") return yield* stop(`no qa target: ${firstQa.reason}`);
+    const firstQa = yield* routeQa(1, input.checks);
 
     if (reviewRoute?.outcome === "done") {
       const reviewed = yield* runRouted(`Review the build and fix it (${reviewer})`, reviewRoute.value, {
