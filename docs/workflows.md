@@ -77,7 +77,28 @@ t3 workflow list --tag code-review
 t3 workflow list --subject <PR URL or thread id>
 ```
 
-Each question on the Workflows page says what each answer does and shows the available links to the thread and the PR. On T3 `v0.1.12`, the Workflows page shows plain answers and QA starts directly.
+### Read a run on the Workflows page
+
+Open the page with **Open workflows** in the T3 command palette, then click a run. The run page has three parts:
+
+1. The header shows the run title, such as `Code review of pr-54, round 1`, and the subject chip, such as `#54`. The chip opens the PR or the thread beside the run.
+2. The list on the left shows the steps in the order that they ran. Each name says what the step did:
+   - `Pick the ... model` asks omt for the agent's brief and models. Its value is the path of the brief file and the models, in the order that the run tries them.
+   - An agent step, such as `Review the change (the oracle)` or `Run the checks, QA run 1`, runs one model in its own thread.
+   - A step that starts with `Ask:` waits for you.
+   - `Tell the thread that started the run` sends the summary to your thread.
+3. The pane on the right shows the step that you clicked. An agent step shows the agent's summary and its result fields, and **Transcript** opens the agent's whole thread. Another step shows its `outcome` and `value` as T3 stores them.
+
+To answer a question:
+
+1. Read the text under the question title. It lists what the run found, such as each review finding or the climb scores, and says what each answer does.
+2. To check the change first, open the thread or the PR with the link buttons.
+3. If your answer requires a reason, click **Add a reason** and write one sentence. The agent or thread that acts on your answer gets the reason.
+4. Click an answer. The run goes on.
+
+A question that gets no answer in 2 days counts as `report only` in a code review and as `stop` in a climb.
+
+On T3 `v0.1.12`, a run has no tag and no subject, a question shows only plain answers, and QA starts with no pool.
 
 ## Climb to a target score
 
@@ -89,7 +110,7 @@ It needs T3 Workflows (**Settings → Labs → Workflows**), and it ignores the 
 2. A judge is a command that prints a number, or a `judge` agent that scores screenshots or outputs from 0 to 10 in each category. Agents see only letter labels, such as `A` and `B`, and never the target, the round, or earlier scores. The baseline (the start commit) and any competitor screenshots are scored in every round, and a judge's baseline score corrects its drift.
 3. Tier 1, the least expensive judge, scores each round. A higher tier, such as Opus, scores only after the lower tiers meet the target.
 4. Below the target, one agent thread applies the judges' findings, runs the gates, and commits in its own worktree. The next round scores its commit.
-5. The run ends at the target. When the score stops rising or the run reaches the round limit, you can choose to stop, raise the limit, or change the approach. On T3 `v0.1.13-nightly.20261125.5258` or later, give a reason to raise the limit or change the approach. The change agent gets your reason.
+5. The run ends at the target. If the score improves too little or the run reaches the round limit, you can stop, raise the limit, or change the approach. On T3 `v0.1.13-nightly.20261125.5258` or later, give a reason to raise the limit or change the approach. The change agent gets your reason.
 6. The last step sends the climb table to the thread. The thread merges the commits with a fast-forward and opens the draft PR.
 
 ## Review a pull request

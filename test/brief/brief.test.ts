@@ -480,6 +480,22 @@ test("brief --save writes the full brief and returns a short task", async () => 
   assert.deepEqual(readdirSync(join(project.cwd, ".omt3", "evidence", "briefs")), [`${id}.md`]);
 });
 
+test("brief --save --workflow keeps each brief when routes share a request ID", async () => {
+  const project = makeProject();
+  const argv = ["brief", "qa", "--plan", "p", "--unit", "QA", "--workflow", "--json", "--capabilities", LIVE_CAPS_FILE];
+  const saved = [];
+  for (const task of ["Check the main flow.", "Check the retry flow."]) {
+    const full = JSON.parse((await project.runOk([...argv, "--task", task])).ctx.out()) as BriefJsonOutput;
+    const output = JSON.parse((await project.runOk([...argv, "--task", task, "--save"])).ctx.out()) as BriefJsonOutput;
+    const hash = createHash("sha256").update(full.delegateTask.task).digest("hex");
+    const path = join(project.cwd, ".omt3", "evidence", "briefs", `qa-${hash}.md`);
+    assert.equal(output.delegateTask.clientRequestId, "omt:p:QA:qa:r1:a1");
+    assert.equal(output.delegateTask.task, `Act as the qa sub-agent for this task. Your full brief is in the file ${path}. Read it in full first, then follow it exactly. Submit the structured result that the brief asks for.`);
+    saved.push({ path, text: full.delegateTask.task });
+  }
+  for (const { path, text } of saved) assert.equal(readFileSync(path, "utf8"), text);
+});
+
 test("brief --save uses the brief hash without both plan and unit", async () => {
   const project = makeProject();
   for (const flags of [[], ["--plan", "p"], ["--unit", "U4"]]) {

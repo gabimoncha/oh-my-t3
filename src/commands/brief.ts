@@ -207,8 +207,11 @@ export const run: CommandRun = async (ctx) => {
       hint: "shorten --context or --prior-file, or point the child at files instead",
     });
   }
-  const briefFile = (id: string | undefined) =>
-    join(evidenceDir(projectRoot), "briefs", `${id ?? `${name}-${createHash("sha256").update(brief).digest("hex").slice(0, 12)}`}.md`);
+  const briefFile = (id: string | undefined) => {
+    const hash = createHash("sha256").update(brief).digest("hex");
+    const file = values.workflow === true ? `${name}-${hash}` : (id ?? `${name}-${hash.slice(0, 12)}`);
+    return join(evidenceDir(projectRoot), "briefs", `${file}.md`);
+  };
 
   if (!json) {
     const id = values.plan !== undefined && values.unit !== undefined ? requestId(values.plan, values.unit, name, round, attempt) : undefined;
@@ -264,7 +267,8 @@ export const run: CommandRun = async (ctx) => {
     if (values.save) {
       const savedPath = briefFile(clientRequestId);
       await writeFileAtomic(savedPath, brief);
-      output.delegateTask.task = `Act as the ${name} sub-agent for this task. Your full brief is in the file ${savedPath}. Read it in full first, then follow it exactly. End with the result block that the brief defines.`;
+      const end = values.workflow === true ? "Submit the structured result that the brief asks for." : "End with the result block that the brief defines.";
+      output.delegateTask.task = `Act as the ${name} sub-agent for this task. Your full brief is in the file ${savedPath}. Read it in full first, then follow it exactly. ${end}`;
     }
     return output;
   };

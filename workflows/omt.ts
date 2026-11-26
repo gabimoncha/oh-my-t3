@@ -72,14 +72,16 @@ interface ShownThread {
   pullRequestCount?: number;
 }
 
-// New T3 links go in pullRequests. linkedPullRequest is the older single-link field.
+// New T3 links go in pullRequests. linkedPullRequest is the older single-link field, and T3 keeps it when
+// a newer link comes. With more than one PR link, nothing tells which PR the run is about, so it has none.
 const threadOf = (thread: string, cwd: string) =>
   Effect.gen(function* () {
     const out = yield* exec("t3", ["thread", "show", thread, "--json", "--messages", "0"], cwd);
     const shown = yield* attempt(() => (JSON.parse(out) as { thread?: ShownThread }).thread ?? {});
     const open = shown.pullRequests ?? [];
-    const onlyOpenLink = open.length === 1 && (shown.pullRequestCount ?? 1) === 1;
-    const linked = shown.linkedPullRequest ?? (onlyOpenLink ? open[0] : undefined);
+    const legacy = shown.linkedPullRequest ?? undefined;
+    const count = typeof shown.pullRequestCount === "number" ? shown.pullRequestCount : Math.max(open.length, legacy === undefined ? 0 : 1);
+    const linked = count > 1 ? undefined : (legacy ?? open[0]);
     let pr: Thread["pr"] = null;
     if (
       typeof linked?.repository === "string" && linked.repository.trim() !== "" &&
@@ -106,7 +108,7 @@ const NO_THREAD: Thread = { link: "", pr: null };
 const readThread = (thread: string, cwd: string) =>
   Effect.gen(function* () {
     if (!hasSubject || thread.trim() === "") return NO_THREAD;
-    const read = yield* step.try("thread", { returns: Thread }, threadOf(thread, cwd));
+    const read = yield* step.try("Read the thread and its PR", { returns: Thread }, threadOf(thread, cwd));
     return read.outcome === "done" ? read.value : NO_THREAD;
   });
 
@@ -178,7 +180,8 @@ interface BriefArgs {
   against?: string;
 }
 
-// Renders the role's brief with omt and routes the role: the first target, then its fallbacks.
+// Renders the role's brief with omt and routes the role: the first target, then its fallbacks. --save puts
+// the brief in a file, so the step's value on the Workflows page is a short pointer, not the whole brief.
 const route = (omt: readonly string[], cwd: string, plan: string, args: BriefArgs) =>
   Effect.gen(function* () {
     const dir = mkdtempSync(join(tmpdir(), "omt-workflow-"));
@@ -186,7 +189,7 @@ const route = (omt: readonly string[], cwd: string, plan: string, args: BriefArg
       writeFileSync(join(dir, "task.md"), args.task);
       const flags = [
         "brief", args.role, "--task-file", join(dir, "task.md"),
-        "--plan", plan, "--unit", args.unit, "--round", String(args.round), "--workflow", "--json",
+        "--plan", plan, "--unit", args.unit, "--round", String(args.round), "--workflow", "--save", "--json",
       ];
       if (args.context !== undefined && args.context.trim() !== "") {
         writeFileSync(join(dir, "context.md"), args.context);
@@ -225,7 +228,7 @@ const runRouted = <A, I>(
     let reason = "no target";
     for (const [index, model] of routed.targets.entries()) {
       const mode = options.interactionMode ?? modeOf(routed.interactionMode);
-      const attempt = yield* agent.try(`${name}/${index + 1}`, {
+      const attempt = yield* agent.try(index === 0 ? name : `${name}, fallback model ${index}`, {
         project: options.project,
         brief: routed.brief,
         title: routed.title,
@@ -245,6 +248,8 @@ const runRouted = <A, I>(
 const wake = (thread: string, message: string, cwd: string) =>
   exec("t3", ["thread", "send", thread, message], cwd).pipe(Effect.as(message));
 
+const WAKE = "Tell the thread that started the run";
+
 const Finding = Schema.Struct({
   severity: Schema.Literals(["P0", "P1", "P2", "P3"]),
   location: Schema.String,
@@ -252,6 +257,17 @@ const Finding = Schema.Struct({
   scenario: Schema.String,
   fix: Schema.String,
 });
+
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+
+// T3's app shows data.body as Markdown under the question title. The T3 user guide does not name it, so the
+// title and the choice descriptions also hold the decision.
+const findingsMarkdown = (findings: readonly (typeof Finding.Type)[]) =>
+  findings
+    .map((finding) =>
+      [`**${finding.severity}** in \`${finding.location}\``, "", finding.problem, "", `- What goes wrong: ${finding.scenario}`, `- Fix: ${finding.fix}`].join("\n"),
+    )
+    .join("\n\n");
 
 const Report = Schema.Struct({
   verdict: Schema.Literals(["APPROVE", "REQUEST_CHANGES", "BLOCK"]),
@@ -348,8 +364,9 @@ workflow(
   "omt-ulw",
   { version: 3, payload: UlwInput, returns: UlwResult, onEnd: ulwOnEnd },
   Effect.fn(function* (input, run) {
-    yield* title(`omt-ulw ${input.plan} r${input.round}`);
+    yield* title(`Review and QA of ${input.plan}, round ${input.round}`);
     yield* label("ulw", input.thread);
+    const reviewer = input.review === "oracle" ? "oracle" : "reviewer";
     let head = input.head;
     let review: typeof Reviewed.Type | null = null;
     let fixer: { threadId: string } | undefined;
@@ -357,7 +374,7 @@ workflow(
 
     if (input.review !== "off") {
       const routed = yield* step.try(
-        "route-review",
+        `Pick the ${reviewer} model`,
         { returns: Routed },
         route(input.omt, input.project, input.plan, {
           role: input.review,
@@ -371,7 +388,7 @@ workflow(
         }),
       );
       if (routed.outcome === "failed") return yield* stop(`no ${input.review} target: ${routed.reason}`);
-      const reviewed = yield* runRouted("review", routed.value, {
+      const reviewed = yield* runRouted(`Review the build and fix it (${reviewer})`, routed.value, {
         project: input.project,
         returns: Reviewed,
         workspace: worktree(input.head),
@@ -391,7 +408,7 @@ workflow(
       // One QA run, then at most 2 re-runs of the failed checks, each after a fix.
       for (let round = 1; round <= 3; round++) {
         const routed = yield* step.try(
-          `route-qa-${round}`,
+          `Pick the QA model, QA run ${round}`,
           { returns: Routed },
           route(input.omt, input.project, input.plan, {
             role: "qa",
@@ -405,7 +422,7 @@ workflow(
         );
         if (routed.outcome === "failed") return yield* stop(`no qa target: ${routed.reason}`);
         const tested = yield* qaPool(
-          runRouted(`qa-${round}`, routed.value, {
+          runRouted(`Run the checks, QA run ${round}`, routed.value, {
             project: input.project,
             returns: Qa,
             workspace: worktree(head),
@@ -421,10 +438,10 @@ workflow(
 
         let fixed;
         if (fixer !== undefined) {
-          fixed = yield* agent.try(`fix-${round}`, { thread: fixer, brief: fixTask(qa), returns: Fixed, timeout: "2 hours" });
+          fixed = yield* agent.try(`Fix the failed checks, after QA run ${round}`, { thread: fixer, brief: fixTask(qa), returns: Fixed, timeout: "2 hours" });
         } else {
           const routedFix = yield* step.try(
-            `route-fix-${round}`,
+            `Pick the fix model, after QA run ${round}`,
             { returns: Routed },
             route(input.omt, input.project, input.plan, {
               role: "execute",
@@ -437,7 +454,7 @@ workflow(
             }),
           );
           if (routedFix.outcome === "failed") return yield* stop(`no execute target: ${routedFix.reason}`);
-          fixed = yield* runRouted(`fix-${round}`, routedFix.value, {
+          fixed = yield* runRouted(`Fix the failed checks, after QA run ${round}`, routedFix.value, {
             project: input.project,
             returns: Fixed,
             workspace: worktree(head),
@@ -455,7 +472,7 @@ workflow(
     const result: typeof UlwResult.Type = { outcome, head, review, fixes, qa, qaRuns };
     // A failed wake stays in the run's journal; the run still returns its result.
     yield* step.try(
-      "wake",
+      WAKE,
       { returns: Schema.String },
       wake(
         input.thread,
@@ -525,14 +542,16 @@ workflow(
   "omt-code-review",
   { version: 3, payload: ReviewInput, returns: ReviewResult, onEnd: reviewOnEnd },
   Effect.fn(function* (input, run) {
-    yield* title(`omt-code-review ${input.slug} r${input.round}`);
+    yield* title(`Code review of ${input.slug}, round ${input.round}`);
     const thread = yield* readThread(input.thread, input.project);
     yield* label("code-review", input.thread, thread.pr);
     const plan = `review-${input.slug}`;
-    const reviewGroup = (group: typeof Group.Type) =>
+    const reviewGroup = (group: typeof Group.Type, index: number) =>
       Effect.gen(function* () {
+        const reviewer = group.unit === "oracle" ? "the oracle" : `reviewer ${group.unit}`;
+        const who = input.groups.length === 1 ? reviewer : `${reviewer}, group ${index + 1}`;
         const routed = yield* step.try(
-          `route-${group.unit}`,
+          `Pick the model of ${who}`,
           { returns: Routed },
           route(input.omt, input.project, plan, {
             role: group.role,
@@ -544,7 +563,7 @@ workflow(
           }),
         );
         if (routed.outcome === "failed") return yield* stop(`no ${group.role} target for ${group.unit}: ${routed.reason}`);
-        const reviewed = yield* runRouted(`review-${group.unit}`, routed.value, {
+        const reviewed = yield* runRouted(`Review the change (${who})`, routed.value, {
           project: input.project,
           returns: Report,
           interactionMode: "plan",
@@ -561,7 +580,7 @@ workflow(
         group.report.findings.map((finding) => `- [${finding.severity}] ${finding.location} ${finding.problem} Scenario: ${finding.scenario} Fix: ${finding.fix}`),
       );
       const routed = yield* step.try(
-        "route-oracle",
+        "Pick the model of the oracle check",
         { returns: Routed },
         route(input.omt, input.project, plan, {
           role: "oracle",
@@ -581,7 +600,7 @@ workflow(
         }),
       );
       if (routed.outcome === "failed") return yield* stop(`no oracle target: ${routed.reason}`);
-      const checked = yield* runRouted("oracle", routed.value, {
+      const checked = yield* runRouted("Check the findings (the oracle)", routed.value, {
         project: input.project,
         returns: Oracle,
         interactionMode: "plan",
@@ -596,20 +615,24 @@ workflow(
     let fix: "approved" | "declined" | "not asked" = "not asked";
     let why = "";
     if (input.fixLoop && fixable.length > 0) {
-      const answer = yield* ask("fix", {
-        title: `review-${input.slug}: let the main thread fix ${fixable.length} P0 to P2 findings?`,
+      const them = fixable.length === 1 ? "the finding" : `the ${fixable.length} findings`;
+      const left = final.length - fixable.length;
+      const body = [
+        `The review found ${plural(fixable.length, "finding")} that the main thread can fix${left > 0 ? `, and ${plural(left, "style finding")} (P3) that a fix leaves out` : ""}.`,
+        `Pick **fix** to let the main thread fix ${them} after the run, or **report only** to keep ${them} in the report.`,
+        ...(hasSubject ? ["Both answers require a reason. The main thread gets your reason."] : []),
+        findingsMarkdown(fixable),
+      ].join("\n\n");
+      const answer = yield* ask("Ask: fix the findings?", {
+        title: `Fix ${plural(fixable.length, "finding")} from the review of ${input.slug}?`,
         ...askWith(
           [
-            {
-              value: "fix",
-              description: `The main thread fixes the ${fixable.length} findings after the run, and your reason goes to it.`,
-              requireReason: true,
-            },
-            { value: "report only", description: "The run reports the findings, and nothing is fixed.", requireReason: true },
+            { value: "fix", description: `The main thread fixes ${them} after the run. Your reason goes to it.`, requireReason: true },
+            { value: "report only", description: `Nothing is fixed. The report keeps ${them}.`, requireReason: true },
           ],
           thread,
         ),
-        data: { findings: fixable },
+        data: { body, findings: fixable },
         timeout: "2 days",
       });
       fix = Option.isSome(answer) && answer.value.choice === "fix" ? "approved" : "declined";
@@ -619,7 +642,7 @@ workflow(
     const verdicts = [...groups.map((group) => `${group.unit} ${group.report.verdict}`), ...(oracle === null ? [] : [`oracle ${oracle.verdict}`])];
     // A failed wake stays in the run's journal; the run still returns its result.
     yield* step.try(
-      "wake",
+      WAKE,
       { returns: Schema.String },
       wake(
         input.thread,
@@ -763,7 +786,7 @@ export function nextAction(state: ClimbState): ClimbNext {
     if (gain !== undefined && gain < state.plateau.minGain - EPSILON) {
       return {
         action: "plateau",
-        reason: `the gain over the last ${state.plateau.rounds} rounds is ${format(gain)}, below ${format(state.plateau.minGain)}: ${reason}`,
+        reason: `the gain over the last ${plural(state.plateau.rounds, "round")} is ${format(gain)}, below ${format(state.plateau.minGain)}: ${reason}`,
       };
     }
   }
@@ -1084,7 +1107,7 @@ const finish = (
   Effect.gen(function* () {
     // A failed wake stays in the run's journal; the run still returns its result.
     yield* step.try(
-      "wake",
+      WAKE,
       { returns: Schema.String },
       wake(
         input.thread,
@@ -1106,7 +1129,7 @@ workflow(
   "omt-climb",
   { version: 2, payload: ClimbInput, returns: ClimbResult, onEnd: climbOnEnd },
   Effect.fn(function* (input, run) {
-    yield* title(`omt-climb ${input.slug}`);
+    yield* title(`Climb ${input.slug}`);
     const thread = yield* readThread(input.thread, input.project);
     yield* label("climb", input.thread);
     const errors = climbInputErrors(input);
@@ -1138,23 +1161,23 @@ workflow(
 
     for (let round = 1; ; round++) {
       // Gates. After a change, the change agent fixes a failed gate, at most twice per round.
-      let checks = yield* step(`gates-r${round}`, { returns: Schema.Array(Check) }, runGates(input.gates, at.dir, at.head, logs, `r${round}`));
+      let checks = yield* step(`Run the gates, round ${round}`, { returns: Schema.Array(Check) }, runGates(input.gates, at.dir, at.head, logs, `r${round}`));
       for (let fix = 1; checks.some((check) => check.exit !== 0); fix++) {
         const failed = checks.filter((check) => check.exit !== 0);
         const text = failed.map((check) => `\`${check.command}\` exit ${check.exit} (${check.log})`).join(", ");
         if (changer === undefined || fix > 2) return yield* stop(`the gates fail on ${at.head} in round ${round}: ${text}`);
-        const fixed = yield* agent.try(`fix-gates-r${round}-${fix}`, { thread: changer, brief: gateTask(failed), returns: Changed, timeout: "2 hours" });
+        const fixed = yield* agent.try(`Fix the failed gates (try ${fix}), round ${round}`, { thread: changer, brief: gateTask(failed), returns: Changed, timeout: "2 hours" });
         if (fixed.outcome === "failed") return yield* stop(`the gate fix of round ${round} failed: ${fixed.reason}`);
         at = { head: fixed.value.head, dir: fixed.value.worktree };
         changes.push(...fixed.value.changes);
-        checks = yield* step(`gates-r${round}-${fix + 1}`, { returns: Schema.Array(Check) }, runGates(input.gates, at.dir, at.head, logs, `r${round}-${fix + 1}`));
+        checks = yield* step(`Run the gates again (run ${fix + 1}), round ${round}`, { returns: Schema.Array(Check) }, runGates(input.gates, at.dir, at.head, logs, `r${round}-${fix + 1}`));
       }
 
       // Capture and blind labels. Round 1 scores the start commit, so its capture is the baseline.
       let blinded: typeof Blind.Type = { key: "", labels: {}, files: {} };
       if (models) {
         const files = yield* step(
-          `capture-r${round}`,
+          `Capture the outputs, round ${round}`,
           { returns: Schema.Array(Schema.String) },
           capture(input.capture, at.dir, at.head, join(dir, `r${round}`), join(logs, `r${round}-capture.log`)),
         );
@@ -1162,7 +1185,7 @@ workflow(
         const subjects: Record<string, readonly string[]> = { [CURRENT]: files };
         if (round > 1) subjects[BASELINE] = baseline;
         for (const reference of input.references) subjects[reference.name] = reference.files;
-        blinded = yield* step(`labels-r${round}`, { returns: Blind }, blind(input.evidence, subjects));
+        blinded = yield* step(`Hide the subjects behind letters, round ${round}`, { returns: Blind }, blind(input.evidence, subjects));
       }
 
       // Judges, one tier at a time.
@@ -1170,14 +1193,14 @@ workflow(
         Effect.gen(function* () {
           if (judge.command !== "") {
             const log = join(logs, `r${round}-judge-${judge.name}.log`);
-            const value = yield* step(`score-r${round}-${judge.name}`, { returns: Schema.Number }, scoreCommand(judge.command, at.dir, at.head, log));
+            const value = yield* step(`Score with ${judge.name}, round ${round}`, { returns: Schema.Number }, scoreCommand(judge.command, at.dir, at.head, log));
             return { scores: [{ round, judge: judge.name, subject: CURRENT, value }], findings: [`${judge.name}: \`${judge.command}\` printed ${value}; its output is in ${log}`] };
           }
           let problem = "";
-          // A judge name has no ".", so the retry's step names cannot match another judge's.
-          for (const suffix of ["", ".retry"]) {
+          // A judge name has no space or parenthesis, so the retry's step names cannot match another judge's.
+          for (const suffix of ["", " (retry)"]) {
             const routed = yield* step.try(
-              `route-judge-r${round}-${judge.name}${suffix}`,
+              `Pick the model of judge ${judge.name}, round ${round}${suffix}`,
               { returns: Routed },
               route(input.omt, input.project, input.slug, {
                 role: "judge",
@@ -1188,7 +1211,7 @@ workflow(
               }),
             );
             if (routed.outcome === "failed") return yield* stop(`no judge target for ${judge.name}: ${routed.reason}`);
-            const judged = yield* runRouted(`judge-r${round}-${judge.name}${suffix}`, routed.value, {
+            const judged = yield* runRouted(`Judge ${judge.name} scores, round ${round}${suffix}`, routed.value, {
               project: input.project,
               returns: Scores,
               timeout: "1 hour",
@@ -1233,8 +1256,15 @@ workflow(
 
       if (next.action === "met") return yield* finish(input, run.id, "met", round, next.reason, at.head, climbTable(state(round)), scores, changes, declined);
       if (next.action === "plateau" || next.action === "limit") {
-        const answer = yield* ask(`ask-r${round}`, {
-          title: `omt-climb ${input.slug}: ${next.action} after round ${round}. Stop, raise the limit, or change the approach?`,
+        const ended = next.action === "plateau" ? "The score did not improve enough" : `The climb reached its limit of ${plural(maxRounds, "round")}`;
+        const table = climbTable(state(round));
+        const body = [
+          `The climb paused because ${next.reason}.`,
+          `**Scores** (a value in parentheses is the raw score before the drift correction)\n\n${table}`,
+          findings.length > 0 ? `**What the judges found in the current code**\n\n${findings.map((finding) => `- ${finding}`).join("\n")}` : "The judges gave no findings.",
+        ].join("\n\n");
+        const answer = yield* ask(`Ask: go on after round ${round}?`, {
+          title: `Continue the climb ${input.slug} after round ${round}? ${ended}.`,
           ...askWith(
             [
               { value: "stop", description: `End the run at commit ${at.head.slice(0, 12)} with the outcome ${next.action}.` },
@@ -1251,11 +1281,11 @@ workflow(
             ],
             thread,
           ),
-          data: { reason: next.reason, table: climbTable(state(round)), findings },
+          data: { body, reason: next.reason, table, findings },
           timeout: "2 days",
         });
         if (Option.isNone(answer) || answer.value.choice === "stop") {
-          return yield* finish(input, run.id, next.action, round, next.reason, at.head, climbTable(state(round)), scores, changes, declined);
+          return yield* finish(input, run.id, next.action, round, next.reason, at.head, table, scores, changes, declined);
         }
         since = round;
         maxRounds = Math.max(maxRounds, round + EXTRA_ROUNDS);
@@ -1272,19 +1302,19 @@ workflow(
       let changed;
       if (changer === undefined) {
         const routed = yield* step.try(
-          `route-change-r${round}`,
+          `Pick the change model, round ${round}`,
           { returns: Routed },
           route(input.omt, input.project, input.slug, { role: input.change, unit: "CLIMB", round, task, context: input.goal, verify: input.gates }),
         );
         if (routed.outcome === "failed") return yield* stop(`no ${input.change} target: ${routed.reason}`);
-        changed = yield* runRouted(`change-r${round}`, routed.value, {
+        changed = yield* runRouted(`Change the code, round ${round}`, routed.value, {
           project: input.project,
           returns: Changed,
           workspace: worktree(at.head),
           timeout: "3 hours",
         });
       } else {
-        changed = yield* agent.try(`change-r${round}`, { thread: changer, brief: task, returns: Changed, timeout: "3 hours" });
+        changed = yield* agent.try(`Change the code, round ${round}`, { thread: changer, brief: task, returns: Changed, timeout: "3 hours" });
       }
       if (changed.outcome === "failed") return yield* stop(`the change of round ${round} failed: ${changed.reason}`);
       changer = changed.thread;
