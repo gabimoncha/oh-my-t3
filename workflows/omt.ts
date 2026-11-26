@@ -5,13 +5,18 @@
 // omt-code-review: the report-only reviewers and the oracle of omt-code-review.
 // omt-climb: the rounds of gates, blind judges, and changes of omt-climb, which runs only as this workflow.
 // Each run ends by sending a short message to the thread that started it, because T3 does not wake that thread.
+// Each run tags itself with its skill and names the thread or the PR that it is about.
 import { execFile } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
+import { finished } from "node:stream/promises";
 
 const { workflow, step, agent, ask, stop, title } = T3;
+const { subject, tags, within } = T3;
+// subject arrived after tags and described choices. Keep the old labels and questions on T3 without it.
+const hasSubject = typeof subject === "function";
 
 // ---------- shared ----------
 
@@ -25,6 +30,116 @@ const exec = (command: string, args: readonly string[], cwd: string) =>
       ),
     catch: (error) => (error instanceof Error ? error : new Error(String(error))),
   });
+
+const attempt = <A>(run: () => A) =>
+  Effect.try({ try: run, catch: (error) => (error instanceof Error ? error : new Error(String(error))) });
+
+const web = (value: unknown): value is string => {
+  const protocol = typeof value === "string" ? URL.parse(value)?.protocol : undefined;
+  return protocol === "http:" || protocol === "https:";
+};
+
+const hostedSegment = (id: string) =>
+  encodeURIComponent(id).replace(/[.!~*'()]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+
+const threadWebLink = (link: unknown, thread: string) => {
+  if (web(link)) return link;
+  if (typeof link !== "string") return "";
+  const environment = /^(?:<|\[[^\]]+\]\(<?)t3-thread:\/\/v2\/([^/]+)\//.exec(link)?.[1];
+  return environment === undefined ? "" : `https://app.t3.codes/threads/${hostedSegment(environment)}/${hostedSegment(thread)}`;
+};
+
+const Thread = Schema.Struct({
+  link: Schema.String, // the thread's web address, or ""
+  pr: Schema.NullOr(
+    Schema.Struct({ projectId: Schema.String, host: Schema.String, repository: Schema.String, number: Schema.Number, url: Schema.String }),
+  ),
+});
+type Thread = typeof Thread.Type;
+
+interface ShownPr {
+  projectId?: unknown;
+  host?: unknown;
+  repository?: unknown;
+  number?: unknown;
+  url?: unknown;
+}
+
+interface ShownThread {
+  link?: unknown;
+  projectId?: unknown;
+  linkedPullRequest?: ShownPr | null;
+  pullRequests?: ShownPr[];
+  pullRequestCount?: number;
+}
+
+// New T3 links go in pullRequests. linkedPullRequest is the older single-link field, and T3 keeps it when
+// a newer link comes. With more than one PR link, nothing tells which PR the run is about, so it has none.
+const threadOf = (thread: string, cwd: string) =>
+  Effect.gen(function* () {
+    const out = yield* exec("t3", ["thread", "show", thread, "--json", "--messages", "0"], cwd);
+    const shown = yield* attempt(() => (JSON.parse(out) as { thread?: ShownThread }).thread ?? {});
+    const open = shown.pullRequests ?? [];
+    const legacy = shown.linkedPullRequest ?? undefined;
+    const count = typeof shown.pullRequestCount === "number" ? shown.pullRequestCount : Math.max(open.length, legacy === undefined ? 0 : 1);
+    const linked = count > 1 ? undefined : (legacy ?? open[0]);
+    let pr: Thread["pr"] = null;
+    if (
+      typeof linked?.repository === "string" && linked.repository.trim() !== "" &&
+      typeof linked.number === "number" && Number.isSafeInteger(linked.number) && linked.number > 0 &&
+      web(linked.url)
+    ) {
+      const match = open.find((each) => each.url === linked.url);
+      const project = linked.projectId ?? shown.projectId;
+      pr = {
+        projectId: typeof project === "string" ? project.trim() : "",
+        host: typeof match?.host === "string" ? match.host.trim() : new URL(linked.url).host,
+        repository: linked.repository.trim(),
+        number: linked.number,
+        url: linked.url,
+      };
+    }
+    const result: Thread = { link: threadWebLink(shown.link, thread), pr };
+    return result;
+  });
+
+const NO_THREAD: Thread = { link: "", pr: null };
+
+// Reads the starting thread in a step, because the body replays. Only a T3 with subject needs it.
+const readThread = (thread: string, cwd: string) =>
+  Effect.gen(function* () {
+    if (!hasSubject || thread.trim() === "") return NO_THREAD;
+    const read = yield* step.try("Read the thread and its PR", { returns: Thread }, threadOf(thread, cwd));
+    return read.outcome === "done" ? read.value : NO_THREAD;
+  });
+
+// Tags the run with its skill. Its subject is the PR when one is given, else the starting thread.
+// A PR without its project or host is a web address, because T3 refuses such a PR as a subject.
+const label = (skill: string, thread: string, pr: Thread["pr"] = null) =>
+  Effect.gen(function* () {
+    if (!hasSubject) return;
+    if (typeof tags === "function") yield* tags([skill]);
+    if (pr !== null) {
+      yield* subject(pr.projectId !== "" && pr.host !== "" ? pr : pr.url);
+    } else if (thread.trim() !== "") {
+      yield* subject({ threadId: thread });
+    }
+  });
+
+interface Choice {
+  value: string;
+  description: string;
+}
+
+// The options of an ask with described choices and links, or plain choices on a T3 without them.
+const askWith = (choices: readonly Choice[], thread: Thread) => {
+  if (!hasSubject) return { choices: choices.map((choice) => choice.value) };
+  const links = [
+    ...(thread.link === "" ? [] : [{ label: "The thread that started the run", url: thread.link }]),
+    ...(thread.pr === null ? [] : [{ label: `PR #${thread.pr.number}`, url: thread.pr.url }]),
+  ];
+  return { choices, ...(links.length === 0 ? {} : { links }) };
+};
 
 const Model = Schema.Struct({
   instanceId: Schema.String,
@@ -65,6 +180,30 @@ interface BriefArgs {
   against?: string;
 }
 
+// Saves the brief under the hash of its text in the project's evidence folder, so that the step's value on
+// the Workflows page is a short pointer. The workflow saves it, not omt brief --save: an older project CLI
+// saves by request ID, and two runs of one plan could then replace each other's brief.
+const saveBrief = (omt: readonly string[], cwd: string, role: string, brief: string) =>
+  Effect.gen(function* () {
+    const [command, ...prefix] = omt;
+    const evidence = (yield* exec(command ?? "omt", [...prefix, "paths", "--evidence"], cwd)).trim();
+    const path = join(evidence, "briefs", `${role}-${createHash("sha256").update(brief).digest("hex")}.md`);
+    // A file at the hash path already holds these bytes, so it stays as it is, with its mode.
+    yield* attempt(() => {
+      if (existsSync(path)) return;
+      mkdirSync(join(evidence, "briefs"), { recursive: true });
+      const temp = `${path}.${randomBytes(4).toString("hex")}.tmp`;
+      try {
+        writeFileSync(temp, brief);
+        renameSync(temp, path);
+      } catch (error) {
+        rmSync(temp, { force: true });
+        throw error;
+      }
+    });
+    return `Act as the ${role} sub-agent for this task. Your full brief is in the file ${path}. Read it in full first, then follow it exactly. Submit the structured result that the brief asks for.`;
+  });
+
 // Renders the role's brief with omt and routes the role: the first target, then its fallbacks.
 const route = (omt: readonly string[], cwd: string, plan: string, args: BriefArgs) =>
   Effect.gen(function* () {
@@ -88,7 +227,7 @@ const route = (omt: readonly string[], cwd: string, plan: string, args: BriefArg
         fallbacks: Target[];
       };
       const routed: Routed = {
-        brief: out.delegateTask.task,
+        brief: yield* saveBrief(omt, cwd, args.role, out.delegateTask.task),
         title: out.delegateTask.title,
         interactionMode: out.delegateTask.interactionMode,
         targets: [out.delegateTask.target, ...out.fallbacks].map(toModel),
@@ -101,8 +240,21 @@ const route = (omt: readonly string[], cwd: string, plan: string, args: BriefArg
 
 const modeOf = (mode: string) => (mode === "plan" || mode === "default" ? mode : undefined);
 
-// Walks the routed targets with agent.try. It moves to the next target only when T3 could not start
-// the agent; an agent that ran and failed ends the walk.
+const modelSpeed = (model: Model): string => {
+  const tier = model.options.find((option) => option.id === "serviceTier")?.value;
+  if (typeof tier === "string") return tier;
+  return model.options.some((option) => option.id === "fastMode" && option.value === true) ? "fast" : "standard";
+};
+
+export function canRetryAtAnotherSpeed(reason: string, model: Model, next: Model | undefined): boolean {
+  if (next === undefined || model.instanceId !== next.instanceId || model.model !== next.model) return false;
+  // T3 agent.try returns the same outcome for a failed turn, a stopped turn, and a missing result.
+  if (!reason.startsWith("the agent's turn was cut short:") || reason.endsWith("; its turn could not be stopped")) return false;
+  return modelSpeed(model) !== modelSpeed(next);
+}
+
+// Codex can refuse the ultrafast tier after T3 creates the thread. Each try starts a separate thread
+// and gets a fresh worktree when requested.
 const runRouted = <A, I>(
   name: string,
   routed: Routed,
@@ -112,7 +264,7 @@ const runRouted = <A, I>(
     let reason = "no target";
     for (const [index, model] of routed.targets.entries()) {
       const mode = options.interactionMode ?? modeOf(routed.interactionMode);
-      const attempt = yield* agent.try(`${name}/${index + 1}`, {
+      const attempt = yield* agent.try(index === 0 ? name : `${name}, fallback model ${index}`, {
         project: options.project,
         brief: routed.brief,
         title: routed.title,
@@ -124,13 +276,39 @@ const runRouted = <A, I>(
       });
       if (attempt.outcome === "done") return attempt;
       reason = attempt.reason;
-      if (attempt.thread !== undefined) break;
+      if (attempt.thread !== undefined && !canRetryAtAnotherSpeed(reason, model, routed.targets[index + 1])) break;
     }
     return { outcome: "failed" as const, reason };
   });
 
-const wake = (thread: string, message: string, cwd: string) =>
-  exec("t3", ["thread", "send", thread, message], cwd).pipe(Effect.as(message));
+// Sends the message through stdin, because one long argument can pass the system's argument limit. The
+// step's value is only the message's first line: the Workflows page shows it next to the report step, so the
+// whole message would show the report twice.
+const wake = (thread: string, message: string, cwd: string, run: string) =>
+  Effect.tryPromise({
+    try: () =>
+      new Promise<string>((resolve, reject) => {
+        const text = capMessage(message, run);
+        const child = execFile("t3", ["thread", "send", thread, "-"], { cwd, maxBuffer: 16 * 1024 * 1024 }, (error, _stdout, stderr) => {
+          if (error !== null) {
+            reject(new Error(`t3 thread send failed: ${stderr.trim() || error.message}`));
+            return;
+          }
+          void written.then((failure) => {
+            if (failure !== undefined) reject(new Error(`t3 thread send failed: ${failure.message}`));
+            else resolve(`Sent to the thread: ${text.split("\n")[0] ?? ""}`);
+          });
+        });
+        // Wait for the write on success. When both fail, keep the error from t3.
+        const written = child.stdin === null
+          ? Promise.resolve(undefined)
+          : finished(child.stdin, { readable: false }).then(() => undefined, (error: Error) => error);
+        child.stdin?.end(text);
+      }),
+    catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+  });
+
+const WAKE = "Tell the thread that started the run";
 
 const Finding = Schema.Struct({
   severity: Schema.Literals(["P0", "P1", "P2", "P3"]),
@@ -139,6 +317,64 @@ const Finding = Schema.Struct({
   scenario: Schema.String,
   fix: Schema.String,
 });
+
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+
+const SEVERITY: Record<string, string> = {
+  P0: "breaks the build, loses data, or opens a security hole",
+  P1: "wrong in a normal case",
+  P2: "wrong in an edge case",
+  P3: "style",
+};
+
+// Intl.Segmenter, not a regular expression, so that "the U.S. users" stays one sentence.
+const firstSentence = (text: string) => {
+  const trimmed = text.trim();
+  const first = new Intl.Segmenter("en", { granularity: "sentence" }).segment(trimmed)[Symbol.iterator]().next().value;
+  return first === undefined ? trimmed : first.segment.trim();
+};
+
+type ReportFinding = { severity: string; location: string; problem: string; fix: string };
+
+// A short report for people: each problem in one sentence, where it is, and its fix. The Workflows page
+// shows a step's text as plain lines, so the report uses no Markdown. The scenarios stay in run.result.
+// Reviewers of one change can report the same place, so findings at one location are one item, with the
+// most severe finding first.
+export function reviewReport(heading: string, findings: readonly ReportFinding[], refuted: number): string {
+  const order = [...findings].sort((a, b) => a.severity.localeCompare(b.severity));
+  const places = new Map<string, ReportFinding[]>();
+  for (const finding of order) places.set(finding.location, [...(places.get(finding.location) ?? []), finding]);
+  const items = [...places.values()];
+  const toFix = items.filter((same) => (same[0] as ReportFinding).severity !== "P3").length;
+  const style = items.length - toFix;
+  const counts = [
+    toFix === 0 ? "no problems to fix" : `${plural(toFix, "problem")} to fix`,
+    ...(style === 0 ? [] : [plural(style, "style note")]),
+    ...(refuted === 0 ? [] : [`${plural(refuted, "reviewer finding")} refuted by the oracle`]),
+  ];
+  const lines = items.map((same, index) => {
+    const finding = same[0] as ReportFinding;
+    return [
+      `${index + 1}. ${firstSentence(finding.problem)}`,
+      `   ${finding.severity} (${SEVERITY[finding.severity] ?? "unrated"}), ${finding.location}`,
+      `   Fix: ${finding.fix.trim()}`,
+      ...(same.length > 1 ? [`   ${plural(same.length - 1, "more finding")} at this place: see the full result.`] : []),
+    ].join("\n");
+  });
+  return [`${heading}: ${counts.join(", ")}.`, ...lines].join("\n\n");
+}
+
+// T3 refuses a thread message over 120,000 characters, and a refused wake leaves the thread waiting. The
+// Workflows page also clips a long step value, so a long message points to the run's full result.
+const WAKE_LIMIT = 100_000;
+
+export function capMessage(message: string, run: string): string {
+  if (message.length <= WAKE_LIMIT) return message;
+  const pointer = `\n\nThe full message is too long to send. Read the result with: t3 workflow show ${run} --json`;
+  const first = message.split("\n")[0] ?? "";
+  const room = WAKE_LIMIT - pointer.length;
+  return `${first.length <= room ? first : `${first.slice(0, room - 3)}...`}${pointer}`;
+}
 
 const Report = Schema.Struct({
   verdict: Schema.Literals(["APPROVE", "REQUEST_CHANGES", "BLOCK"]),
@@ -186,6 +422,10 @@ const Fixed = Schema.Struct({ fixes: Schema.Array(Schema.String), head: Schema.S
 
 const worktree = (baseRef: string) => ({ type: "worktree", baseRef, startFromOrigin: false });
 
+// QA agents run whole test suites and device flows on this machine, so the server runs one at a time,
+// across all runs.
+const qaPool = <A, E, R>(body: Effect.Effect<A, E, R>) => (typeof within === "function" ? within("omt-qa", { limit: 1 }, body) : body);
+
 const reviewTask = (input: typeof UlwInput.Type) =>
   [
     `Review the build of plan ${input.plan}. Your worktree starts at the build commit ${input.head}.`,
@@ -194,9 +434,10 @@ const reviewTask = (input: typeof UlwInput.Type) =>
     "Report every other finding with its fix. List your fixes under fixes, and give `git rev-parse HEAD` as head, also when you changed nothing.",
   ].join("\n\n");
 
-const qaTask = (input: typeof UlwInput.Type, head: string, checks: readonly string[]) =>
+// The task names no commit, so that QA run 1 can be routed before the review makes the commit it tests.
+const qaTask = (input: typeof UlwInput.Type, checks: readonly string[]) =>
   [
-    `Run the checks of plan ${input.plan} on commit ${head}, which your worktree starts at. The code under test is the scope paths.`,
+    `Run the checks of plan ${input.plan} on the commit that your worktree starts at. The code under test is the scope paths.`,
     `Run each command in Verify and report its exit code and log path.${input.flows.trim() === "" ? "" : `\n\nRun these device flows and save a screenshot of each:\n\n${input.flows}`}`,
     `Commands:\n${checks.map((command) => `- \`${command}\``).join("\n")}`,
   ].join("\n\n");
@@ -225,35 +466,58 @@ const ulwOnEnd = (input: typeof UlwInput.Type, end: { id: string; outcome: strin
         input.thread,
         `omt-ulw workflow run ${end.id} for plan ${input.plan} ${end.outcome}: ${end.reason ?? "no reason"}. Run omt-ulw steps 8 to 11 in the thread.`,
         input.project,
+        end.id,
       ).pipe(Effect.asVoid);
 
 workflow(
   "omt-ulw",
-  { version: 2, payload: UlwInput, returns: UlwResult, onEnd: ulwOnEnd },
+  { version: 3, payload: UlwInput, returns: UlwResult, onEnd: ulwOnEnd },
   Effect.fn(function* (input, run) {
-    yield* title(`omt-ulw ${input.plan} r${input.round}`);
+    yield* title(`Review and QA of ${input.plan}, round ${input.round}`);
+    yield* label("ulw", input.thread);
+    const reviewer = input.review === "oracle" ? "oracle" : "reviewer";
     let head = input.head;
     let review: typeof Reviewed.Type | null = null;
     let fixer: { threadId: string } | undefined;
     const fixes: string[] = [];
-
-    if (input.review !== "off") {
-      const routed = yield* step.try(
-        "route-review",
+    const routeQa = (round: number, checks: readonly string[]) =>
+      step.try(
+        `Pick the QA model, QA run ${round}`,
         { returns: Routed },
         route(input.omt, input.project, input.plan, {
-          role: input.review,
-          unit: input.review === "oracle" ? "F2" : "REVIEW",
-          round: input.round,
-          task: reviewTask(input),
+          role: "qa",
+          unit: "QA",
+          round,
+          task: qaTask(input, checks),
           context: input.context,
           scope: input.scope,
-          verify: input.checks,
-          against: input.family,
+          verify: checks,
         }),
       );
-      if (routed.outcome === "failed") return yield* stop(`no ${input.review} target: ${routed.reason}`);
-      const reviewed = yield* runRouted("review", routed.value, {
+
+    // The Workflows page can group adjacent picks when both steps finish in less than one second each.
+    const reviewRoute =
+      input.review === "off"
+        ? undefined
+        : yield* step.try(
+            `Pick the ${reviewer} model`,
+            { returns: Routed },
+            route(input.omt, input.project, input.plan, {
+              role: input.review,
+              unit: input.review === "oracle" ? "F2" : "REVIEW",
+              round: input.round,
+              task: reviewTask(input),
+              context: input.context,
+              scope: input.scope,
+              verify: input.checks,
+              against: input.family,
+            }),
+          );
+    if (reviewRoute?.outcome === "failed") return yield* stop(`no ${input.review} target: ${reviewRoute.reason}`);
+    const firstQa = yield* routeQa(1, input.checks);
+
+    if (reviewRoute?.outcome === "done") {
+      const reviewed = yield* runRouted(`Review the build and fix it (${reviewer})`, reviewRoute.value, {
         project: input.project,
         returns: Reviewed,
         workspace: worktree(input.head),
@@ -272,26 +536,16 @@ workflow(
       let checks: readonly string[] = input.checks;
       // One QA run, then at most 2 re-runs of the failed checks, each after a fix.
       for (let round = 1; round <= 3; round++) {
-        const routed = yield* step.try(
-          `route-qa-${round}`,
-          { returns: Routed },
-          route(input.omt, input.project, input.plan, {
-            role: "qa",
-            unit: "QA",
-            round,
-            task: qaTask(input, head, checks),
-            context: input.context,
-            scope: input.scope,
-            verify: checks,
+        const routed = round === 1 ? firstQa : yield* routeQa(round, checks);
+        if (routed.outcome === "failed") return yield* stop(`no qa target: ${routed.reason}`);
+        const tested = yield* qaPool(
+          runRouted(`Run the checks, QA run ${round}`, routed.value, {
+            project: input.project,
+            returns: Qa,
+            workspace: worktree(head),
+            timeout: "2 hours",
           }),
         );
-        if (routed.outcome === "failed") return yield* stop(`no qa target: ${routed.reason}`);
-        const tested = yield* runRouted(`qa-${round}`, routed.value, {
-          project: input.project,
-          returns: Qa,
-          workspace: worktree(head),
-          timeout: "2 hours",
-        });
         if (tested.outcome === "failed") return yield* stop(`the qa agent failed: ${tested.reason}`);
         qa = tested.value;
         qaRuns = round;
@@ -301,10 +555,10 @@ workflow(
 
         let fixed;
         if (fixer !== undefined) {
-          fixed = yield* agent.try(`fix-${round}`, { thread: fixer, brief: fixTask(qa), returns: Fixed, timeout: "2 hours" });
+          fixed = yield* agent.try(`Fix the failed checks, after QA run ${round}`, { thread: fixer, brief: fixTask(qa), returns: Fixed, timeout: "2 hours" });
         } else {
           const routedFix = yield* step.try(
-            `route-fix-${round}`,
+            `Pick the fix model, after QA run ${round}`,
             { returns: Routed },
             route(input.omt, input.project, input.plan, {
               role: "execute",
@@ -317,7 +571,7 @@ workflow(
             }),
           );
           if (routedFix.outcome === "failed") return yield* stop(`no execute target: ${routedFix.reason}`);
-          fixed = yield* runRouted(`fix-${round}`, routedFix.value, {
+          fixed = yield* runRouted(`Fix the failed checks, after QA run ${round}`, routedFix.value, {
             project: input.project,
             returns: Fixed,
             workspace: worktree(head),
@@ -335,7 +589,7 @@ workflow(
     const result: typeof UlwResult.Type = { outcome, head, review, fixes, qa, qaRuns };
     // A failed wake stays in the run's journal; the run still returns its result.
     yield* step.try(
-      "wake",
+      WAKE,
       { returns: Schema.String },
       wake(
         input.thread,
@@ -346,6 +600,7 @@ workflow(
           `Read the result with: t3 workflow show ${run.id} --json`,
         ].join(" "),
         input.project,
+        run.id,
       ),
     );
     return result;
@@ -369,7 +624,7 @@ const ReviewInput = Schema.Struct({
   intent: Schema.String, // what the change does, and the rule files
   groups: Schema.Array(Group),
   oracle: Schema.NullOr(Schema.String), // the oracle's --against family, or null for no oracle pass
-  fixLoop: Schema.Boolean, // ask before the main thread fixes
+  fixLoop: Schema.Boolean, // no effect: the run only reports, and the thread runs its fix loop
   thread: Schema.String,
   omt: Omt,
 });
@@ -399,18 +654,23 @@ const reviewOnEnd = (input: typeof ReviewInput.Type, end: { id: string; outcome:
         input.thread,
         `omt-code-review workflow run ${end.id} for review-${input.slug} ${end.outcome}: ${end.reason ?? "no reason"}. Run the omt-code-review steps in the thread.`,
         input.project,
+        end.id,
       ).pipe(Effect.asVoid);
 
 workflow(
   "omt-code-review",
-  { version: 2, payload: ReviewInput, returns: ReviewResult, onEnd: reviewOnEnd },
+  { version: 3, payload: ReviewInput, returns: ReviewResult, onEnd: reviewOnEnd },
   Effect.fn(function* (input, run) {
-    yield* title(`omt-code-review ${input.slug} r${input.round}`);
+    yield* title(`Code review of ${input.slug}, round ${input.round}`);
+    const thread = yield* readThread(input.thread, input.project);
+    yield* label("code-review", input.thread, thread.pr);
     const plan = `review-${input.slug}`;
-    const reviewGroup = (group: typeof Group.Type) =>
+    const reviewGroup = (group: typeof Group.Type, index: number) =>
       Effect.gen(function* () {
+        const reviewer = group.unit === "oracle" ? "the oracle" : `reviewer ${group.unit}`;
+        const who = input.groups.length === 1 ? reviewer : `${reviewer}, group ${index + 1}`;
         const routed = yield* step.try(
-          `route-${group.unit}`,
+          `Pick the model of ${who}`,
           { returns: Routed },
           route(input.omt, input.project, plan, {
             role: group.role,
@@ -422,7 +682,7 @@ workflow(
           }),
         );
         if (routed.outcome === "failed") return yield* stop(`no ${group.role} target for ${group.unit}: ${routed.reason}`);
-        const reviewed = yield* runRouted(`review-${group.unit}`, routed.value, {
+        const reviewed = yield* runRouted(`Review the change (${who})`, routed.value, {
           project: input.project,
           returns: Report,
           interactionMode: "plan",
@@ -439,7 +699,7 @@ workflow(
         group.report.findings.map((finding) => `- [${finding.severity}] ${finding.location} ${finding.problem} Scenario: ${finding.scenario} Fix: ${finding.fix}`),
       );
       const routed = yield* step.try(
-        "route-oracle",
+        "Pick the model of the oracle check",
         { returns: Routed },
         route(input.omt, input.project, plan, {
           role: "oracle",
@@ -459,7 +719,7 @@ workflow(
         }),
       );
       if (routed.outcome === "failed") return yield* stop(`no oracle target: ${routed.reason}`);
-      const checked = yield* runRouted("oracle", routed.value, {
+      const checked = yield* runRouted("Check the findings (the oracle)", routed.value, {
         project: input.project,
         returns: Oracle,
         interactionMode: "plan",
@@ -470,31 +730,29 @@ workflow(
     }
 
     const final = oracle?.findings ?? groups.flatMap((group) => group.report.findings);
-    const fixable = final.filter((finding) => finding.severity !== "P3");
-    let fix: "approved" | "declined" | "not asked" = "not asked";
-    if (input.fixLoop && fixable.length > 0) {
-      const answer = yield* ask("fix", {
-        title: `review-${input.slug}: let the main thread fix ${fixable.length} P0 to P2 findings?`,
-        choices: ["fix", "report only"],
-        data: { findings: fixable },
-        timeout: "2 days",
-      });
-      fix = Option.isSome(answer) && answer.value.choice === "fix" ? "approved" : "declined";
-    }
-
+    // The thread that started the run decides what to fix, so the run asks nobody and only reports.
+    const fix = "not asked" as const;
     const verdicts = [...groups.map((group) => `${group.unit} ${group.report.verdict}`), ...(oracle === null ? [] : [`oracle ${oracle.verdict}`])];
+    const report = yield* step(
+      "Write the report",
+      { returns: Schema.String },
+      Effect.succeed(reviewReport(`Code review of ${input.slug}, round ${input.round}`, final, oracle?.refuted.length ?? 0)),
+    );
     // A failed wake stays in the run's journal; the run still returns its result.
     yield* step.try(
-      "wake",
+      WAKE,
       { returns: Schema.String },
       wake(
         input.thread,
         [
           `omt-code-review workflow run ${run.id} for review-${input.slug} r${input.round}: ${verdicts.join(", ")}.`,
-          `${final.length} findings, ${fixable.length} of them P0 to P2. Fix loop: ${fix}.`,
+          "",
+          report,
+          "",
           `Read the result with: t3 workflow show ${run.id} --json`,
-        ].join(" "),
+        ].join("\n"),
         input.project,
+        run.id,
       ),
     );
     return { groups, oracle, fix };
@@ -629,7 +887,7 @@ export function nextAction(state: ClimbState): ClimbNext {
     if (gain !== undefined && gain < state.plateau.minGain - EPSILON) {
       return {
         action: "plateau",
-        reason: `the gain over the last ${state.plateau.rounds} rounds is ${format(gain)}, below ${format(state.plateau.minGain)}: ${reason}`,
+        reason: `the gain over the last ${plural(state.plateau.rounds, "round")} is ${format(gain)}, below ${format(state.plateau.minGain)}: ${reason}`,
       };
     }
   }
@@ -807,9 +1065,6 @@ const ClimbResult = Schema.Struct({
   declined: Schema.Array(Schema.String),
 });
 
-const attempt = <A>(run: () => A) =>
-  Effect.try({ try: run, catch: (error) => (error instanceof Error ? error : new Error(String(error))) });
-
 // Runs a shell command and writes its output to the log. A command that cannot start exits 127. Only a failed
 // log write fails the effect, because a throw in the execFile callback would escape the promise.
 const shell = (command: string, cwd: string, log: string, env: Record<string, string> = {}) =>
@@ -936,6 +1191,7 @@ const climbOnEnd = (input: ClimbInput, end: { id: string; outcome: string; reaso
         input.thread,
         `omt-climb workflow run ${end.id} for ${input.slug} ${end.outcome}: ${end.reason ?? "no reason"}. Read the run with: t3 workflow show ${end.id} --json`,
         input.project,
+        end.id,
       ).pipe(Effect.asVoid);
 
 const finish = (
@@ -953,7 +1209,7 @@ const finish = (
   Effect.gen(function* () {
     // A failed wake stays in the run's journal; the run still returns its result.
     yield* step.try(
-      "wake",
+      WAKE,
       { returns: Schema.String },
       wake(
         input.thread,
@@ -965,6 +1221,7 @@ const finish = (
           table,
         ].join("\n"),
         input.project,
+        id,
       ),
     );
     const result: typeof ClimbResult.Type = { outcome, round, reason, head, table, scores: [...scores], changes: [...changes], declined: [...declined] };
@@ -973,9 +1230,11 @@ const finish = (
 
 workflow(
   "omt-climb",
-  { version: 1, payload: ClimbInput, returns: ClimbResult, onEnd: climbOnEnd },
+  { version: 2, payload: ClimbInput, returns: ClimbResult, onEnd: climbOnEnd },
   Effect.fn(function* (input, run) {
-    yield* title(`omt-climb ${input.slug}`);
+    yield* title(`Climb ${input.slug}`);
+    const thread = yield* readThread(input.thread, input.project);
+    yield* label("climb", input.thread);
     const errors = climbInputErrors(input);
     if (errors.length > 0) return yield* stop(`invalid input: ${errors.join("; ")}`);
     const categories = input.categories.length > 0 ? input.categories : ["overall"];
@@ -1005,23 +1264,23 @@ workflow(
 
     for (let round = 1; ; round++) {
       // Gates. After a change, the change agent fixes a failed gate, at most twice per round.
-      let checks = yield* step(`gates-r${round}`, { returns: Schema.Array(Check) }, runGates(input.gates, at.dir, at.head, logs, `r${round}`));
+      let checks = yield* step(`Run the gates, round ${round}`, { returns: Schema.Array(Check) }, runGates(input.gates, at.dir, at.head, logs, `r${round}`));
       for (let fix = 1; checks.some((check) => check.exit !== 0); fix++) {
         const failed = checks.filter((check) => check.exit !== 0);
         const text = failed.map((check) => `\`${check.command}\` exit ${check.exit} (${check.log})`).join(", ");
         if (changer === undefined || fix > 2) return yield* stop(`the gates fail on ${at.head} in round ${round}: ${text}`);
-        const fixed = yield* agent.try(`fix-gates-r${round}-${fix}`, { thread: changer, brief: gateTask(failed), returns: Changed, timeout: "2 hours" });
+        const fixed = yield* agent.try(`Fix the failed gates (try ${fix}), round ${round}`, { thread: changer, brief: gateTask(failed), returns: Changed, timeout: "2 hours" });
         if (fixed.outcome === "failed") return yield* stop(`the gate fix of round ${round} failed: ${fixed.reason}`);
         at = { head: fixed.value.head, dir: fixed.value.worktree };
         changes.push(...fixed.value.changes);
-        checks = yield* step(`gates-r${round}-${fix + 1}`, { returns: Schema.Array(Check) }, runGates(input.gates, at.dir, at.head, logs, `r${round}-${fix + 1}`));
+        checks = yield* step(`Run the gates again (run ${fix + 1}), round ${round}`, { returns: Schema.Array(Check) }, runGates(input.gates, at.dir, at.head, logs, `r${round}-${fix + 1}`));
       }
 
       // Capture and blind labels. Round 1 scores the start commit, so its capture is the baseline.
       let blinded: typeof Blind.Type = { key: "", labels: {}, files: {} };
       if (models) {
         const files = yield* step(
-          `capture-r${round}`,
+          `Capture the outputs, round ${round}`,
           { returns: Schema.Array(Schema.String) },
           capture(input.capture, at.dir, at.head, join(dir, `r${round}`), join(logs, `r${round}-capture.log`)),
         );
@@ -1029,7 +1288,7 @@ workflow(
         const subjects: Record<string, readonly string[]> = { [CURRENT]: files };
         if (round > 1) subjects[BASELINE] = baseline;
         for (const reference of input.references) subjects[reference.name] = reference.files;
-        blinded = yield* step(`labels-r${round}`, { returns: Blind }, blind(input.evidence, subjects));
+        blinded = yield* step(`Hide the subjects behind letters, round ${round}`, { returns: Blind }, blind(input.evidence, subjects));
       }
 
       // Judges, one tier at a time.
@@ -1037,14 +1296,14 @@ workflow(
         Effect.gen(function* () {
           if (judge.command !== "") {
             const log = join(logs, `r${round}-judge-${judge.name}.log`);
-            const value = yield* step(`score-r${round}-${judge.name}`, { returns: Schema.Number }, scoreCommand(judge.command, at.dir, at.head, log));
+            const value = yield* step(`Score with ${judge.name}, round ${round}`, { returns: Schema.Number }, scoreCommand(judge.command, at.dir, at.head, log));
             return { scores: [{ round, judge: judge.name, subject: CURRENT, value }], findings: [`${judge.name}: \`${judge.command}\` printed ${value}; its output is in ${log}`] };
           }
           let problem = "";
-          // A judge name has no ".", so the retry's step names cannot match another judge's.
-          for (const suffix of ["", ".retry"]) {
+          // A judge name has no space or parenthesis, so the retry's step names cannot match another judge's.
+          for (const suffix of ["", " (retry)"]) {
             const routed = yield* step.try(
-              `route-judge-r${round}-${judge.name}${suffix}`,
+              `Pick the model of judge ${judge.name}, round ${round}${suffix}`,
               { returns: Routed },
               route(input.omt, input.project, input.slug, {
                 role: "judge",
@@ -1055,7 +1314,7 @@ workflow(
               }),
             );
             if (routed.outcome === "failed") return yield* stop(`no judge target for ${judge.name}: ${routed.reason}`);
-            const judged = yield* runRouted(`judge-r${round}-${judge.name}${suffix}`, routed.value, {
+            const judged = yield* runRouted(`Judge ${judge.name} scores, round ${round}${suffix}`, routed.value, {
               project: input.project,
               returns: Scores,
               timeout: "1 hour",
@@ -1100,19 +1359,43 @@ workflow(
 
       if (next.action === "met") return yield* finish(input, run.id, "met", round, next.reason, at.head, climbTable(state(round)), scores, changes, declined);
       if (next.action === "plateau" || next.action === "limit") {
-        const answer = yield* ask(`ask-r${round}`, {
-          title: `omt-climb ${input.slug}: ${next.action} after round ${round}. Stop, raise the limit, or change the approach?`,
-          choices: ["stop", "raise limit", "change approach"],
-          data: { reason: next.reason, table: climbTable(state(round)), findings },
+        const ended = next.action === "plateau" ? "The score did not improve enough" : `The climb reached its limit of ${plural(maxRounds, "round")}`;
+        const table = climbTable(state(round));
+        const body = [
+          `The climb paused because ${next.reason}.`,
+          `**Scores** (a value in parentheses is the raw score before the drift correction)\n\n${table}`,
+          findings.length > 0 ? `**What the judges found in the current code**\n\n${findings.map((finding) => `- ${finding}`).join("\n")}` : "The judges gave no findings.",
+        ].join("\n\n");
+        const answer = yield* ask(`Ask: go on after round ${round}?`, {
+          title: `Continue the climb ${input.slug} after round ${round}? ${ended}.`,
+          ...askWith(
+            [
+              { value: "stop", description: `End the run at commit ${at.head.slice(0, 12)} with the outcome ${next.action}.` },
+              { value: "raise limit", description: `Allow at least ${EXTRA_ROUNDS} more rounds with the same approach.` },
+              {
+                value: "change approach",
+                description: `Allow at least ${EXTRA_ROUNDS} more rounds with another approach. A reason, when you add one, tells the change agent which.`,
+              },
+            ],
+            thread,
+          ),
+          data: { body, reason: next.reason, table, findings },
           timeout: "2 days",
         });
-        if (Option.isNone(answer) || answer.value.choice === "stop") {
-          return yield* finish(input, run.id, next.action, round, next.reason, at.head, climbTable(state(round)), scores, changes, declined);
+        if (Option.isNone(answer)) {
+          return yield* finish(input, run.id, next.action, round, next.reason, at.head, table, scores, changes, declined);
+        }
+        const why = (answer.value.reason ?? "").trim();
+        if (answer.value.choice === "stop") {
+          const reason = why === "" ? next.reason : `${next.reason}; the owner stopped the climb: ${why}`;
+          return yield* finish(input, run.id, next.action, round, reason, at.head, table, scores, changes, declined);
         }
         since = round;
         maxRounds = Math.max(maxRounds, round + EXTRA_ROUNDS);
         if (answer.value.choice === "change approach") {
-          guidance = `The owner asked for another approach than the earlier rounds${answer.value.reason === undefined || answer.value.reason === "" ? "." : `: ${answer.value.reason}`}`;
+          guidance = `The owner asked for another approach than the earlier rounds${why === "" ? "." : `: ${why}`}`;
+        } else if (why !== "") {
+          guidance = `The owner raised the round limit: ${why}`;
         }
       }
 
@@ -1121,19 +1404,19 @@ workflow(
       let changed;
       if (changer === undefined) {
         const routed = yield* step.try(
-          `route-change-r${round}`,
+          `Pick the change model, round ${round}`,
           { returns: Routed },
           route(input.omt, input.project, input.slug, { role: input.change, unit: "CLIMB", round, task, context: input.goal, verify: input.gates }),
         );
         if (routed.outcome === "failed") return yield* stop(`no ${input.change} target: ${routed.reason}`);
-        changed = yield* runRouted(`change-r${round}`, routed.value, {
+        changed = yield* runRouted(`Change the code, round ${round}`, routed.value, {
           project: input.project,
           returns: Changed,
           workspace: worktree(at.head),
           timeout: "3 hours",
         });
       } else {
-        changed = yield* agent.try(`change-r${round}`, { thread: changer, brief: task, returns: Changed, timeout: "3 hours" });
+        changed = yield* agent.try(`Change the code, round ${round}`, { thread: changer, brief: task, returns: Changed, timeout: "3 hours" });
       }
       if (changed.outcome === "failed") return yield* stop(`the change of round ${round} failed: ${changed.reason}`);
       changer = changed.thread;

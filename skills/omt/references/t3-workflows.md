@@ -18,6 +18,8 @@ The workflow agents run in their own threads. You start no child for these steps
 
 The run's last step sends a message to this thread, `omt-<name> workflow run <id> ...`. A run that stops or is cancelled sends one too. Then run `t3 workflow show <id> --json` and read `run.result`.
 
+On T3 `v0.1.13-nightly.20261125.5258` or later, use the skill tag or subject to find the run. On `v0.1.12`, use the run id.
+
 Done when: the run started and your turn ended, or the in-thread steps run.
 
 ## omt-ulw input
@@ -42,7 +44,7 @@ Before the run, commit the build with `omt git commit -m "<message>" --plan <slu
 }
 ```
 
-The reviewer fixes local findings and commits them in its own worktree. QA runs the checks in a worktree of that commit. After a failed check, the reviewer's thread fixes it and QA runs the failed checks again, at most 2 times. The workflow opens no PR.
+The reviewer fixes and commits in its worktree. QA checks that commit in its own worktree. With `T3.within`, QA shares one place in the server-wide `omt-qa` pool. After a failed check, the reviewer fixes it and QA retries, at most twice. The workflow opens no PR.
 
 When the message comes:
 
@@ -72,10 +74,10 @@ Start it after step 2. Key: `omt-code-review/<slug>/r<round>`.
 - The small shape is one group with `"unit": "oracle"` and `"role": "oracle"` when `review.oracle` is `on`. Then `oracle` is `null`.
 - The large shape has one `review` group per file group, and `oracle` is your driver when `review.oracle` is `on`.
 - With `review.families: both`, set each group's `against` and `unit` as step 2 says.
-- `fixLoop` is `true` with `review.fixLoop: offer`. The workflow then asks the owner on the Workflows page, and `result.fix` holds the answer.
+- `fixLoop` is `true` with `review.fixLoop: offer`. The workflow asks nobody: `result.fix` is always `not asked`, and you run the fix loop of step 6 in this thread.
 - Reviewers run in plan mode and read the change with `git -C <checkout>`, so uncommitted changes count.
 
-When the message comes, merge `result.groups` and `result.oracle` by step 4, and report by step 6. With `result.fix` `approved`, fix in this thread. The fix review is the next round with one `FIX` group, `"against": "<your driver>"`, and no oracle.
+When the message comes, it holds a short report of the findings. Merge `result.groups` and `result.oracle` by step 4, report by step 6, and offer the fix loop there. The fix review is the next round with one `FIX` group, `"against": "<your driver>"`, and no oracle.
 
 ## omt-climb input
 
@@ -111,6 +113,6 @@ Start it after `omt-climb` step 2. Key: `omt-climb/<slug>/<head>/<UTC time of th
 - Round 1 runs the gates and the capture in `checkout` at `head`, and its capture is the baseline. Each round first checks that its checkout is at its commit with no uncommitted change to a tracked file. Later rounds run them in the change agent's worktree.
 - Each round copies the files of `current`, `baseline`, and each reference to `<evidence>/climb-<key>/<label>-<k>.<ext>` under a random key and shuffled letter labels. The baseline score corrects each judge's drift.
 - One agent thread of the `change` role makes every change from the judges' findings and commits it in its own worktree. It fixes a failed gate at most twice per round; then the run stops.
-- At a plateau or the round limit, the run asks the owner: `stop`, `raise limit`, or `change approach`. Each answer but `stop` gives at least 5 more rounds and restarts the plateau window. The text of `change approach` goes to the change agent.
+- At a plateau or round limit, the run asks the owner to `stop`, `raise limit`, or `change approach`. The last two allow 5 more rounds or more and restart the plateau window. The owner's optional reason goes to the change agent.
 
 The wake message can come before T3 saves the result, so `omt-climb` step 4 reads `t3 workflow show <id> --json` again every few seconds, for at most 5 minutes, until the run is `completed` with a result or is `stopped`, `cancelled`, or `skipped`. `result` holds `outcome` (`met`, `plateau`, or `limit`), `round`, `reason`, `head`, the Markdown `table`, `scores`, `changes`, and `declined`.

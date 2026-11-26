@@ -87,10 +87,24 @@ export function targetKey(target: ResolvedTarget): string {
   return target.providerInstanceId !== undefined ? `${target.providerInstanceId}/${target.model}` : `driver:${target.driverKind ?? ""}/${target.model}`;
 }
 
+const speedOf = (target: ResolvedTarget): string => {
+  const tier = target.options?.serviceTier;
+  if (typeof tier === "string") return tier;
+  return target.options?.fastMode === true ? "fast" : "standard";
+};
+
+function sameOptions(a: ResolvedTarget, b: ResolvedTarget): boolean {
+  const options = Object.entries(a.options ?? {});
+  const other = b.options ?? {};
+  return options.length === Object.keys(other).length && options.every(([id, value]) => other[id] === value);
+}
+
 // The resolved order, with one more target for each candidate that names only a driver: the same candidate with
-// providerInstanceId set to the driver. T3 checks a named instance again before it refuses it.
+// providerInstanceId set to the driver. T3 checks a named instance again before it refuses it. Targets that share a
+// key but differ in options, such as Sol at the ultrafast and the priority tier, get the key <key>@<speed>, so
+// that --tried of one does not skip the other. A target with the same key and options as an earlier one is dropped.
 function targetChoices(resolution: RoleResolution): TargetChoice[] {
-  return resolution.attempts.flatMap((attempt) => {
+  const choices = resolution.attempts.flatMap((attempt) => {
     const target = attempt.target;
     if (target === undefined) return [];
     const first = { target, candidate: attempt.candidate, key: targetKey(target) };
@@ -98,6 +112,22 @@ function targetChoices(resolution: RoleResolution): TargetChoice[] {
     const { driverKind, ...rest } = target;
     const retry = { ...rest, providerInstanceId: driverKind };
     return [first, { target: retry, candidate: attempt.candidate, key: targetKey(retry) }];
+  });
+  const byKey = new Map<string, ResolvedTarget[]>();
+  const distinct = choices.filter(({ key, target }) => {
+    const variants = byKey.get(key) ?? [];
+    if (variants.some((variant) => sameOptions(variant, target))) return false;
+    variants.push(target);
+    byKey.set(key, variants);
+    return true;
+  });
+  const used = new Set(byKey.keys());
+  return distinct.map((choice) => {
+    if (byKey.get(choice.key)?.length === 1) return choice;
+    let key = `${choice.key}@${speedOf(choice.target)}`;
+    while (used.has(key)) key += "@";
+    used.add(key);
+    return { ...choice, key };
   });
 }
 
@@ -207,8 +237,11 @@ export const run: CommandRun = async (ctx) => {
       hint: "shorten --context or --prior-file, or point the child at files instead",
     });
   }
-  const briefFile = (id: string | undefined) =>
-    join(evidenceDir(projectRoot), "briefs", `${id ?? `${name}-${createHash("sha256").update(brief).digest("hex").slice(0, 12)}`}.md`);
+  const briefFile = (id: string | undefined) => {
+    const hash = createHash("sha256").update(brief).digest("hex");
+    const file = values.workflow === true ? `${name}-${hash}` : (id ?? `${name}-${hash.slice(0, 12)}`);
+    return join(evidenceDir(projectRoot), "briefs", `${file}.md`);
+  };
 
   if (!json) {
     const id = values.plan !== undefined && values.unit !== undefined ? requestId(values.plan, values.unit, name, round, attempt) : undefined;
@@ -264,7 +297,8 @@ export const run: CommandRun = async (ctx) => {
     if (values.save) {
       const savedPath = briefFile(clientRequestId);
       await writeFileAtomic(savedPath, brief);
-      output.delegateTask.task = `Act as the ${name} sub-agent for this task. Your full brief is in the file ${savedPath}. Read it in full first, then follow it exactly. End with the result block that the brief defines.`;
+      const end = values.workflow === true ? "Submit the structured result that the brief asks for." : "End with the result block that the brief defines.";
+      output.delegateTask.task = `Act as the ${name} sub-agent for this task. Your full brief is in the file ${savedPath}. Read it in full first, then follow it exactly. ${end}`;
     }
     return output;
   };

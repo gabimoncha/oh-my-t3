@@ -363,7 +363,7 @@ test("every default role resolves when its models are advertised", () => {
     "plan-review": ["codex", "gpt-6.2-astra", {"reasoningEffort": "high", "serviceTier": "priority"}],
     "execute": ["claudeAgent", "claude-opus-5-5", {"effort": "medium"}],
     "review": ["codex", "gpt-6.2-sol", {"reasoningEffort": "xhigh", "serviceTier": "priority"}],
-    "oracle": ["codex", "gpt-6.2-astra", {"reasoningEffort": "medium", "serviceTier": "priority"}],
+    "oracle": ["codex", "gpt-6.2-sol", {"reasoningEffort": "xhigh", "serviceTier": "priority"}],
     "qa": ["codex", "gpt-6.2-sol", {"reasoningEffort": "medium", "serviceTier": "priority"}],
     "judge": ["codex", "gpt-6.2-sol", {"reasoningEffort": "medium", "serviceTier": "priority"}],
     "writing": ["claudeAgent", "claude-opus-5-5", {"effort": "medium"}],
@@ -401,7 +401,7 @@ test("every default role is unverified with provider instance targets without ca
       resolution.delegateTask?.target,
       { providerInstanceId: first.driver, model: first.model, options: {
         [optionId]: first.effort,
-        ...(first.driver === "codex" ? { serviceTier: "priority" } : {}),
+        ...(first.driver === "codex" ? { serviceTier: first.fast === "ultrafast" ? "ultrafast" : "priority" } : {}),
       } },
       name,
     );

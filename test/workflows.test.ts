@@ -11,6 +11,7 @@ const SHIPPED: Record<string, string> = {
   "omt-ulw@1 omt-code-review@1": "932ed2be4e93d5f4052c2bc5b5dc4901ea20dfe673607d35bd79c2a102c32fea",
   "omt-ulw@1 omt-code-review@1 omt-climb@1": "b5cb9a646c0617fa64babc423e71525b63d0b1830a6dc49ce0b1821c53c1fe89",
   "omt-ulw@2 omt-code-review@2 omt-climb@1": "4263635e1fbcf207cbc9a0019547302f7c16fa159b37cfae5b12afa8e79cf206",
+  "omt-ulw@3 omt-code-review@3 omt-climb@2": "5e0a57fd8b79944193112c9ea1aad0b0413dfa1e6a4f9453876d4b87190be7d9",
 };
 
 test("workflows/omt.ts raises a workflow version whenever its text changes", () => {
@@ -156,6 +157,55 @@ test("climbInputErrors rejects inputs that the rounds cannot score", () => {
     'judge "sol" is given twice',
     "judge sol: tier 10 is not 1 to 9",
   ]);
+});
+
+test("reviewReport lists every finding by severity with its location and fix", () => {
+  const finding = (severity: string, location: string) => ({ severity, location, problem: `Bad at ${location}. Details follow.`, fix: `Fix ${location}.` });
+  const report = rules.reviewReport("Code review of pr-1, round 1", [finding("P3", "b.ts:2"), finding("P0", "a.ts:1")], 1);
+  assert.equal(
+    report,
+    [
+      "Code review of pr-1, round 1: 1 problem to fix, 1 style note, 1 reviewer finding refuted by the oracle.",
+      "1. Bad at a.ts:1.\n   P0 (breaks the build, loses data, or opens a security hole), a.ts:1\n   Fix: Fix a.ts:1.",
+      "2. Bad at b.ts:2.\n   P3 (style), b.ts:2\n   Fix: Fix b.ts:2.",
+    ].join("\n\n"),
+  );
+  assert.equal(rules.reviewReport("Code review of pr-1, round 2", [], 0), "Code review of pr-1, round 2: no problems to fix.");
+});
+
+test("reviewReport counts one place once and keeps an abbreviation inside the sentence", () => {
+  const same = [
+    { severity: "P2", location: "a.ts:1", problem: "Users in the U.S. lose their settings. More.", fix: "Keep them." },
+    { severity: "P1", location: "a.ts:1", problem: "Settings vanish.", fix: "Save them." },
+  ];
+  assert.equal(
+    rules.reviewReport("R", same, 0),
+    "R: 1 problem to fix.\n\n1. Settings vanish.\n   P1 (wrong in a normal case), a.ts:1\n   Fix: Save them.\n   1 more finding at this place: see the full result.",
+  );
+  assert.match(rules.reviewReport("R", [same[0]], 0), /^1\. Users in the U\.S\. lose their settings\.$/m);
+});
+
+test("a cut-short agent can retry at another speed after its turn stops", () => {
+  const sol = (value: string) => ({ instanceId: "codex", model: "gpt-6.2-sol", options: [{ id: "serviceTier", value }] });
+  const ultrafast = sol("ultrafast");
+  const priority = sol("priority");
+  const failed = "the agent's turn was cut short: ultrafast is unavailable";
+  assert.equal(rules.canRetryAtAnotherSpeed(failed, ultrafast, priority), true);
+  assert.equal(rules.canRetryAtAnotherSpeed(failed, ultrafast, ultrafast), false);
+  assert.equal(rules.canRetryAtAnotherSpeed(failed, ultrafast, { ...priority, model: "gpt-6.2-astra" }), false);
+  assert.equal(rules.canRetryAtAnotherSpeed(`${failed}; its turn could not be stopped`, ultrafast, priority), false);
+  assert.equal(rules.canRetryAtAnotherSpeed("the agent's turn was stopped: interrupted", ultrafast, priority), false);
+  assert.equal(rules.canRetryAtAnotherSpeed("the agent did not return a result", ultrafast, priority), false);
+});
+
+test("capMessage keeps a thread message under the T3 size limit and points to the full result", () => {
+  assert.equal(rules.capMessage("run r1: done.\n\nshort", "r1"), "run r1: done.\n\nshort");
+  const long = rules.capMessage(`run r1: 9 problems.\n\n${"x".repeat(130_000)}`, "r1");
+  assert.ok(long.length < 1_000);
+  assert.equal(long, "run r1: 9 problems.\n\nThe full message is too long to send. Read the result with: t3 workflow show r1 --json");
+  const oneLine = rules.capMessage(`run r1: ${"y".repeat(130_000)}`, "r1");
+  assert.ok(oneLine.length <= 100_000, "a long first line is cut to fit");
+  assert.match(oneLine, /\.\.\.\n\nThe full message is too long to send\. Read the result with: t3 workflow show r1 --json$/);
 });
 
 test("climbTable shows the calibrated current score with its raw score", () => {

@@ -34,19 +34,19 @@ A role, such as `execute` or `review`, maps to an ordered chain of provider, mod
 | `research` | Answer a question from docs, the web, and code | `omt-ulw` | GPT-6.2-Sol, medium | Claude Sonnet 5.5, medium |
 | `plan-review` | Check a plan for gaps | `omt-plan` | GPT-6.2-Astra, high | Claude Fable 5.2, high |
 | `execute` | Implement one planned unit that the main thread hands off as an independent track | `omt-ulw` | Claude Opus 5.5, medium | GPT-6.2-Sol, high |
-| `review` | Review a diff against its brief, fix local findings, and report the rest | `omt-ulw`, `omt-code-review` | GPT-6.2-Sol, xhigh | Claude Opus 5.5, high |
-| `oracle` | Attack the finished change before it counts as done, fix local findings, and report the rest | `omt-ulw`, `omt-code-review` | GPT-6.2-Astra, medium | Claude Fable 5.2, medium |
+| `review` | Review a diff against its brief, fix local findings, and report the rest | `omt-ulw`, `omt-code-review` | GPT-6.2-Sol, xhigh, ultrafast | GPT-6.2-Sol, xhigh, then Claude Opus 5.5, high |
+| `oracle` | Attack the finished change before it counts as done, fix local findings, and report the rest | `omt-ulw`, `omt-code-review` | GPT-6.2-Sol, xhigh, ultrafast | GPT-6.2-Sol, xhigh, then Claude Fable 5.2, medium |
 | `qa` | Run the check commands and device flows, and return each exit code with its log and screenshots. Edits nothing. | `omt-ulw`, `omt-code-review` | GPT-6.2-Sol, medium | Claude Sonnet 5.5, medium |
 | `judge` | Score blind-labeled screenshots or outputs from 0 to 10 in each category. Edits nothing. | `omt-climb` | GPT-6.2-Sol, medium | Claude Opus 5.5, medium |
-| `writing` | Write or edit documentation in one docs unit that the main thread hands off as an independent track | `omt-ulw` | Claude Opus 5.5, medium | GPT-6.2-Astra, medium |
-| `design` | Design screens and flows, and write a design spec | `omt-design` | Claude Fable 5.2, medium | GPT-6.2-Astra, high |
-| `ui` | Implement one UI unit from a design spec or task requirements | `omt-ulw` | Claude Fable 5.2, medium | GPT-6.2-Astra, high |
+| `writing` | Write or edit documentation in one docs unit that the main thread hands off as an independent track | `omt-ulw` | Claude Opus 5.5, medium | GPT-6.2-Sol, medium |
+| `design` | Design screens and flows, and write a design spec | `omt-design` | Claude Fable 5.2, medium | GPT-6.2-Sol, high |
+| `ui` | Implement one UI unit from a design spec or task requirements | `omt-ulw` | Claude Fable 5.2, medium | GPT-6.2-Sol, high |
 
-The table shows the current defaults. The fallback runs when T3 refuses the first choice. You review the designs.
+The table shows the current defaults. The fallback runs when T3 refuses the first choice. You review the designs. `review` and `oracle` start on GPT-6.2-Sol with the ultrafast service tier, because it gives the fastest reviews. GPT-6.2-Astra is a default only in `plan-review`.
 
 The `plan` role was removed, because the main thread writes every plan itself. The `grill` role was removed, because `omt-plan` now runs the stress test of a goal in the main thread. The `guardrail` role was removed with the `review.guardrails` extra, because it only wrote proposals that nothing applied. A config file that still sets `roles.plan`, `roles.grill`, or `roles.guardrail` loads with the warning `roles.<name> is no longer used; remove it`.
 
-`plan-review`, `review`, and `oracle` are cross-family roles. The reviewer comes from the model family that did not do the work. GPT reviews Claude work: GPT-6.2-Astra in `plan-review` and `oracle`, and GPT-6.2-Sol in `review`. Claude reviews GPT work: Claude Fable 5.2 in `plan-review` and `oracle`, and Claude Opus 5.5 in `review`. The skills pass the worker to `omt brief --against`, and the CLI puts the candidates of the other family first. When the other family is not available, the same family reviews. A build oracle uses the family that did not do most of the implementation. A review oracle uses the family that did not do most of the reviews.
+`plan-review`, `review`, and `oracle` are cross-family roles. The reviewer comes from the model family that did not do the work. GPT reviews Claude work: GPT-6.2-Astra in `plan-review`, and GPT-6.2-Sol in `review` and `oracle`. Claude reviews GPT work: Claude Fable 5.2 in `plan-review` and `oracle`, and Claude Opus 5.5 in `review`. The skills pass the worker to `omt brief --against`, and the CLI puts the candidates of the other family first. When the other family is not available, the same family reviews. A build oracle uses the family that did not do most of the implementation. A review oracle uses the family that did not do most of the reviews.
 
 Claude models run on the `claudeAgent` driver, and GPT models run on the `codex` driver. Each default candidate also names the T3 built-in provider instance of its driver. T3 checks a named instance again before it refuses it. A target with only a driver can fail because of an old provider snapshot.
 
@@ -173,7 +173,7 @@ Add the profile under `profiles` in either config file. The starter configs hold
 
 A profile cannot set `harnesses`, `update`, or `defaults`. These keys apply to the whole config file.
 
-This profile builds like `prototype`, with failure proofs, fast `execute` and `ui` workers, at most 3 review rounds, and GPT-6.2-Sol without fast mode in the other roles:
+This profile builds like `prototype`, with failure proofs, fast `execute` and `ui` workers, at most 3 review rounds, and GPT-6.2-Sol without fast mode in each candidate that sets no `fast` of its own:
 
 ```jsonc
 {
@@ -191,7 +191,7 @@ This profile builds like `prototype`, with failure proofs, fast `execute` and `u
 }
 ```
 
-The role `fast` wins over the model `fast`. So in `execute`, the GPT-6.2-Sol fallback still gets `serviceTier: "priority"`. In `qa` and `research`, which do not set `fast`, GPT-6.2-Sol runs without fast mode. `omt route execute --profile hackathon` prints the targets.
+The role `fast` wins over the model `fast`. So in `execute`, the GPT-6.2-Sol fallback still gets `serviceTier: "priority"`. In `qa` and `research`, which do not set `fast`, GPT-6.2-Sol runs without fast mode. The first candidates of `review` and `oracle` set `"fast": "ultrafast"` themselves, and a candidate `fast` wins over both, so they keep the ultrafast tier. To run them without it, give `review` and `oracle` their own `chain` in `roles`. `omt route execute --profile hackathon` prints the targets.
 
 ### Turn on the PR extras
 
@@ -296,7 +296,7 @@ The default chains use two harnesses: Claude Code, on the `claudeAgent` driver, 
 }
 ```
 
-With this value, `omt roles` marks each Claude candidate as `harness claudeAgent is not enabled (harnesses: codex); run omt detect`, and the next candidate runs. `design` and `ui` fall back to Astra. The cross-family roles review with the same family. Without the key, omt uses every candidate. The key holds 1 to 10 driver kinds, and a project value replaces the user value as a whole.
+With this value, `omt roles` marks each Claude candidate as `harness claudeAgent is not enabled (harnesses: codex); run omt detect`, and the next candidate runs. `design` and `ui` fall back to GPT-6.2-Sol. The cross-family roles review with the same family. Without the key, omt uses every candidate. The key holds 1 to 10 driver kinds, and a project value replaces the user value as a whole.
 
 You do not have to write the key yourself. When `omt install` creates a config file, it detects the harnesses, shows the result in its plan, and writes the key only when a harness is missing. `omt detect` runs the same check at any time. `--project` or `--user` picks the config file to compare with or change. Without a flag, omt uses the project config when it exists, else the user config. `--write` changes only a file that exists, so run `omt init` or `omt config init` first. The sample uses the project config:
 
