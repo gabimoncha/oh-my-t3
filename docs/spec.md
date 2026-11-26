@@ -2153,7 +2153,7 @@ Labels, questions, and pools. T3 `v0.1.13-nightly.20261125.5258` has `T3.tags`, 
 
   It returns `{ outcome: met | plateau | limit, round, reason, head, table, scores, changes, declined }`. `table` is a Markdown table of each judge and subject by round (`climbTable`), with a calibrated `current` value followed by its raw value in parentheses.
 
-Wake-up. T3 does not wake the thread that started a run. So the last step of each workflow runs `t3 thread send <thread> <summary>`, with the run id, the verdicts, the merge command, and `t3 workflow show <run> --json`. `onEnd` sends a message for a run that ends `stopped`, `skipped`, or `cancelled`. In each workflow, a failed send stays in the run's journal, and the run still returns its result. A skill reads its thread id from `T3CODE_THREAD_ID`, which T3 sets in every agent shell.
+Wake-up. T3 does not wake the thread that started a run. So the last step of each workflow runs `t3 thread send <thread> <summary>`, with the run id, the verdicts, the merge command, and `t3 workflow show <run> --json`. The step's value is `Sent to the thread: <first line of the message>`, because the Workflows page shows it next to `Write the report`, and the whole message would show the report twice. `onEnd` sends a message for a run that ends `stopped`, `skipped`, or `cancelled`. In each workflow, a failed send stays in the run's journal, and the run still returns its result. A skill reads its thread id from `T3CODE_THREAD_ID`, which T3 sets in every agent shell.
 
 ## 15. Skills
 

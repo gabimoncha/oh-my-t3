@@ -265,8 +265,10 @@ const runRouted = <A, I>(
     return { outcome: "failed" as const, reason };
   });
 
+// The step's value is only the message's first line: the Workflows page shows it next to the report step,
+// so the whole message would show the report twice.
 const wake = (thread: string, message: string, cwd: string) =>
-  exec("t3", ["thread", "send", thread, message], cwd).pipe(Effect.as(message));
+  exec("t3", ["thread", "send", thread, message], cwd).pipe(Effect.as(`Sent to the thread: ${message.split("\n")[0] ?? ""}`));
 
 const WAKE = "Tell the thread that started the run";
 
