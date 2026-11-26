@@ -11,6 +11,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
+import { finished } from "node:stream/promises";
 
 const { workflow, step, agent, ask, stop, title } = T3;
 const { subject, tags, within } = T3;
@@ -239,12 +240,21 @@ const route = (omt: readonly string[], cwd: string, plan: string, args: BriefArg
 
 const modeOf = (mode: string) => (mode === "plan" || mode === "default" ? mode : undefined);
 
-const sameModel = (a: Model | undefined, b: Model | undefined) => a !== undefined && b !== undefined && a.instanceId === b.instanceId && a.model === b.model;
+const modelSpeed = (model: Model): string => {
+  const tier = model.options.find((option) => option.id === "serviceTier")?.value;
+  if (typeof tier === "string") return tier;
+  return model.options.some((option) => option.id === "fastMode" && option.value === true) ? "fast" : "standard";
+};
 
-// Walks the routed targets with agent.try. It moves to the next target when T3 could not start the agent.
-// An agent that ran and failed ends the walk, unless the next target is the same model at another speed:
-// Codex can refuse the ultrafast tier only after T3 made the thread, and each try has its own thread and
-// worktree, so the try at the priority tier does not build on the failed one.
+export function canRetryAtAnotherSpeed(reason: string, model: Model, next: Model | undefined): boolean {
+  if (next === undefined || model.instanceId !== next.instanceId || model.model !== next.model) return false;
+  // T3 agent.try returns the same outcome for a failed turn, a stopped turn, and a missing result.
+  if (!reason.startsWith("the agent's turn was cut short:") || reason.endsWith("; its turn could not be stopped")) return false;
+  return modelSpeed(model) !== modelSpeed(next);
+}
+
+// Codex can refuse the ultrafast tier after T3 creates the thread. Each try starts a separate thread
+// and gets a fresh worktree when requested.
 const runRouted = <A, I>(
   name: string,
   routed: Routed,
@@ -266,7 +276,7 @@ const runRouted = <A, I>(
       });
       if (attempt.outcome === "done") return attempt;
       reason = attempt.reason;
-      if (attempt.thread !== undefined && !sameModel(model, routed.targets[index + 1])) break;
+      if (attempt.thread !== undefined && !canRetryAtAnotherSpeed(reason, model, routed.targets[index + 1])) break;
     }
     return { outcome: "failed" as const, reason };
   });
@@ -279,11 +289,20 @@ const wake = (thread: string, message: string, cwd: string, run: string) =>
     try: () =>
       new Promise<string>((resolve, reject) => {
         const text = capMessage(message, run);
-        const child = execFile("t3", ["thread", "send", thread, "-"], { cwd, maxBuffer: 16 * 1024 * 1024 }, (error, _stdout, stderr) =>
-          error ? reject(new Error(`t3 thread send failed: ${stderr.trim() || error.message}`)) : resolve(`Sent to the thread: ${text.split("\n")[0] ?? ""}`),
-        );
-        // A pipe error, such as t3 exiting before it reads, fails the step; the exit callback above keeps t3's own message.
-        child.stdin?.on("error", (error) => reject(new Error(`t3 thread send failed: ${error.message}`)));
+        const child = execFile("t3", ["thread", "send", thread, "-"], { cwd, maxBuffer: 16 * 1024 * 1024 }, (error, _stdout, stderr) => {
+          if (error !== null) {
+            reject(new Error(`t3 thread send failed: ${stderr.trim() || error.message}`));
+            return;
+          }
+          void written.then((failure) => {
+            if (failure !== undefined) reject(new Error(`t3 thread send failed: ${failure.message}`));
+            else resolve(`Sent to the thread: ${text.split("\n")[0] ?? ""}`);
+          });
+        });
+        // Wait for the write on success. When both fail, keep the error from t3.
+        const written = child.stdin === null
+          ? Promise.resolve(undefined)
+          : finished(child.stdin, { readable: false }).then(() => undefined, (error: Error) => error);
         child.stdin?.end(text);
       }),
     catch: (error) => (error instanceof Error ? error : new Error(String(error))),
@@ -451,7 +470,7 @@ const ulwOnEnd = (input: typeof UlwInput.Type, end: { id: string; outcome: strin
 
 workflow(
   "omt-ulw",
-  { version: 3, payload: UlwInput, returns: UlwResult, onEnd: ulwOnEnd },
+  { version: 4, payload: UlwInput, returns: UlwResult, onEnd: ulwOnEnd },
   Effect.fn(function* (input, run) {
     yield* title(`Review and QA of ${input.plan}, round ${input.round}`);
     yield* label("ulw", input.thread);
@@ -631,7 +650,7 @@ const reviewOnEnd = (input: typeof ReviewInput.Type, end: { id: string; outcome:
 
 workflow(
   "omt-code-review",
-  { version: 3, payload: ReviewInput, returns: ReviewResult, onEnd: reviewOnEnd },
+  { version: 4, payload: ReviewInput, returns: ReviewResult, onEnd: reviewOnEnd },
   Effect.fn(function* (input, run) {
     yield* title(`Code review of ${input.slug}, round ${input.round}`);
     const thread = yield* readThread(input.thread, input.project);
@@ -1202,7 +1221,7 @@ const finish = (
 
 workflow(
   "omt-climb",
-  { version: 2, payload: ClimbInput, returns: ClimbResult, onEnd: climbOnEnd },
+  { version: 3, payload: ClimbInput, returns: ClimbResult, onEnd: climbOnEnd },
   Effect.fn(function* (input, run) {
     yield* title(`Climb ${input.slug}`);
     const thread = yield* readThread(input.thread, input.project);

@@ -12,6 +12,7 @@ const SHIPPED: Record<string, string> = {
   "omt-ulw@1 omt-code-review@1 omt-climb@1": "b5cb9a646c0617fa64babc423e71525b63d0b1830a6dc49ce0b1821c53c1fe89",
   "omt-ulw@2 omt-code-review@2 omt-climb@1": "4263635e1fbcf207cbc9a0019547302f7c16fa159b37cfae5b12afa8e79cf206",
   "omt-ulw@3 omt-code-review@3 omt-climb@2": "2ba25f1fdf83046429999200779c9536b31b676edb8eeb5af9f5af0f5016e498",
+  "omt-ulw@4 omt-code-review@4 omt-climb@3": "50256064e7f9b0163101a30a1e4e3287706381dc23122cacb378eacd0e89ba60",
 };
 
 test("workflows/omt.ts raises a workflow version whenever its text changes", () => {
@@ -183,6 +184,19 @@ test("reviewReport counts one place once and keeps an abbreviation inside the se
     "R: 1 problem to fix.\n\n1. Settings vanish.\n   P1 (wrong in a normal case), a.ts:1\n   Fix: Save them.\n   1 more finding at this place: see the full result.",
   );
   assert.match(rules.reviewReport("R", [same[0]], 0), /^1\. Users in the U\.S\. lose their settings\.$/m);
+});
+
+test("a cut-short agent can retry at another speed after its turn stops", () => {
+  const sol = (value: string) => ({ instanceId: "codex", model: "gpt-6.2-sol", options: [{ id: "serviceTier", value }] });
+  const ultrafast = sol("ultrafast");
+  const priority = sol("priority");
+  const failed = "the agent's turn was cut short: ultrafast is unavailable";
+  assert.equal(rules.canRetryAtAnotherSpeed(failed, ultrafast, priority), true);
+  assert.equal(rules.canRetryAtAnotherSpeed(failed, ultrafast, ultrafast), false);
+  assert.equal(rules.canRetryAtAnotherSpeed(failed, ultrafast, { ...priority, model: "gpt-6.2-astra" }), false);
+  assert.equal(rules.canRetryAtAnotherSpeed(`${failed}; its turn could not be stopped`, ultrafast, priority), false);
+  assert.equal(rules.canRetryAtAnotherSpeed("the agent's turn was stopped: interrupted", ultrafast, priority), false);
+  assert.equal(rules.canRetryAtAnotherSpeed("the agent did not return a result", ultrafast, priority), false);
 });
 
 test("capMessage keeps a thread message under the T3 size limit and points to the full result", () => {

@@ -64,6 +64,33 @@ test("brief --strict tries Sol at priority after ultrafast, then stops when only
   assert.equal((await project.run(["brief", "review", "--task", "x", "--strict", "--json"])).code, 2);
 });
 
+test("brief keeps distinct options and a model whose ID ends with a speed suffix", async () => {
+  const project = makeProject();
+  const sol = { provider: "codex", model: "gpt-6.2-sol" };
+  const priorityModel = { ...sol, model: `${sol.model}@priority`, fast: false };
+  const chain = [
+    { ...sol, fast: "ultrafast" },
+    { ...sol, fast: true, effort: "xhigh" },
+    { ...sol, fast: true, effort: "high" },
+    priorityModel,
+    priorityModel,
+  ];
+  project.projectConfig(JSON.stringify({ version: 1, roles: { review: { chain } } }));
+  const args = ["brief", "review", "--task", "x", "--json"];
+  const first = parse((await project.runOk(args)).ctx.out());
+  const tried = ["--tried", first.targetKey];
+  assert.deepEqual(first.fallbacks.map((target) => target.model), [sol.model, sol.model, priorityModel.model]);
+  for (const [index, effort] of ["xhigh", "high"].entries()) {
+    const fallback = parse((await project.runOk([...args, "--fallback", "--attempt", String(index + 2), ...tried])).ctx.out());
+    assert.equal(fallback.delegateTask.target.options?.reasoningEffort, effort);
+    assert.notEqual(fallback.targetKey, `codex/${priorityModel.model}`);
+    tried.push("--tried", fallback.targetKey);
+  }
+  const last = parse((await project.runOk([...args, "--fallback", "--attempt", "4", ...tried])).ctx.out());
+  assert.equal(last.targetKey, `codex/${priorityModel.model}`);
+  assert.deepEqual(last.fallbacks, []);
+});
+
 // The omt workflows walk the fallbacks with agent.try, so a same-family fallback there would review the author's own work.
 test("brief --strict leaves the --against family out of the fallbacks", async () => {
   const project = makeProject();

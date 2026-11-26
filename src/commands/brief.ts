@@ -93,10 +93,14 @@ const speedOf = (target: ResolvedTarget): string => {
   return target.options?.fastMode === true ? "fast" : "standard";
 };
 
+function sameOptions(a: ResolvedTarget, b: ResolvedTarget): boolean {
+  const options = Object.entries(a.options ?? {});
+  const other = b.options ?? {};
+  return options.length === Object.keys(other).length && options.every(([id, value]) => other[id] === value);
+}
+
 // The resolved order, with one more target for each candidate that names only a driver: the same candidate with
-// providerInstanceId set to the driver. T3 checks a named instance again before it refuses it. Two targets of one
-// model that differ only in speed, such as Sol at the ultrafast and the priority tier, get the key
-// <key>@<speed>, so that --tried of one does not skip the other. A repeat of the same key and speed is dropped.
+// providerInstanceId set to the driver. T3 checks a named instance again before it refuses it.
 function targetChoices(resolution: RoleResolution): TargetChoice[] {
   const choices = resolution.attempts.flatMap((attempt) => {
     const target = attempt.target;
@@ -107,15 +111,21 @@ function targetChoices(resolution: RoleResolution): TargetChoice[] {
     const retry = { ...rest, providerInstanceId: driverKind };
     return [first, { target: retry, candidate: attempt.candidate, key: targetKey(retry) }];
   });
-  const count = new Map<string, number>();
-  for (const choice of choices) count.set(choice.key, (count.get(choice.key) ?? 0) + 1);
-  const seen = new Set<string>();
-  return choices.flatMap((choice) => {
-    if ((count.get(choice.key) ?? 0) < 2) return [choice];
-    const key = `${choice.key}@${speedOf(choice.target)}`;
-    if (seen.has(key)) return [];
-    seen.add(key);
-    return [{ ...choice, key }];
+  const byKey = new Map<string, ResolvedTarget[]>();
+  const distinct = choices.filter(({ key, target }) => {
+    const variants = byKey.get(key) ?? [];
+    if (variants.some((variant) => sameOptions(variant, target))) return false;
+    variants.push(target);
+    byKey.set(key, variants);
+    return true;
+  });
+  const used = new Set(byKey.keys());
+  return distinct.map((choice) => {
+    if (byKey.get(choice.key)?.length === 1) return choice;
+    let key = `${choice.key}@${speedOf(choice.target)}`;
+    while (used.has(key)) key += "@";
+    used.add(key);
+    return { ...choice, key };
   });
 }
 
