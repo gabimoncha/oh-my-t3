@@ -180,6 +180,12 @@
           "fast": "ultrafast"
         },
         {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6.2-sol",
+          "effort": "xhigh"
+        },
+        {
           "provider": "claudeAgent",
           "driver": "claudeAgent",
           "model": "claude-opus-5-5",
@@ -202,6 +208,12 @@
           "model": "gpt-6.2-sol",
           "effort": "xhigh",
           "fast": "ultrafast"
+        },
+        {
+          "provider": "codex",
+          "driver": "codex",
+          "model": "gpt-6.2-sol",
+          "effort": "xhigh"
         },
         {
           "provider": "claudeAgent",

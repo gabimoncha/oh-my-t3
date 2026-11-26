@@ -8,7 +8,7 @@
 // Each run tags itself with its skill and names the thread or the PR that it is about.
 import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
 
@@ -187,7 +187,9 @@ const saveBrief = (omt: readonly string[], cwd: string, role: string, brief: str
     const [command, ...prefix] = omt;
     const evidence = (yield* exec(command ?? "omt", [...prefix, "paths", "--evidence"], cwd)).trim();
     const path = join(evidence, "briefs", `${role}-${createHash("sha256").update(brief).digest("hex")}.md`);
+    // A file at the hash path already holds these bytes, so it stays as it is, with its mode.
     yield* attempt(() => {
+      if (existsSync(path)) return;
       mkdirSync(join(evidence, "briefs"), { recursive: true });
       const temp = `${path}.${randomBytes(4).toString("hex")}.tmp`;
       try {
@@ -265,10 +267,21 @@ const runRouted = <A, I>(
     return { outcome: "failed" as const, reason };
   });
 
-// The step's value is only the message's first line: the Workflows page shows it next to the report step,
-// so the whole message would show the report twice.
-const wake = (thread: string, message: string, cwd: string) =>
-  exec("t3", ["thread", "send", thread, message], cwd).pipe(Effect.as(`Sent to the thread: ${message.split("\n")[0] ?? ""}`));
+// Sends the message through stdin, because one long argument can pass the system's argument limit. The
+// step's value is only the message's first line: the Workflows page shows it next to the report step, so the
+// whole message would show the report twice.
+const wake = (thread: string, message: string, cwd: string, run: string) =>
+  Effect.tryPromise({
+    try: () =>
+      new Promise<string>((resolve, reject) => {
+        const text = capMessage(message, run);
+        const child = execFile("t3", ["thread", "send", thread, "-"], { cwd, maxBuffer: 16 * 1024 * 1024 }, (error, _stdout, stderr) =>
+          error ? reject(new Error(`t3 thread send failed: ${stderr.trim() || error.message}`)) : resolve(`Sent to the thread: ${text.split("\n")[0] ?? ""}`),
+        );
+        child.stdin?.end(text);
+      }),
+    catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+  });
 
 const WAKE = "Tell the thread that started the run";
 
@@ -326,12 +339,13 @@ export function reviewReport(heading: string, findings: readonly ReportFinding[]
   return [`${heading}: ${counts.join(", ")}.`, ...lines].join("\n\n");
 }
 
-// T3 refuses a thread message over 120,000 characters, and a refused wake leaves the thread waiting.
+// T3 refuses a thread message over 120,000 characters, and a refused wake leaves the thread waiting. The
+// Workflows page also clips a long step value, so a long message points to the run's full result.
 const WAKE_LIMIT = 100_000;
 
-export function wakeReport(report: string): string {
-  if (report.length <= WAKE_LIMIT) return report;
-  return `${report.split("\n")[0] ?? ""}\n\nThe full report is too long for this message. Read it in the step "Write the report" on the Workflows page.`;
+export function capMessage(message: string, run: string): string {
+  if (message.length <= WAKE_LIMIT) return message;
+  return `${message.split("\n")[0] ?? ""}\n\nThe full message is too long to send. Read the result with: t3 workflow show ${run} --json`;
 }
 
 const Report = Schema.Struct({
@@ -423,6 +437,7 @@ const ulwOnEnd = (input: typeof UlwInput.Type, end: { id: string; outcome: strin
         input.thread,
         `omt-ulw workflow run ${end.id} for plan ${input.plan} ${end.outcome}: ${end.reason ?? "no reason"}. Run omt-ulw steps 8 to 11 in the thread.`,
         input.project,
+        end.id,
       ).pipe(Effect.asVoid);
 
 workflow(
@@ -548,6 +563,7 @@ workflow(
           `Read the result with: t3 workflow show ${run.id} --json`,
         ].join(" "),
         input.project,
+        run.id,
       ),
     );
     return result;
@@ -601,6 +617,7 @@ const reviewOnEnd = (input: typeof ReviewInput.Type, end: { id: string; outcome:
         input.thread,
         `omt-code-review workflow run ${end.id} for review-${input.slug} ${end.outcome}: ${end.reason ?? "no reason"}. Run the omt-code-review steps in the thread.`,
         input.project,
+        end.id,
       ).pipe(Effect.asVoid);
 
 workflow(
@@ -693,11 +710,12 @@ workflow(
         [
           `omt-code-review workflow run ${run.id} for review-${input.slug} r${input.round}: ${verdicts.join(", ")}.`,
           "",
-          wakeReport(report),
+          report,
           "",
           `Read the result with: t3 workflow show ${run.id} --json`,
         ].join("\n"),
         input.project,
+        run.id,
       ),
     );
     return { groups, oracle, fix };
@@ -1136,6 +1154,7 @@ const climbOnEnd = (input: ClimbInput, end: { id: string; outcome: string; reaso
         input.thread,
         `omt-climb workflow run ${end.id} for ${input.slug} ${end.outcome}: ${end.reason ?? "no reason"}. Read the run with: t3 workflow show ${end.id} --json`,
         input.project,
+        end.id,
       ).pipe(Effect.asVoid);
 
 const finish = (
@@ -1165,6 +1184,7 @@ const finish = (
           table,
         ].join("\n"),
         input.project,
+        id,
       ),
     );
     const result: typeof ClimbResult.Type = { outcome, round, reason, head, table, scores: [...scores], changes: [...changes], declined: [...declined] };

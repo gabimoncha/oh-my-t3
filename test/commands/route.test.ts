@@ -25,7 +25,10 @@ test("route prints an unverified RouteOutput and exits 0", async () => {
       interactionMode: "default",
       runtimeMode: "inherit",
     },
-    fallbacks: [{ providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "high" } }],
+    fallbacks: [
+      { providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh", serviceTier: "priority" } },
+      { providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "high" } },
+    ],
     notes: [],
   });
 });
@@ -74,6 +77,7 @@ test("route --against reorders a cross-family role and prints the note", async (
     options: { effort: "high" },
   });
   assert.deepEqual(againstCodex.fallbacks, [
+    { providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh", serviceTier: "priority" } },
     { providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh", serviceTier: "priority" } },
   ]);
 });
