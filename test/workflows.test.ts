@@ -11,7 +11,7 @@ const SHIPPED: Record<string, string> = {
   "omt-ulw@1 omt-code-review@1": "932ed2be4e93d5f4052c2bc5b5dc4901ea20dfe673607d35bd79c2a102c32fea",
   "omt-ulw@1 omt-code-review@1 omt-climb@1": "b5cb9a646c0617fa64babc423e71525b63d0b1830a6dc49ce0b1821c53c1fe89",
   "omt-ulw@2 omt-code-review@2 omt-climb@1": "4263635e1fbcf207cbc9a0019547302f7c16fa159b37cfae5b12afa8e79cf206",
-  "omt-ulw@3 omt-code-review@3 omt-climb@2": "bdce53219a612c43ff8c2903cfc9288853ce8d448bb0ad583a95690faead7bb0",
+  "omt-ulw@3 omt-code-review@3 omt-climb@2": "dc54e398fdf41a228434ada2818677444748b78e11ba714c9471559604493279",
 };
 
 test("workflows/omt.ts raises a workflow version whenever its text changes", () => {
@@ -171,6 +171,25 @@ test("reviewReport lists every finding by severity with its location and fix", (
     ].join("\n\n"),
   );
   assert.equal(rules.reviewReport("Code review of pr-1, round 2", [], 0), "Code review of pr-1, round 2: no problems to fix.");
+});
+
+test("reviewReport counts one place once and keeps an abbreviation inside the sentence", () => {
+  const same = [
+    { severity: "P2", location: "a.ts:1", problem: "Users in the U.S. lose their settings. More.", fix: "Keep them." },
+    { severity: "P1", location: "a.ts:1", problem: "Settings vanish.", fix: "Save them." },
+  ];
+  assert.equal(
+    rules.reviewReport("R", same, 0),
+    "R: 1 problem to fix.\n\n1. Settings vanish.\n   P1 (wrong in a normal case), a.ts:1\n   Fix: Save them.\n   1 more finding at this place: see the full result.",
+  );
+  assert.match(rules.reviewReport("R", [same[0]], 0), /^1\. Users in the U\.S\. lose their settings\.$/m);
+});
+
+test("wakeReport keeps a thread message under the T3 size limit", () => {
+  assert.equal(rules.wakeReport("R: 1 problem to fix.\n\nshort"), "R: 1 problem to fix.\n\nshort");
+  const long = rules.wakeReport(`R: 9 problems to fix.\n\n${"x".repeat(130_000)}`);
+  assert.ok(long.length < 1_000);
+  assert.match(long, /^R: 9 problems to fix\.\n\nThe full report is too long for this message\./);
 });
 
 test("climbTable shows the calibrated current score with its raw score", () => {

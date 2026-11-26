@@ -190,8 +190,13 @@ const saveBrief = (omt: readonly string[], cwd: string, role: string, brief: str
     yield* attempt(() => {
       mkdirSync(join(evidence, "briefs"), { recursive: true });
       const temp = `${path}.${randomBytes(4).toString("hex")}.tmp`;
-      writeFileSync(temp, brief);
-      renameSync(temp, path);
+      try {
+        writeFileSync(temp, brief);
+        renameSync(temp, path);
+      } catch (error) {
+        rmSync(temp, { force: true });
+        throw error;
+      }
     });
     return `Act as the ${role} sub-agent for this task. Your full brief is in the file ${path}. Read it in full first, then follow it exactly. Submit the structured result that the brief asks for.`;
   });
@@ -282,31 +287,49 @@ const SEVERITY: Record<string, string> = {
   P3: "style",
 };
 
+// Intl.Segmenter, not a regular expression, so that "the U.S. users" stays one sentence.
 const firstSentence = (text: string) => {
   const trimmed = text.trim();
-  const end = trimmed.search(/[.!?](\s|$)/);
-  return end === -1 ? trimmed : trimmed.slice(0, end + 1);
+  const first = new Intl.Segmenter("en", { granularity: "sentence" }).segment(trimmed)[Symbol.iterator]().next().value;
+  return first === undefined ? trimmed : first.segment.trim();
 };
+
+type ReportFinding = { severity: string; location: string; problem: string; fix: string };
 
 // A short report for people: each problem in one sentence, where it is, and its fix. The Workflows page
 // shows a step's text as plain lines, so the report uses no Markdown. The scenarios stay in run.result.
-export function reviewReport(heading: string, findings: readonly { severity: string; location: string; problem: string; fix: string }[], refuted: number): string {
+// Reviewers of one change can report the same place, so findings at one location are one item, with the
+// most severe finding first.
+export function reviewReport(heading: string, findings: readonly ReportFinding[], refuted: number): string {
   const order = [...findings].sort((a, b) => a.severity.localeCompare(b.severity));
-  const toFix = order.filter((finding) => finding.severity !== "P3").length;
-  const style = order.length - toFix;
+  const places = new Map<string, ReportFinding[]>();
+  for (const finding of order) places.set(finding.location, [...(places.get(finding.location) ?? []), finding]);
+  const items = [...places.values()];
+  const toFix = items.filter((same) => (same[0] as ReportFinding).severity !== "P3").length;
+  const style = items.length - toFix;
   const counts = [
     toFix === 0 ? "no problems to fix" : `${plural(toFix, "problem")} to fix`,
     ...(style === 0 ? [] : [plural(style, "style note")]),
     ...(refuted === 0 ? [] : [`${plural(refuted, "reviewer finding")} refuted by the oracle`]),
   ];
-  const items = order.map((finding, index) =>
-    [
+  const lines = items.map((same, index) => {
+    const finding = same[0] as ReportFinding;
+    return [
       `${index + 1}. ${firstSentence(finding.problem)}`,
       `   ${finding.severity} (${SEVERITY[finding.severity] ?? "unrated"}), ${finding.location}`,
       `   Fix: ${finding.fix.trim()}`,
-    ].join("\n"),
-  );
-  return [`${heading}: ${counts.join(", ")}.`, ...items].join("\n\n");
+      ...(same.length > 1 ? [`   ${plural(same.length - 1, "more finding")} at this place: see the full result.`] : []),
+    ].join("\n");
+  });
+  return [`${heading}: ${counts.join(", ")}.`, ...lines].join("\n\n");
+}
+
+// T3 refuses a thread message over 120,000 characters, and a refused wake leaves the thread waiting.
+const WAKE_LIMIT = 100_000;
+
+export function wakeReport(report: string): string {
+  if (report.length <= WAKE_LIMIT) return report;
+  return `${report.split("\n")[0] ?? ""}\n\nThe full report is too long for this message. Read it in the step "Write the report" on the Workflows page.`;
 }
 
 const Report = Schema.Struct({
@@ -668,7 +691,7 @@ workflow(
         [
           `omt-code-review workflow run ${run.id} for review-${input.slug} r${input.round}: ${verdicts.join(", ")}.`,
           "",
-          report,
+          wakeReport(report),
           "",
           `Read the result with: t3 workflow show ${run.id} --json`,
         ].join("\n"),
