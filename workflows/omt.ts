@@ -434,9 +434,10 @@ const reviewTask = (input: typeof UlwInput.Type) =>
     "Report every other finding with its fix. List your fixes under fixes, and give `git rev-parse HEAD` as head, also when you changed nothing.",
   ].join("\n\n");
 
-const qaTask = (input: typeof UlwInput.Type, head: string, checks: readonly string[]) =>
+// The task names no commit, so that QA run 1 can be routed before the review makes the commit it tests.
+const qaTask = (input: typeof UlwInput.Type, checks: readonly string[]) =>
   [
-    `Run the checks of plan ${input.plan} on commit ${head}, which your worktree starts at. The code under test is the scope paths.`,
+    `Run the checks of plan ${input.plan} on the commit that your worktree starts at. The code under test is the scope paths.`,
     `Run each command in Verify and report its exit code and log path.${input.flows.trim() === "" ? "" : `\n\nRun these device flows and save a screenshot of each:\n\n${input.flows}`}`,
     `Commands:\n${checks.map((command) => `- \`${command}\``).join("\n")}`,
   ].join("\n\n");
@@ -479,24 +480,45 @@ workflow(
     let review: typeof Reviewed.Type | null = null;
     let fixer: { threadId: string } | undefined;
     const fixes: string[] = [];
-
-    if (input.review !== "off") {
-      const routed = yield* step.try(
-        `Pick the ${reviewer} model`,
+    const routeQa = (round: number, checks: readonly string[]) =>
+      step.try(
+        `Pick the QA model, QA run ${round}`,
         { returns: Routed },
         route(input.omt, input.project, input.plan, {
-          role: input.review,
-          unit: input.review === "oracle" ? "F2" : "REVIEW",
-          round: input.round,
-          task: reviewTask(input),
+          role: "qa",
+          unit: "QA",
+          round,
+          task: qaTask(input, checks),
           context: input.context,
           scope: input.scope,
-          verify: input.checks,
-          against: input.family,
+          verify: checks,
         }),
       );
-      if (routed.outcome === "failed") return yield* stop(`no ${input.review} target: ${routed.reason}`);
-      const reviewed = yield* runRouted(`Review the build and fix it (${reviewer})`, routed.value, {
+
+    // Both model picks run before the first agent, so the Workflows page shows them on one row.
+    const reviewRoute =
+      input.review === "off"
+        ? undefined
+        : yield* step.try(
+            `Pick the ${reviewer} model`,
+            { returns: Routed },
+            route(input.omt, input.project, input.plan, {
+              role: input.review,
+              unit: input.review === "oracle" ? "F2" : "REVIEW",
+              round: input.round,
+              task: reviewTask(input),
+              context: input.context,
+              scope: input.scope,
+              verify: input.checks,
+              against: input.family,
+            }),
+          );
+    const firstQa = yield* routeQa(1, input.checks);
+    if (reviewRoute?.outcome === "failed") return yield* stop(`no ${input.review} target: ${reviewRoute.reason}`);
+    if (firstQa.outcome === "failed") return yield* stop(`no qa target: ${firstQa.reason}`);
+
+    if (reviewRoute?.outcome === "done") {
+      const reviewed = yield* runRouted(`Review the build and fix it (${reviewer})`, reviewRoute.value, {
         project: input.project,
         returns: Reviewed,
         workspace: worktree(input.head),
@@ -515,19 +537,7 @@ workflow(
       let checks: readonly string[] = input.checks;
       // One QA run, then at most 2 re-runs of the failed checks, each after a fix.
       for (let round = 1; round <= 3; round++) {
-        const routed = yield* step.try(
-          `Pick the QA model, QA run ${round}`,
-          { returns: Routed },
-          route(input.omt, input.project, input.plan, {
-            role: "qa",
-            unit: "QA",
-            round,
-            task: qaTask(input, head, checks),
-            context: input.context,
-            scope: input.scope,
-            verify: checks,
-          }),
-        );
+        const routed = round === 1 ? firstQa : yield* routeQa(round, checks);
         if (routed.outcome === "failed") return yield* stop(`no qa target: ${routed.reason}`);
         const tested = yield* qaPool(
           runRouted(`Run the checks, QA run ${round}`, routed.value, {
