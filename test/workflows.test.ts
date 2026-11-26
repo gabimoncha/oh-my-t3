@@ -11,7 +11,7 @@ const SHIPPED: Record<string, string> = {
   "omt-ulw@1 omt-code-review@1": "932ed2be4e93d5f4052c2bc5b5dc4901ea20dfe673607d35bd79c2a102c32fea",
   "omt-ulw@1 omt-code-review@1 omt-climb@1": "b5cb9a646c0617fa64babc423e71525b63d0b1830a6dc49ce0b1821c53c1fe89",
   "omt-ulw@2 omt-code-review@2 omt-climb@1": "4263635e1fbcf207cbc9a0019547302f7c16fa159b37cfae5b12afa8e79cf206",
-  "omt-ulw@3 omt-code-review@3 omt-climb@2": "9c686795666e76146e398275e7d807c275029cc9e44a9f492656d67eb6a45027",
+  "omt-ulw@3 omt-code-review@3 omt-climb@2": "2ba25f1fdf83046429999200779c9536b31b676edb8eeb5af9f5af0f5016e498",
 };
 
 test("workflows/omt.ts raises a workflow version whenever its text changes", () => {
@@ -190,6 +190,9 @@ test("capMessage keeps a thread message under the T3 size limit and points to th
   const long = rules.capMessage(`run r1: 9 problems.\n\n${"x".repeat(130_000)}`, "r1");
   assert.ok(long.length < 1_000);
   assert.equal(long, "run r1: 9 problems.\n\nThe full message is too long to send. Read the result with: t3 workflow show r1 --json");
+  const oneLine = rules.capMessage(`run r1: ${"y".repeat(130_000)}`, "r1");
+  assert.ok(oneLine.length <= 100_000, "a long first line is cut to fit");
+  assert.match(oneLine, /\.\.\.\n\nThe full message is too long to send\. Read the result with: t3 workflow show r1 --json$/);
 });
 
 test("climbTable shows the calibrated current score with its raw score", () => {

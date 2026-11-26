@@ -239,8 +239,12 @@ const route = (omt: readonly string[], cwd: string, plan: string, args: BriefArg
 
 const modeOf = (mode: string) => (mode === "plan" || mode === "default" ? mode : undefined);
 
-// Walks the routed targets with agent.try. It moves to the next target only when T3 could not start
-// the agent; an agent that ran and failed ends the walk.
+const sameModel = (a: Model | undefined, b: Model | undefined) => a !== undefined && b !== undefined && a.instanceId === b.instanceId && a.model === b.model;
+
+// Walks the routed targets with agent.try. It moves to the next target when T3 could not start the agent.
+// An agent that ran and failed ends the walk, unless the next target is the same model at another speed:
+// Codex can refuse the ultrafast tier only after T3 made the thread, and each try has its own thread and
+// worktree, so the try at the priority tier does not build on the failed one.
 const runRouted = <A, I>(
   name: string,
   routed: Routed,
@@ -262,7 +266,7 @@ const runRouted = <A, I>(
       });
       if (attempt.outcome === "done") return attempt;
       reason = attempt.reason;
-      if (attempt.thread !== undefined) break;
+      if (attempt.thread !== undefined && !sameModel(model, routed.targets[index + 1])) break;
     }
     return { outcome: "failed" as const, reason };
   });
@@ -278,6 +282,8 @@ const wake = (thread: string, message: string, cwd: string, run: string) =>
         const child = execFile("t3", ["thread", "send", thread, "-"], { cwd, maxBuffer: 16 * 1024 * 1024 }, (error, _stdout, stderr) =>
           error ? reject(new Error(`t3 thread send failed: ${stderr.trim() || error.message}`)) : resolve(`Sent to the thread: ${text.split("\n")[0] ?? ""}`),
         );
+        // A pipe error, such as t3 exiting before it reads, fails the step; the exit callback above keeps t3's own message.
+        child.stdin?.on("error", (error) => reject(new Error(`t3 thread send failed: ${error.message}`)));
         child.stdin?.end(text);
       }),
     catch: (error) => (error instanceof Error ? error : new Error(String(error))),
@@ -345,7 +351,10 @@ const WAKE_LIMIT = 100_000;
 
 export function capMessage(message: string, run: string): string {
   if (message.length <= WAKE_LIMIT) return message;
-  return `${message.split("\n")[0] ?? ""}\n\nThe full message is too long to send. Read the result with: t3 workflow show ${run} --json`;
+  const pointer = `\n\nThe full message is too long to send. Read the result with: t3 workflow show ${run} --json`;
+  const first = message.split("\n")[0] ?? "";
+  const room = WAKE_LIMIT - pointer.length;
+  return `${first.length <= room ? first : `${first.slice(0, room - 3)}...`}${pointer}`;
 }
 
 const Report = Schema.Struct({

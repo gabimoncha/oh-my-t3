@@ -87,10 +87,18 @@ export function targetKey(target: ResolvedTarget): string {
   return target.providerInstanceId !== undefined ? `${target.providerInstanceId}/${target.model}` : `driver:${target.driverKind ?? ""}/${target.model}`;
 }
 
+const speedOf = (target: ResolvedTarget): string => {
+  const tier = target.options?.serviceTier;
+  if (typeof tier === "string") return tier;
+  return target.options?.fastMode === true ? "fast" : "standard";
+};
+
 // The resolved order, with one more target for each candidate that names only a driver: the same candidate with
-// providerInstanceId set to the driver. T3 checks a named instance again before it refuses it.
+// providerInstanceId set to the driver. T3 checks a named instance again before it refuses it. Two targets of one
+// model that differ only in speed, such as Sol at the ultrafast and the priority tier, get the key
+// <key>@<speed>, so that --tried of one does not skip the other. A repeat of the same key and speed is dropped.
 function targetChoices(resolution: RoleResolution): TargetChoice[] {
-  return resolution.attempts.flatMap((attempt) => {
+  const choices = resolution.attempts.flatMap((attempt) => {
     const target = attempt.target;
     if (target === undefined) return [];
     const first = { target, candidate: attempt.candidate, key: targetKey(target) };
@@ -98,6 +106,16 @@ function targetChoices(resolution: RoleResolution): TargetChoice[] {
     const { driverKind, ...rest } = target;
     const retry = { ...rest, providerInstanceId: driverKind };
     return [first, { target: retry, candidate: attempt.candidate, key: targetKey(retry) }];
+  });
+  const count = new Map<string, number>();
+  for (const choice of choices) count.set(choice.key, (count.get(choice.key) ?? 0) + 1);
+  const seen = new Set<string>();
+  return choices.flatMap((choice) => {
+    if ((count.get(choice.key) ?? 0) < 2) return [choice];
+    const key = `${choice.key}@${speedOf(choice.target)}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ ...choice, key }];
   });
 }
 

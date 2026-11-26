@@ -50,12 +50,15 @@ test("brief --fallback needs --attempt, and --tried needs --fallback", async () 
   assert.equal((await project.run([...args, "--tried", "x/y"])).code, 2);
 });
 
-test("brief --strict stops when the only target left is in the --against family", async () => {
+test("brief --strict tries Sol at priority after ultrafast, then stops when only the --against family is left", async () => {
   const project = makeProject();
   const args = ["brief", "review", "--task", "Review U1.", "--plan", "p", "--unit", "REVIEW", "--against", "claudeAgent", "--strict", "--json"];
   const first = parse((await project.runOk(args)).ctx.out());
-  assert.equal(first.delegateTask.target.providerInstanceId, "codex");
-  const same = await project.run([...args, "--fallback", "--attempt", "2", "--tried", first.targetKey]);
+  assert.equal(first.targetKey, "codex/gpt-6.2-sol@ultrafast");
+  const second = parse((await project.runOk([...args, "--fallback", "--attempt", "2", "--tried", first.targetKey])).ctx.out());
+  assert.equal(second.targetKey, "codex/gpt-6.2-sol@priority");
+  assert.equal(second.delegateTask.target.options?.serviceTier, "priority");
+  const same = await project.run([...args, "--fallback", "--attempt", "3", "--tried", first.targetKey, "--tried", second.targetKey]);
   assert.equal(same.code, 1);
   assert.match(same.ctx.err(), /no review target outside claudeAgent is left/);
   assert.equal((await project.run(["brief", "review", "--task", "x", "--strict", "--json"])).code, 2);
