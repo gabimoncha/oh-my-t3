@@ -128,7 +128,6 @@ const label = (skill: string, thread: string, pr: Thread["pr"] = null) =>
 interface Choice {
   value: string;
   description: string;
-  requireReason?: boolean;
 }
 
 // The options of an ask with described choices and links, or plain choices on a T3 without them.
@@ -620,15 +619,15 @@ workflow(
       const body = [
         `The review found ${plural(fixable.length, "finding")} that the main thread can fix${left > 0 ? `, and ${plural(left, "style finding")} (P3) that a fix leaves out` : ""}.`,
         `Pick **fix** to let the main thread fix ${them} after the run, or **report only** to keep ${them} in the report.`,
-        ...(hasSubject ? ["Both answers require a reason. The main thread gets your reason."] : []),
+        ...(hasSubject ? ["A reason is optional. When you add one, the main thread gets it."] : []),
         findingsMarkdown(fixable),
       ].join("\n\n");
       const answer = yield* ask("Ask: fix the findings?", {
         title: `Fix ${plural(fixable.length, "finding")} from the review of ${input.slug}?`,
         ...askWith(
           [
-            { value: "fix", description: `The main thread fixes ${them} after the run. Your reason goes to it.`, requireReason: true },
-            { value: "report only", description: `Nothing is fixed. The report keeps ${them}.`, requireReason: true },
+            { value: "fix", description: `The main thread fixes ${them} after the run.` },
+            { value: "report only", description: `Nothing is fixed. The report keeps ${them}.` },
           ],
           thread,
         ),
@@ -636,7 +635,7 @@ workflow(
         timeout: "2 days",
       });
       fix = Option.isSome(answer) && answer.value.choice === "fix" ? "approved" : "declined";
-      if (hasSubject && Option.isSome(answer)) why = answer.value.reason ?? "";
+      if (Option.isSome(answer)) why = (answer.value.reason ?? "").trim();
     }
 
     const verdicts = [...groups.map((group) => `${group.unit} ${group.report.verdict}`), ...(oracle === null ? [] : [`oracle ${oracle.verdict}`])];
@@ -1268,15 +1267,10 @@ workflow(
           ...askWith(
             [
               { value: "stop", description: `End the run at commit ${at.head.slice(0, 12)} with the outcome ${next.action}.` },
-              {
-                value: "raise limit",
-                description: `Allow at least ${EXTRA_ROUNDS} more rounds with the same approach. Send your reason to the change agent.`,
-                requireReason: true,
-              },
+              { value: "raise limit", description: `Allow at least ${EXTRA_ROUNDS} more rounds with the same approach.` },
               {
                 value: "change approach",
-                description: `Allow at least ${EXTRA_ROUNDS} more rounds. Give the change agent a new approach in your reason.`,
-                requireReason: true,
+                description: `Allow at least ${EXTRA_ROUNDS} more rounds with another approach. A reason, when you add one, tells the change agent which.`,
               },
             ],
             thread,
@@ -1289,10 +1283,10 @@ workflow(
         }
         since = round;
         maxRounds = Math.max(maxRounds, round + EXTRA_ROUNDS);
-        const why = answer.value.reason ?? "";
+        const why = (answer.value.reason ?? "").trim();
         if (answer.value.choice === "change approach") {
           guidance = `The owner asked for another approach than the earlier rounds${why === "" ? "." : `: ${why}`}`;
-        } else if (hasSubject && why !== "") {
+        } else if (why !== "") {
           guidance = `The owner raised the round limit: ${why}`;
         }
       }
