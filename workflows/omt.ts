@@ -275,14 +275,39 @@ const Finding = Schema.Struct({
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-// T3's app shows data.body as Markdown under the question title. The T3 user guide does not name it, so the
-// title and the choice descriptions also hold the decision.
-const findingsMarkdown = (findings: readonly (typeof Finding.Type)[]) =>
-  findings
-    .map((finding) =>
-      [`**${finding.severity}** in \`${finding.location}\``, "", finding.problem, "", `- What goes wrong: ${finding.scenario}`, `- Fix: ${finding.fix}`].join("\n"),
-    )
-    .join("\n\n");
+const SEVERITY: Record<string, string> = {
+  P0: "breaks the build, loses data, or opens a security hole",
+  P1: "wrong in a normal case",
+  P2: "wrong in an edge case",
+  P3: "style",
+};
+
+const firstSentence = (text: string) => {
+  const trimmed = text.trim();
+  const end = trimmed.search(/[.!?](\s|$)/);
+  return end === -1 ? trimmed : trimmed.slice(0, end + 1);
+};
+
+// A short report for people: each problem in one sentence, where it is, and its fix. The Workflows page
+// shows a step's text as plain lines, so the report uses no Markdown. The scenarios stay in run.result.
+export function reviewReport(heading: string, findings: readonly { severity: string; location: string; problem: string; fix: string }[], refuted: number): string {
+  const order = [...findings].sort((a, b) => a.severity.localeCompare(b.severity));
+  const toFix = order.filter((finding) => finding.severity !== "P3").length;
+  const style = order.length - toFix;
+  const counts = [
+    toFix === 0 ? "no problems to fix" : `${plural(toFix, "problem")} to fix`,
+    ...(style === 0 ? [] : [plural(style, "style note")]),
+    ...(refuted === 0 ? [] : [`${plural(refuted, "reviewer finding")} refuted by the oracle`]),
+  ];
+  const items = order.map((finding, index) =>
+    [
+      `${index + 1}. ${firstSentence(finding.problem)}`,
+      `   ${finding.severity} (${SEVERITY[finding.severity] ?? "unrated"}), ${finding.location}`,
+      `   Fix: ${finding.fix.trim()}`,
+    ].join("\n"),
+  );
+  return [`${heading}: ${counts.join(", ")}.`, ...items].join("\n\n");
+}
 
 const Report = Schema.Struct({
   verdict: Schema.Literals(["APPROVE", "REQUEST_CHANGES", "BLOCK"]),
@@ -521,7 +546,7 @@ const ReviewInput = Schema.Struct({
   intent: Schema.String, // what the change does, and the rule files
   groups: Schema.Array(Group),
   oracle: Schema.NullOr(Schema.String), // the oracle's --against family, or null for no oracle pass
-  fixLoop: Schema.Boolean, // ask before the main thread fixes
+  fixLoop: Schema.Boolean, // no effect: the run only reports, and the thread runs its fix loop
   thread: Schema.String,
   omt: Omt,
 });
@@ -626,35 +651,14 @@ workflow(
     }
 
     const final = oracle?.findings ?? groups.flatMap((group) => group.report.findings);
-    const fixable = final.filter((finding) => finding.severity !== "P3");
-    let fix: "approved" | "declined" | "not asked" = "not asked";
-    let why = "";
-    if (input.fixLoop && fixable.length > 0) {
-      const them = fixable.length === 1 ? "the finding" : `the ${fixable.length} findings`;
-      const left = final.length - fixable.length;
-      const body = [
-        `The review found ${plural(fixable.length, "finding")} that the main thread can fix${left > 0 ? `, and ${plural(left, "style finding")} (P3) that a fix leaves out` : ""}.`,
-        `Pick **fix** to let the main thread fix ${them} after the run, or **report only** to keep ${them} in the report.`,
-        ...(hasSubject ? ["A reason is optional. When you add one, the main thread gets it."] : []),
-        findingsMarkdown(fixable),
-      ].join("\n\n");
-      const answer = yield* ask("Ask: fix the findings?", {
-        title: `Fix ${plural(fixable.length, "finding")} from the review of ${input.slug}?`,
-        ...askWith(
-          [
-            { value: "fix", description: `The main thread fixes ${them} after the run.` },
-            { value: "report only", description: `Nothing is fixed. The report keeps ${them}.` },
-          ],
-          thread,
-        ),
-        data: { body, findings: fixable },
-        timeout: "2 days",
-      });
-      fix = Option.isSome(answer) && answer.value.choice === "fix" ? "approved" : "declined";
-      if (Option.isSome(answer)) why = (answer.value.reason ?? "").trim();
-    }
-
+    // The thread that started the run decides what to fix, so the run asks nobody and only reports.
+    const fix = "not asked" as const;
     const verdicts = [...groups.map((group) => `${group.unit} ${group.report.verdict}`), ...(oracle === null ? [] : [`oracle ${oracle.verdict}`])];
+    const report = yield* step(
+      "Write the report",
+      { returns: Schema.String },
+      Effect.succeed(reviewReport(`Code review of ${input.slug}, round ${input.round}`, final, oracle?.refuted.length ?? 0)),
+    );
     // A failed wake stays in the run's journal; the run still returns its result.
     yield* step.try(
       WAKE,
@@ -663,9 +667,11 @@ workflow(
         input.thread,
         [
           `omt-code-review workflow run ${run.id} for review-${input.slug} r${input.round}: ${verdicts.join(", ")}.`,
-          `${final.length} findings, ${fixable.length} of them P0 to P2. Fix loop: ${fix}${why === "" ? "" : ` (owner: ${why})`}.`,
+          "",
+          report,
+          "",
           `Read the result with: t3 workflow show ${run.id} --json`,
-        ].join(" "),
+        ].join("\n"),
         input.project,
       ),
     );

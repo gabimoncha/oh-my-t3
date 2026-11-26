@@ -74,10 +74,10 @@ Start it after step 2. Key: `omt-code-review/<slug>/r<round>`.
 - The small shape is one group with `"unit": "oracle"` and `"role": "oracle"` when `review.oracle` is `on`. Then `oracle` is `null`.
 - The large shape has one `review` group per file group, and `oracle` is your driver when `review.oracle` is `on`.
 - With `review.families: both`, set each group's `against` and `unit` as step 2 says.
-- `fixLoop` is `true` with `review.fixLoop: offer`. The owner answers on the Workflows page, with an optional reason. `result.fix` holds the answer.
+- `fixLoop` is `true` with `review.fixLoop: offer`. The workflow asks nobody: `result.fix` is always `not asked`, and you run the fix loop of step 6 in this thread.
 - Reviewers run in plan mode and read the change with `git -C <checkout>`, so uncommitted changes count.
 
-When the message comes, merge `result.groups` and `result.oracle` by step 4, and report by step 6. With `result.fix` `approved`, fix in this thread. Follow the owner's reason when the message includes `(owner: <reason>)`. The fix review is the next round with one `FIX` group, `"against": "<your driver>"`, and no oracle.
+When the message comes, it holds a short report of the findings. Merge `result.groups` and `result.oracle` by step 4, report by step 6, and offer the fix loop there. The fix review is the next round with one `FIX` group, `"against": "<your driver>"`, and no oracle.
 
 ## omt-climb input
 

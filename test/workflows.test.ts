@@ -11,7 +11,7 @@ const SHIPPED: Record<string, string> = {
   "omt-ulw@1 omt-code-review@1": "932ed2be4e93d5f4052c2bc5b5dc4901ea20dfe673607d35bd79c2a102c32fea",
   "omt-ulw@1 omt-code-review@1 omt-climb@1": "b5cb9a646c0617fa64babc423e71525b63d0b1830a6dc49ce0b1821c53c1fe89",
   "omt-ulw@2 omt-code-review@2 omt-climb@1": "4263635e1fbcf207cbc9a0019547302f7c16fa159b37cfae5b12afa8e79cf206",
-  "omt-ulw@3 omt-code-review@3 omt-climb@2": "441dc00cb1452716244869ca3367e097296be675315d24629fac633f59136679",
+  "omt-ulw@3 omt-code-review@3 omt-climb@2": "bdce53219a612c43ff8c2903cfc9288853ce8d448bb0ad583a95690faead7bb0",
 };
 
 test("workflows/omt.ts raises a workflow version whenever its text changes", () => {
@@ -157,6 +157,20 @@ test("climbInputErrors rejects inputs that the rounds cannot score", () => {
     'judge "sol" is given twice',
     "judge sol: tier 10 is not 1 to 9",
   ]);
+});
+
+test("reviewReport lists every finding by severity with its location and fix", () => {
+  const finding = (severity: string, location: string) => ({ severity, location, problem: `Bad at ${location}. Details follow.`, fix: `Fix ${location}.` });
+  const report = rules.reviewReport("Code review of pr-1, round 1", [finding("P3", "b.ts:2"), finding("P0", "a.ts:1")], 1);
+  assert.equal(
+    report,
+    [
+      "Code review of pr-1, round 1: 1 problem to fix, 1 style note, 1 reviewer finding refuted by the oracle.",
+      "1. Bad at a.ts:1.\n   P0 (breaks the build, loses data, or opens a security hole), a.ts:1\n   Fix: Fix a.ts:1.",
+      "2. Bad at b.ts:2.\n   P3 (style), b.ts:2\n   Fix: Fix b.ts:2.",
+    ].join("\n\n"),
+  );
+  assert.equal(rules.reviewReport("Code review of pr-1, round 2", [], 0), "Code review of pr-1, round 2: no problems to fix.");
 });
 
 test("climbTable shows the calibrated current score with its raw score", () => {

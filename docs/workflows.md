@@ -61,7 +61,7 @@ Every profile extends `normal`, so this line turns it on for `prototype` and you
 With the switch on:
 
 - `omt-ulw` commits the build, then starts the workflow `omt-ulw` for steps 8 to 11. The reviewer from the other family works in its own worktree from the build commit and commits its fixes there. QA runs every check on that commit. When a check fails, the reviewer fixes it, and QA runs the failed checks again, at most 2 times.
-- `omt-code-review` starts the workflow `omt-code-review` for its 1 to 4 reviewers, in parallel, and the oracle. The reviewers report only. With `review.fixLoop: offer`, the workflow asks you on the Workflows page whether the main thread fixes the findings. When you add a reason to your answer, the main thread gets it.
+- `omt-code-review` starts the workflow `omt-code-review` for its 1 to 4 reviewers, in parallel, and the oracle. The reviewers report only, and the workflow asks you nothing. It ends with a short report: each problem in one sentence, where it is, and its fix. The thread that started the run gets the report and offers you the fix loop in the chat, as without workflows.
 - The models come from omt's roles, with the same fallbacks and the same cross-family rule.
 - On T3 `v0.1.13-nightly.20261125.5258` or later, the QA agents of all `omt-ulw` runs share one place in the pool `omt-qa` on the server. Runs that wait for the place show as **Queued**. A paused or cancelled run gives up its place while its agent finishes stopping.
 - Each run ends by sending a message to the thread that started it. The thread then merges the fixes with a fast-forward, applies its own judgment to the findings, and opens the draft PR, because a workflow cannot open one.
@@ -70,7 +70,7 @@ When Workflows is off, or `t3 workflow start` fails, the skill prints one line a
 
 ### Find a run by its skill, thread, or PR
 
-On T3 `v0.1.13-nightly.20261125.5258` or later, each run has a tag with its skill (`ulw`, `code-review`, or `climb`) and a subject. The subject is the thread that started the run. An `omt-code-review` run uses the thread's PR when the thread has exactly one PR link and that PR is open. T3 does not report a closed or merged PR to the workflow, so for such a PR the subject stays the thread, and the question has no PR link. The Workflows page shows the subject under the run and opens it beside the run. Use these commands to find runs by tag or subject.
+On T3 `v0.1.13-nightly.20261125.5258` or later, each run has a tag with its skill (`ulw`, `code-review`, or `climb`) and a subject. The subject is the thread that started the run. An `omt-code-review` run uses the thread's PR when the thread has exactly one PR link and that PR is open. T3 does not report a closed or merged PR to the workflow, so for such a PR the subject stays the thread. The Workflows page shows the subject under the run and opens it beside the run. Use these commands to find runs by tag or subject.
 
 ```sh
 t3 workflow list --tag code-review
@@ -85,18 +85,19 @@ Open the page with **Open workflows** in the T3 command palette, then click a ru
 2. The list on the left shows the steps in the order that they ran. Each name says what the step did:
    - `Pick the ... model` asks omt for the agent's brief and models. Its value is the path of the brief file and the models, in the order that the run tries them.
    - An agent step, such as `Review the change (the oracle)` or `Run the checks, QA run 1`, runs one model in its own thread.
-   - A step that starts with `Ask:` waits for you.
+   - `Write the report` (code review only) holds the short report of the findings. Click it to read the report on the right.
+   - A step that starts with `Ask:` (climb only) waits for you.
    - `Tell the thread that started the run` sends the summary to your thread.
 3. The pane on the right shows the step that you clicked. An agent step shows the agent's summary and its result fields, and **Transcript** opens the agent's whole thread. Another step shows its `outcome` and `value` as T3 stores them.
 
-To answer a question:
+Only a climb asks you a question, when the score stops rising or the climb reaches its round limit. To answer it:
 
-1. Read the text under the question title. It lists what the run found, such as each review finding or the climb scores, and says what each answer does.
+1. Read the text under the question title. It says why the climb paused, and shows the scores and what the judges found.
 2. To check the change first, open the thread or the PR with the link buttons.
-3. To steer what happens next, click **Add a reason** and write one sentence. The reason is optional. The agent or the thread that acts on your answer gets it.
+3. To tell the change agent what to try, click **Add a reason** and write one sentence. The reason is optional.
 4. Click an answer. The run goes on.
 
-A question that gets no answer in 2 days counts as `report only` in a code review and as `stop` in a climb.
+A climb question that gets no answer in 2 days counts as `stop`.
 
 On T3 `v0.1.12`, a run has no tag and no subject, a question shows only plain answers, and QA starts with no pool.
 
