@@ -50,9 +50,12 @@ test("the presets store a full normal workflow with the PR extras off and sparse
     review: { reviewers: 1, oracle: "off" },
   });
   assert.deepEqual(DEFAULT_CONFIG.models, { "gpt-6.2-sol": { fast: true }, "gpt-6.2-astra": { fast: true } });
-  for (const role of Object.values(DEFAULT_CONFIG.roles)) {
+  for (const [name, role] of Object.entries(DEFAULT_CONFIG.roles)) {
     assert.equal(role.fast, undefined);
-    assert.ok(role.chain.every((candidate) => candidate.fast === undefined));
+    const ultrafast = name === "review" || name === "oracle" ? [0] : [];
+    role.chain.forEach((candidate, index) => {
+      assert.equal(candidate.fast, ultrafast.includes(index) ? "ultrafast" : undefined, `${name} ${index}`);
+    });
   }
 });
 

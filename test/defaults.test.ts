@@ -24,13 +24,13 @@ const EXPECTED: Record<string, [access: string, result: string, t3Role: string, 
   research: ["read-only", "research", "research", "plan", false, ["codex/gpt-6.2-sol/medium", "claudeAgent/claude-sonnet-5-5/medium"]],
   "plan-review": ["read-only", "review", "review", "plan", true, ["codex/gpt-6.2-astra/high", "claudeAgent/claude-fable-5-2/high"]],
   execute: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-opus-5-5/medium", "codex/gpt-6.2-sol/high"]],
-  review: ["edit", "review", "review", "default", true, ["codex/gpt-6.2-sol/xhigh", "claudeAgent/claude-opus-5-5/high"]],
-  oracle: ["edit", "review", "review", "default", true, ["codex/gpt-6.2-astra/medium", "claudeAgent/claude-fable-5-2/medium"]],
+  review: ["edit", "review", "review", "default", true, ["codex/gpt-6.2-sol/xhigh/ultrafast", "claudeAgent/claude-opus-5-5/high"]],
+  oracle: ["edit", "review", "review", "default", true, ["codex/gpt-6.2-sol/xhigh/ultrafast", "claudeAgent/claude-fable-5-2/medium"]],
   qa: ["edit", "test", "test", "default", false, ["codex/gpt-6.2-sol/medium", "claudeAgent/claude-sonnet-5-5/medium"]],
   judge: ["read-only", "score", "review", "plan", true, ["codex/gpt-6.2-sol/medium", "claudeAgent/claude-opus-5-5/medium"]],
-  writing: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-opus-5-5/medium", "codex/gpt-6.2-astra/medium"]],
-  design: ["edit", "work", "design", "default", false, ["claudeAgent/claude-fable-5-2/medium", "codex/gpt-6.2-astra/high"]],
-  ui: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-fable-5-2/medium", "codex/gpt-6.2-astra/high"]],
+  writing: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-opus-5-5/medium", "codex/gpt-6.2-sol/medium"]],
+  design: ["edit", "work", "design", "default", false, ["claudeAgent/claude-fable-5-2/medium", "codex/gpt-6.2-sol/high"]],
+  ui: ["edit", "work", "implementation", "default", false, ["claudeAgent/claude-fable-5-2/medium", "codex/gpt-6.2-sol/high"]],
 };
 
 test("the defaults hold the 11 roles with the planned values", () => {
@@ -65,8 +65,8 @@ test("the default chains and crossFamily flags match the plan exactly", () => {
     const role = DEFAULT_CONFIG.roles[name];
     assert.ok(role, name);
     const chain = candidates.map((text) => {
-      const [driver, model, effort] = text.split("/");
-      return { provider: driver, driver, model, effort };
+      const [driver, model, effort, fast] = text.split("/");
+      return { provider: driver, driver, model, effort, ...(fast ? { fast } : {}) };
     });
     assert.deepEqual(role.chain, chain, name);
     assert.equal(role.crossFamily, crossFamily, name);

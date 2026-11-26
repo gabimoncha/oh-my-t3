@@ -1210,7 +1210,9 @@ Every default candidate sets `driver` and also sets `provider` to the same value
 
 For a role without `crossFamily`, candidate 2 runs only when T3 refuses candidate 1. For a cross-family role, `--against` can put candidate 2 first (section 8.3).
 
-`design` and `ui` start on Fable at medium effort and fall back to Astra at high effort. The owner reviews the designs.
+`design` and `ui` start on Fable at medium effort and fall back to Sol at high effort. The owner reviews the designs.
+
+`review` and `oracle` start on Sol at xhigh effort with `fast: "ultrafast"`, because the Codex ultrafast tier gives the fastest reviews. Astra is in the defaults only for `plan-review`.
 
 | Role | Access | Result | t3Role | Mode | crossFamily | Chain (driver/model effort) |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -1218,13 +1220,13 @@ For a role without `crossFamily`, candidate 2 runs only when T3 refuses candidat
 | `research` | read-only | research | research | plan | false | codex/gpt-6.2-sol medium, claudeAgent/claude-sonnet-5-5 medium |
 | `plan-review` | read-only | review | review | plan | true | codex/gpt-6.2-astra high, claudeAgent/claude-fable-5-2 high |
 | `execute` | edit | work | implementation | default | false | claudeAgent/claude-opus-5-5 medium, codex/gpt-6.2-sol high |
-| `review` | edit | review | review | default | true | codex/gpt-6.2-sol xhigh, claudeAgent/claude-opus-5-5 high |
-| `oracle` | edit | review | review | default | true | codex/gpt-6.2-astra medium, claudeAgent/claude-fable-5-2 medium |
+| `review` | edit | review | review | default | true | codex/gpt-6.2-sol xhigh ultrafast, claudeAgent/claude-opus-5-5 high |
+| `oracle` | edit | review | review | default | true | codex/gpt-6.2-sol xhigh ultrafast, claudeAgent/claude-fable-5-2 medium |
 | `qa` | edit | test | test | default | false | codex/gpt-6.2-sol medium, claudeAgent/claude-sonnet-5-5 medium |
 | `judge` | read-only | score | review | plan | true | codex/gpt-6.2-sol medium, claudeAgent/claude-opus-5-5 medium |
-| `writing` | edit | work | implementation | default | false | claudeAgent/claude-opus-5-5 medium, codex/gpt-6.2-astra medium |
-| `design` | edit | work | design | default | false | claudeAgent/claude-fable-5-2 medium, codex/gpt-6.2-astra high |
-| `ui` | edit | work | implementation | default | false | claudeAgent/claude-fable-5-2 medium, codex/gpt-6.2-astra high |
+| `writing` | edit | work | implementation | default | false | claudeAgent/claude-opus-5-5 medium, codex/gpt-6.2-sol medium |
+| `design` | edit | work | design | default | false | claudeAgent/claude-fable-5-2 medium, codex/gpt-6.2-sol high |
+| `ui` | edit | work | implementation | default | false | claudeAgent/claude-fable-5-2 medium, codex/gpt-6.2-sol high |
 
 `review` and `oracle` have `edit` access, so that the reviewer fixes each local finding itself and reports the rest (section 11).
 
@@ -1250,7 +1252,7 @@ Role descriptions (shown to agents in `omt roles` and in skills):
 
 Default limits: `maxDepth` 1, `maxReviewRounds` 4.
 
-Default profile: `normal`. Default models: `{ "gpt-6.2-sol": { "fast": true }, "gpt-6.2-astra": { "fast": true } }`. Both are the Codex models of the default chains. No default role or candidate sets `fast`.
+Default profile: `normal`. Default models: `{ "gpt-6.2-sol": { "fast": true }, "gpt-6.2-astra": { "fast": true } }`. Both are the Codex models of the default chains. Only the first candidates of `review` and `oracle` set `fast`, to `"ultrafast"`.
 
 ### 6.5 Starter files
 

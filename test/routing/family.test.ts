@@ -19,7 +19,7 @@ function capsWithInstances(): Capabilities {
 
 const REVIEW = DEFAULT_CONFIG.roles.review as RoleConfig;
 const CLAUDE_HIGH = { providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "high" } };
-const CODEX_SOL = { providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh" } };
+const CODEX_SOL = { providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh", serviceTier: "ultrafast" } };
 
 test("candidateFamily is the registered instance's driver kind, else the driver, else the configured driver, else the provider id", () => {
   const c = capsWithInstances();
@@ -246,10 +246,15 @@ test("with capabilities, a default candidate whose instance is not registered ke
   codex.providerInstanceId = "codex-main";
   c.inheritedProviderInstanceId = "claude-main";
   const resolution = resolveRole("review", REVIEW, c, { against: "claude-main" });
-  assert.deepEqual(resolution.delegateTask?.target, { ...CODEX_SOL, providerInstanceId: "codex-main" });
+  assert.deepEqual(resolution.delegateTask?.target, {
+    ...CODEX_SOL,
+    providerInstanceId: "codex-main",
+    options: { reasoningEffort: "xhigh", serviceTier: "priority" },
+  });
   assert.deepEqual(toRouteOutput(resolution).notes, [
     "cross-family: worker family claudeAgent; the configured order applies",
     "candidate 1: provider instance codex is not registered; using instance codex-main of driver codex",
+    "candidate 1: ultrafast is not offered by codex-main/gpt-6.2-sol; using fast mode",
     "candidate 2: provider instance claudeAgent is not registered; using instance claude-main of driver claudeAgent",
   ]);
 

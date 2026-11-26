@@ -38,6 +38,7 @@ test("formatRolesTable matches the section 5.3 layout", () => {
       "ROLE         STATUS      TARGET                                                        ACCESS     MODE     CROSS",
       "execute      resolved    claudeAgent/claude-opus-5-5 effort=medium                     edit       default  no",
       "review       resolved    codex/gpt-6.2-sol reasoningEffort=xhigh serviceTier=priority  edit       default  yes",
+      "  candidate 1 codex/gpt-6.2-sol: ultrafast is not offered by codex/gpt-6.2-sol; using fast mode",
       "oracle       unavailable -                                                             edit       default  yes",
       "  candidate 1 grok/grok-build: provider grok cannot run child tasks: Provider instance is disabled.; Provider executable is not installed.",
       "",

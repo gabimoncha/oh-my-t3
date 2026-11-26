@@ -20,7 +20,7 @@ test("route prints an unverified RouteOutput and exits 0", async () => {
     access: "edit",
     result: "review",
     delegateTask: {
-      target: { providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh", serviceTier: "priority" } },
+      target: { providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh", serviceTier: "ultrafast" } },
       role: "review",
       interactionMode: "default",
       runtimeMode: "inherit",
