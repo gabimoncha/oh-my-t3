@@ -5,6 +5,7 @@
 // omt-code-review: the report-only reviewers and the oracle of omt-code-review.
 // omt-climb: the rounds of gates, blind judges, and changes of omt-climb, which runs only as this workflow.
 // Each run ends by sending a short message to the thread that started it, because T3 does not wake that thread.
+// Each run tags itself with its skill and names the thread or the PR that it is about.
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -12,6 +13,9 @@ import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
 
 const { workflow, step, agent, ask, stop, title } = T3;
+const { subject, tags, within } = T3;
+// subject arrived after tags and described choices. Keep the old labels and questions on T3 without it.
+const hasSubject = typeof subject === "function";
 
 // ---------- shared ----------
 
@@ -25,6 +29,115 @@ const exec = (command: string, args: readonly string[], cwd: string) =>
       ),
     catch: (error) => (error instanceof Error ? error : new Error(String(error))),
   });
+
+const attempt = <A>(run: () => A) =>
+  Effect.try({ try: run, catch: (error) => (error instanceof Error ? error : new Error(String(error))) });
+
+const web = (value: unknown): value is string => {
+  const protocol = typeof value === "string" ? URL.parse(value)?.protocol : undefined;
+  return protocol === "http:" || protocol === "https:";
+};
+
+const hostedSegment = (id: string) =>
+  encodeURIComponent(id).replace(/[.!~*'()]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+
+const threadWebLink = (link: unknown, thread: string) => {
+  if (web(link)) return link;
+  if (typeof link !== "string") return "";
+  const environment = /^(?:<|\[[^\]]+\]\(<?)t3-thread:\/\/v2\/([^/]+)\//.exec(link)?.[1];
+  return environment === undefined ? "" : `https://app.t3.codes/threads/${hostedSegment(environment)}/${hostedSegment(thread)}`;
+};
+
+const Thread = Schema.Struct({
+  link: Schema.String, // the thread's web address, or ""
+  pr: Schema.NullOr(
+    Schema.Struct({ projectId: Schema.String, host: Schema.String, repository: Schema.String, number: Schema.Number, url: Schema.String }),
+  ),
+});
+type Thread = typeof Thread.Type;
+
+interface ShownPr {
+  projectId?: unknown;
+  host?: unknown;
+  repository?: unknown;
+  number?: unknown;
+  url?: unknown;
+}
+
+interface ShownThread {
+  link?: unknown;
+  projectId?: unknown;
+  linkedPullRequest?: ShownPr | null;
+  pullRequests?: ShownPr[];
+  pullRequestCount?: number;
+}
+
+// New T3 links go in pullRequests. linkedPullRequest is the older single-link field.
+const threadOf = (thread: string, cwd: string) =>
+  Effect.gen(function* () {
+    const out = yield* exec("t3", ["thread", "show", thread, "--json", "--messages", "0"], cwd);
+    const shown = yield* attempt(() => (JSON.parse(out) as { thread?: ShownThread }).thread ?? {});
+    const open = shown.pullRequests ?? [];
+    const onlyOpenLink = open.length === 1 && (shown.pullRequestCount ?? 1) === 1;
+    const linked = shown.linkedPullRequest ?? (onlyOpenLink ? open[0] : undefined);
+    let pr: Thread["pr"] = null;
+    if (
+      typeof linked?.repository === "string" && linked.repository.trim() !== "" &&
+      typeof linked.number === "number" && Number.isSafeInteger(linked.number) && linked.number > 0 &&
+      web(linked.url)
+    ) {
+      const match = open.find((each) => each.url === linked.url);
+      const project = linked.projectId ?? shown.projectId;
+      pr = {
+        projectId: typeof project === "string" ? project.trim() : "",
+        host: typeof match?.host === "string" ? match.host.trim() : new URL(linked.url).host,
+        repository: linked.repository.trim(),
+        number: linked.number,
+        url: linked.url,
+      };
+    }
+    const result: Thread = { link: threadWebLink(shown.link, thread), pr };
+    return result;
+  });
+
+const NO_THREAD: Thread = { link: "", pr: null };
+
+// Reads the starting thread in a step, because the body replays. Only a T3 with subject needs it.
+const readThread = (thread: string, cwd: string) =>
+  Effect.gen(function* () {
+    if (!hasSubject || thread.trim() === "") return NO_THREAD;
+    const read = yield* step.try("thread", { returns: Thread }, threadOf(thread, cwd));
+    return read.outcome === "done" ? read.value : NO_THREAD;
+  });
+
+// Tags the run with its skill. Its subject is the PR when one is given, else the starting thread.
+// A PR without its project or host is a web address, because T3 refuses such a PR as a subject.
+const label = (skill: string, thread: string, pr: Thread["pr"] = null) =>
+  Effect.gen(function* () {
+    if (!hasSubject) return;
+    if (typeof tags === "function") yield* tags([skill]);
+    if (pr !== null) {
+      yield* subject(pr.projectId !== "" && pr.host !== "" ? pr : pr.url);
+    } else if (thread.trim() !== "") {
+      yield* subject({ threadId: thread });
+    }
+  });
+
+interface Choice {
+  value: string;
+  description: string;
+  requireReason?: boolean;
+}
+
+// The options of an ask with described choices and links, or plain choices on a T3 without them.
+const askWith = (choices: readonly Choice[], thread: Thread) => {
+  if (!hasSubject) return { choices: choices.map((choice) => choice.value) };
+  const links = [
+    ...(thread.link === "" ? [] : [{ label: "The thread that started the run", url: thread.link }]),
+    ...(thread.pr === null ? [] : [{ label: `PR #${thread.pr.number}`, url: thread.pr.url }]),
+  ];
+  return { choices, ...(links.length === 0 ? {} : { links }) };
+};
 
 const Model = Schema.Struct({
   instanceId: Schema.String,
@@ -186,6 +299,10 @@ const Fixed = Schema.Struct({ fixes: Schema.Array(Schema.String), head: Schema.S
 
 const worktree = (baseRef: string) => ({ type: "worktree", baseRef, startFromOrigin: false });
 
+// QA agents run whole test suites and device flows on this machine, so the server runs one at a time,
+// across all runs.
+const qaPool = <A, E, R>(body: Effect.Effect<A, E, R>) => (typeof within === "function" ? within("omt-qa", { limit: 1 }, body) : body);
+
 const reviewTask = (input: typeof UlwInput.Type) =>
   [
     `Review the build of plan ${input.plan}. Your worktree starts at the build commit ${input.head}.`,
@@ -229,9 +346,10 @@ const ulwOnEnd = (input: typeof UlwInput.Type, end: { id: string; outcome: strin
 
 workflow(
   "omt-ulw",
-  { version: 2, payload: UlwInput, returns: UlwResult, onEnd: ulwOnEnd },
+  { version: 3, payload: UlwInput, returns: UlwResult, onEnd: ulwOnEnd },
   Effect.fn(function* (input, run) {
     yield* title(`omt-ulw ${input.plan} r${input.round}`);
+    yield* label("ulw", input.thread);
     let head = input.head;
     let review: typeof Reviewed.Type | null = null;
     let fixer: { threadId: string } | undefined;
@@ -286,12 +404,14 @@ workflow(
           }),
         );
         if (routed.outcome === "failed") return yield* stop(`no qa target: ${routed.reason}`);
-        const tested = yield* runRouted(`qa-${round}`, routed.value, {
-          project: input.project,
-          returns: Qa,
-          workspace: worktree(head),
-          timeout: "2 hours",
-        });
+        const tested = yield* qaPool(
+          runRouted(`qa-${round}`, routed.value, {
+            project: input.project,
+            returns: Qa,
+            workspace: worktree(head),
+            timeout: "2 hours",
+          }),
+        );
         if (tested.outcome === "failed") return yield* stop(`the qa agent failed: ${tested.reason}`);
         qa = tested.value;
         qaRuns = round;
@@ -403,9 +523,11 @@ const reviewOnEnd = (input: typeof ReviewInput.Type, end: { id: string; outcome:
 
 workflow(
   "omt-code-review",
-  { version: 2, payload: ReviewInput, returns: ReviewResult, onEnd: reviewOnEnd },
+  { version: 3, payload: ReviewInput, returns: ReviewResult, onEnd: reviewOnEnd },
   Effect.fn(function* (input, run) {
     yield* title(`omt-code-review ${input.slug} r${input.round}`);
+    const thread = yield* readThread(input.thread, input.project);
+    yield* label("code-review", input.thread, thread.pr);
     const plan = `review-${input.slug}`;
     const reviewGroup = (group: typeof Group.Type) =>
       Effect.gen(function* () {
@@ -472,14 +594,26 @@ workflow(
     const final = oracle?.findings ?? groups.flatMap((group) => group.report.findings);
     const fixable = final.filter((finding) => finding.severity !== "P3");
     let fix: "approved" | "declined" | "not asked" = "not asked";
+    let why = "";
     if (input.fixLoop && fixable.length > 0) {
       const answer = yield* ask("fix", {
         title: `review-${input.slug}: let the main thread fix ${fixable.length} P0 to P2 findings?`,
-        choices: ["fix", "report only"],
+        ...askWith(
+          [
+            {
+              value: "fix",
+              description: `The main thread fixes the ${fixable.length} findings after the run, and your reason goes to it.`,
+              requireReason: true,
+            },
+            { value: "report only", description: "The run reports the findings, and nothing is fixed.", requireReason: true },
+          ],
+          thread,
+        ),
         data: { findings: fixable },
         timeout: "2 days",
       });
       fix = Option.isSome(answer) && answer.value.choice === "fix" ? "approved" : "declined";
+      if (hasSubject && Option.isSome(answer)) why = answer.value.reason ?? "";
     }
 
     const verdicts = [...groups.map((group) => `${group.unit} ${group.report.verdict}`), ...(oracle === null ? [] : [`oracle ${oracle.verdict}`])];
@@ -491,7 +625,7 @@ workflow(
         input.thread,
         [
           `omt-code-review workflow run ${run.id} for review-${input.slug} r${input.round}: ${verdicts.join(", ")}.`,
-          `${final.length} findings, ${fixable.length} of them P0 to P2. Fix loop: ${fix}.`,
+          `${final.length} findings, ${fixable.length} of them P0 to P2. Fix loop: ${fix}${why === "" ? "" : ` (owner: ${why})`}.`,
           `Read the result with: t3 workflow show ${run.id} --json`,
         ].join(" "),
         input.project,
@@ -807,9 +941,6 @@ const ClimbResult = Schema.Struct({
   declined: Schema.Array(Schema.String),
 });
 
-const attempt = <A>(run: () => A) =>
-  Effect.try({ try: run, catch: (error) => (error instanceof Error ? error : new Error(String(error))) });
-
 // Runs a shell command and writes its output to the log. A command that cannot start exits 127. Only a failed
 // log write fails the effect, because a throw in the execFile callback would escape the promise.
 const shell = (command: string, cwd: string, log: string, env: Record<string, string> = {}) =>
@@ -973,9 +1104,11 @@ const finish = (
 
 workflow(
   "omt-climb",
-  { version: 1, payload: ClimbInput, returns: ClimbResult, onEnd: climbOnEnd },
+  { version: 2, payload: ClimbInput, returns: ClimbResult, onEnd: climbOnEnd },
   Effect.fn(function* (input, run) {
     yield* title(`omt-climb ${input.slug}`);
+    const thread = yield* readThread(input.thread, input.project);
+    yield* label("climb", input.thread);
     const errors = climbInputErrors(input);
     if (errors.length > 0) return yield* stop(`invalid input: ${errors.join("; ")}`);
     const categories = input.categories.length > 0 ? input.categories : ["overall"];
@@ -1102,7 +1235,22 @@ workflow(
       if (next.action === "plateau" || next.action === "limit") {
         const answer = yield* ask(`ask-r${round}`, {
           title: `omt-climb ${input.slug}: ${next.action} after round ${round}. Stop, raise the limit, or change the approach?`,
-          choices: ["stop", "raise limit", "change approach"],
+          ...askWith(
+            [
+              { value: "stop", description: `End the run at commit ${at.head.slice(0, 12)} with the outcome ${next.action}.` },
+              {
+                value: "raise limit",
+                description: `Allow at least ${EXTRA_ROUNDS} more rounds with the same approach. Send your reason to the change agent.`,
+                requireReason: true,
+              },
+              {
+                value: "change approach",
+                description: `Allow at least ${EXTRA_ROUNDS} more rounds. Give the change agent a new approach in your reason.`,
+                requireReason: true,
+              },
+            ],
+            thread,
+          ),
           data: { reason: next.reason, table: climbTable(state(round)), findings },
           timeout: "2 days",
         });
@@ -1111,8 +1259,11 @@ workflow(
         }
         since = round;
         maxRounds = Math.max(maxRounds, round + EXTRA_ROUNDS);
+        const why = answer.value.reason ?? "";
         if (answer.value.choice === "change approach") {
-          guidance = `The owner asked for another approach than the earlier rounds${answer.value.reason === undefined || answer.value.reason === "" ? "." : `: ${answer.value.reason}`}`;
+          guidance = `The owner asked for another approach than the earlier rounds${why === "" ? "." : `: ${why}`}`;
+        } else if (hasSubject && why !== "") {
+          guidance = `The owner raised the round limit: ${why}`;
         }
       }
 

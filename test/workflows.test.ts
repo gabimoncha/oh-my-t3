@@ -11,6 +11,7 @@ const SHIPPED: Record<string, string> = {
   "omt-ulw@1 omt-code-review@1": "932ed2be4e93d5f4052c2bc5b5dc4901ea20dfe673607d35bd79c2a102c32fea",
   "omt-ulw@1 omt-code-review@1 omt-climb@1": "b5cb9a646c0617fa64babc423e71525b63d0b1830a6dc49ce0b1821c53c1fe89",
   "omt-ulw@2 omt-code-review@2 omt-climb@1": "4263635e1fbcf207cbc9a0019547302f7c16fa159b37cfae5b12afa8e79cf206",
+  "omt-ulw@3 omt-code-review@3 omt-climb@2": "0e2c6accdd38e6266ce019599ead8ca91b7b7ba1b51d9093cbb449765d01f7bf",
 };
 
 test("workflows/omt.ts raises a workflow version whenever its text changes", () => {

@@ -61,11 +61,23 @@ Every profile extends `normal`, so this line turns it on for `prototype` and you
 With the switch on:
 
 - `omt-ulw` commits the build, then starts the workflow `omt-ulw` for steps 8 to 11. The reviewer from the other family works in its own worktree from the build commit and commits its fixes there. QA runs every check on that commit. When a check fails, the reviewer fixes it, and QA runs the failed checks again, at most 2 times.
-- `omt-code-review` starts the workflow `omt-code-review` for its 1 to 4 reviewers, in parallel, and the oracle. The reviewers report only. With `review.fixLoop: offer`, the workflow asks you on the Workflows page whether the main thread fixes the findings.
+- `omt-code-review` starts the workflow `omt-code-review` for its 1 to 4 reviewers, in parallel, and the oracle. The reviewers report only. With `review.fixLoop: offer`, the workflow asks you on the Workflows page whether the main thread fixes the findings. On T3 `v0.1.13-nightly.20261125.5258` or later, both `fix` and `report only` ask for a reason. The main thread gets your reason.
 - The models come from omt's roles, with the same fallbacks and the same cross-family rule.
+- On T3 `v0.1.13-nightly.20261125.5258` or later, the QA agents of all `omt-ulw` runs share one place in the pool `omt-qa` on the server. Runs that wait for the place show as **Queued**. A paused or cancelled run gives up its place while its agent finishes stopping.
 - Each run ends by sending a message to the thread that started it. The thread then merges the fixes with a fast-forward, applies its own judgment to the findings, and opens the draft PR, because a workflow cannot open one.
 
 When Workflows is off, or `t3 workflow start` fails, the skill prints one line and runs the steps in the thread. Follow each run on the T3 Workflows page, or with `t3 workflow show <run>`.
+
+### Find a run by its skill, thread, or PR
+
+On T3 `v0.1.13-nightly.20261125.5258` or later, each run has a tag with its skill (`ulw`, `code-review`, or `climb`) and a subject. The subject is the thread that started the run. An `omt-code-review` run uses the linked PR when T3 reports a single PR for that thread. The Workflows page shows the subject under the run and opens it beside the run. Use these commands to find runs by tag or subject.
+
+```sh
+t3 workflow list --tag code-review
+t3 workflow list --subject <PR URL or thread id>
+```
+
+Each question on the Workflows page says what each answer does and shows the available links to the thread and the PR. On T3 `v0.1.12`, the Workflows page shows plain answers and QA starts directly.
 
 ## Climb to a target score
 
@@ -77,7 +89,7 @@ It needs T3 Workflows (**Settings → Labs → Workflows**), and it ignores the 
 2. A judge is a command that prints a number, or a `judge` agent that scores screenshots or outputs from 0 to 10 in each category. Agents see only letter labels, such as `A` and `B`, and never the target, the round, or earlier scores. The baseline (the start commit) and any competitor screenshots are scored in every round, and a judge's baseline score corrects its drift.
 3. Tier 1, the least expensive judge, scores each round. A higher tier, such as Opus, scores only after the lower tiers meet the target.
 4. Below the target, one agent thread applies the judges' findings, runs the gates, and commits in its own worktree. The next round scores its commit.
-5. The run ends at the target. When the score stops rising or the round limit comes, it asks you on the Workflows page: stop, raise the limit, or change the approach.
+5. The run ends at the target. When the score stops rising or the run reaches the round limit, you can choose to stop, raise the limit, or change the approach. On T3 `v0.1.13-nightly.20261125.5258` or later, give a reason to raise the limit or change the approach. The change agent gets your reason.
 6. The last step sends the climb table to the thread. The thread merges the commits with a fast-forward and opens the draft PR.
 
 ## Review a pull request
