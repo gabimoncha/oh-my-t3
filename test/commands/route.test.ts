@@ -27,7 +27,7 @@ test("route prints an unverified RouteOutput and exits 0", async () => {
     },
     fallbacks: [
       { providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh", serviceTier: "priority" } },
-      { providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "high" } },
+      { providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "high", fastMode: false } },
     ],
     notes: [],
   });
@@ -39,7 +39,7 @@ test("route --capabilities resolves against the provider instances", async () =>
   assert.deepEqual(output.delegateTask?.target, {
     providerInstanceId: "claudeAgent",
     model: "claude-opus-5-5",
-    options: { effort: "medium" },
+    options: { effort: "medium", fastMode: false },
   });
 });
 
@@ -74,7 +74,7 @@ test("route --against reorders a cross-family role and prints the note", async (
   assert.deepEqual(againstCodex.delegateTask?.target, {
     providerInstanceId: "claudeAgent",
     model: "claude-opus-5-5",
-    options: { effort: "high" },
+    options: { effort: "high", fastMode: false },
   });
   assert.deepEqual(againstCodex.fallbacks, [
     { providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh", serviceTier: "priority" } },

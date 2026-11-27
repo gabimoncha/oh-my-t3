@@ -121,7 +121,14 @@ function candidateOptions(
     if (mapped.note !== undefined) notes.push(mapped.note);
   }
   if (fast !== false) Object.assign(options, fastOptions(candidate.model, fast, descriptors ?? (verified ? [] : undefined), driver, provider, notes));
+  // T3 copies the parent thread's options into a child on the same model, so a parent in fast mode would pass it on.
+  else if (driver === "claudeAgent" && offersFastToggle(candidate.model, descriptors ?? (verified ? [] : undefined), driver)) options.fastMode = false;
   return { ...options, ...candidate.options };
+}
+
+function offersFastToggle(model: string, descriptors: OptionDescriptor[] | undefined, driver: string | undefined): boolean {
+  if (descriptors !== undefined) return descriptors.some((d) => d.id === "fastMode" && d.type === "boolean");
+  return driver === "claudeAgent" && model.startsWith("claude-opus");
 }
 
 function offersTier(descriptors: OptionDescriptor[], tier: string): boolean {
@@ -141,10 +148,10 @@ function fastOptions(
   if (descriptors !== undefined) {
     if (ultra && offersTier(descriptors, "ultrafast")) return { serviceTier: "ultrafast" };
     if (offersTier(descriptors, "priority")) options = { serviceTier: "priority" };
-    else if (descriptors.some((d) => d.id === "fastMode" && d.type === "boolean")) options = { fastMode: true };
+    else if (offersFastToggle(model, descriptors, driver)) options = { fastMode: true };
   } else {
     if (driver === "codex") return { serviceTier: ultra ? "ultrafast" : "priority" };
-    if (driver === "claudeAgent" && model.startsWith("claude-opus")) options = { fastMode: true };
+    if (offersFastToggle(model, descriptors, driver)) options = { fastMode: true };
   }
   if (options === undefined) {
     notes.push(`fast mode is not offered by ${provider}/${model}`);

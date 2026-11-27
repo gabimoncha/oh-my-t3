@@ -18,7 +18,7 @@ function capsWithInstances(): Capabilities {
 }
 
 const REVIEW = DEFAULT_CONFIG.roles.review as RoleConfig;
-const CLAUDE_HIGH = { providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "high" } };
+const CLAUDE_HIGH = { providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "high", fastMode: false } };
 const CODEX_SOL = { providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh", serviceTier: "ultrafast" } };
 const CODEX_SOL_DEFAULT_TIER = { providerInstanceId: "codex", model: "gpt-6.2-sol", options: { reasoningEffort: "xhigh" } };
 
@@ -228,7 +228,7 @@ test("an unavailable other-family candidate falls back to the same family with t
   assert.deepEqual(resolution.delegateTask?.target, {
     providerInstanceId: "claudeAgent",
     model: "claude-opus-5-5",
-    options: { effort: "high" },
+    options: { effort: "high", fastMode: false },
   });
   assert.deepEqual(resolution.fallbacks, []);
   assert.deepEqual(toRouteOutput(resolution).notes, [

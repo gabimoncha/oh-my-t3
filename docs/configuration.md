@@ -259,7 +259,7 @@ A run has no task budget and no parallel limit: T3 tracks the child tasks. `limi
 }
 ```
 
-The first value that is set wins: the candidate `fast`, the role `fast`, the model `fast`, and then `false`. GPT-6.2-Sol and GPT-6.2-Astra have fast mode on by default. For a model that supports it, `true` becomes `serviceTier: "priority"` or `fastMode: true`. A model without fast mode keeps its target, and omt reports a note. A value in `candidate.options` wins over this mapping. `false` adds no fast option.
+The first value that is set wins: the candidate `fast`, the role `fast`, the model `fast`, and then `false`. GPT-6.2-Sol and GPT-6.2-Astra have fast mode on by default. For a model that supports it, `true` becomes `serviceTier: "priority"` or `fastMode: true`. A model without fast mode keeps its target, and omt reports a note. A value in `candidate.options` wins over this mapping. `false` gives `fastMode: false` to a Claude model with fast mode, so a child does not take fast mode from a parent thread on the same model. For other models, `false` adds no fast option.
 
 `"ultrafast"` asks for the Codex ultrafast service tier, `serviceTier: "ultrafast"`, instead of `priority`. Today only GPT-6.2-Sol offers it. With `--capabilities`, a model without the tier gets fast mode and a note. Without it, T3 rejects the tier on such a Codex model, and the dispatch moves to the next target, so set `"ultrafast"` only on models that offer it:
 

@@ -82,6 +82,23 @@ test("fast mode resolves candidate, role, and model values in order, including f
   }
 });
 
+test("fast off sends fastMode false to Claude models with the toggle, so a child does not inherit a fast parent", () => {
+  const cases: [Candidate, Record<string, OptionValue> | undefined][] = [
+    [{ driver: "claudeAgent", model: "claude-opus-5-5" }, { fastMode: false }],
+    [{ driver: "claudeAgent", model: "claude-sonnet-5-5" }, undefined],
+    [{ driver: "codex", model: "gpt-6.2-sol" }, undefined],
+  ];
+  for (const capabilities of [undefined, liveCaps()]) {
+    for (const [candidate, expected] of cases) {
+      const resolution = resolveRole("r", role([{ ...candidate, fast: false }]), capabilities);
+      assert.deepEqual(resolution.delegateTask?.target.options, expected, candidate.model);
+      assert.deepEqual(resolution.attempts[0]?.notes, [], candidate.model);
+    }
+  }
+  const report = resolveAll(DEFAULT_CONFIG, liveCaps());
+  assert.deepEqual(report.roles.execute?.delegateTask?.target.options, { effort: "medium", fastMode: false });
+});
+
 test("raw candidate options override fast mappings with and without capabilities", () => {
   const candidates: Candidate[] = [
     { driver: "codex", model: "gpt-6.2-sol", effort: "high", options: { serviceTier: "default" } },
