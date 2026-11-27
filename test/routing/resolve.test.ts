@@ -28,7 +28,7 @@ test("a resolved role uses the first ok candidate and keeps later ok candidates 
     crossFamily: false,
     status: "resolved",
     delegateTask: {
-      target: { providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "medium" } },
+      target: { providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "medium", fastMode: false } },
       role: "implementation",
       interactionMode: "default",
       runtimeMode: "inherit",
@@ -40,7 +40,7 @@ test("a resolved role uses the first ok candidate and keeps later ok candidates 
         candidate: execute.chain[0],
         ok: true,
         notes: [],
-        target: { providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "medium" } },
+        target: { providerInstanceId: "claudeAgent", model: "claude-opus-5-5", options: { effort: "medium", fastMode: false } },
       },
       {
         index: 1,
@@ -121,7 +121,7 @@ test("a candidate whose provider instance is not registered falls back to its dr
   assert.deepEqual(resolution.delegateTask?.target, {
     providerInstanceId: "claude-main",
     model: "claude-opus-5-5",
-    options: { effort: "medium" },
+    options: { effort: "medium", fastMode: false },
   });
   assert.deepEqual(resolution.fallbacks, [
     { providerInstanceId: "codex-main", model: "gpt-6.2-sol", options: { reasoningEffort: "high" } },
@@ -165,8 +165,8 @@ test("a provider that lists no models accepts any model", () => {
 });
 
 test("maps effort onto each driver's advertised option", () => {
-  const cases: [Candidate, Record<string, string>, string[]][] = [
-    [{ driver: "claudeAgent", model: "claude-sonnet-5-5", effort: "max" }, { effort: "max" }, []],
+  const cases: [Candidate, Record<string, string | boolean>, string[]][] = [
+    [{ driver: "claudeAgent", model: "claude-sonnet-5-5", effort: "max" }, { effort: "max", fastMode: false }, []],
     [{ driver: "codex", model: "gpt-6.2-sol", effort: "max" }, { reasoningEffort: "max" }, []],
     [
       { driver: "codex", model: "gpt-6-luna", effort: "max" },
@@ -357,16 +357,16 @@ test("driver-only candidates prefer the inherited provider instance", () => {
 
 test("every default role resolves when its models are advertised", () => {
   const c = caps();
-  const expected: Record<string, [string, string, Record<string, string>]> = {
+  const expected: Record<string, [string, string, Record<string, string | boolean>]> = {
     "explore": ["codex", "gpt-6.2-sol", {"reasoningEffort": "low", "serviceTier": "priority"}],
     "research": ["codex", "gpt-6.2-sol", {"reasoningEffort": "medium", "serviceTier": "priority"}],
     "plan-review": ["codex", "gpt-6.2-astra", {"reasoningEffort": "high", "serviceTier": "priority"}],
-    "execute": ["claudeAgent", "claude-opus-5-5", {"effort": "medium"}],
+    "execute": ["claudeAgent", "claude-opus-5-5", {"effort": "medium", "fastMode": false}],
     "review": ["codex", "gpt-6.2-sol", {"reasoningEffort": "xhigh", "serviceTier": "priority"}],
     "oracle": ["codex", "gpt-6.2-sol", {"reasoningEffort": "xhigh", "serviceTier": "priority"}],
     "qa": ["codex", "gpt-6.2-sol", {"reasoningEffort": "medium", "serviceTier": "priority"}],
     "judge": ["codex", "gpt-6.2-sol", {"reasoningEffort": "medium", "serviceTier": "priority"}],
-    "writing": ["claudeAgent", "claude-opus-5-5", {"effort": "medium"}],
+    "writing": ["claudeAgent", "claude-opus-5-5", {"effort": "medium", "fastMode": false}],
     "design": ["claudeAgent", "claude-fable-5-2", {"effort": "medium"}],
     "ui": ["claudeAgent", "claude-fable-5-2", {"effort": "medium"}],
   };
@@ -402,6 +402,7 @@ test("every default role is unverified with provider instance targets without ca
       { providerInstanceId: first.driver, model: first.model, options: {
         [optionId]: first.effort,
         ...(first.driver === "codex" ? { serviceTier: first.fast === "ultrafast" ? "ultrafast" : "priority" } : {}),
+        ...(first.model.startsWith("claude-opus") ? { fastMode: false } : {}),
       } },
       name,
     );

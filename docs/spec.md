@@ -1445,7 +1445,7 @@ Status:
 
 ### 8.4 Fast mode
 
-For each candidate, the first defined value wins: `candidate.fast`, `roles.<role>.fast`, `models.<model id>.fast`, then `false`. Explicit `false` stops inheritance. It adds no fast option, so the provider default applies. A raw option in `candidate.options` still applies.
+For each candidate, the first defined value wins: `candidate.fast`, `roles.<role>.fast`, `models.<model id>.fast`, then `false`. Explicit `false` stops inheritance. A resolved `false` gives `fastMode: false` to a `claudeAgent` target whose model advertises a boolean `fastMode`, also when it advertises a `serviceTier`, or, without capabilities, whose model id starts with `claude-opus`. This is because T3 copies the parent thread's options into a child on the same model, so a parent in fast mode would pass it on. Other targets get no fast option, so the provider default applies. A raw option in `candidate.options` still applies.
 
 With `fast: true` and known capabilities:
 
